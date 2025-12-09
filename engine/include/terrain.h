@@ -1,0 +1,32 @@
+#pragma once
+
+#include "raylib.h"
+#include "renderer.h"
+#include <string>
+#include <vector>
+
+namespace criogenio {
+
+struct TileLayer {
+  int width;
+  int height;
+  std::vector<int> tiles;
+};
+
+struct Tileset {
+  Texture2D atlas;
+  int tileSize;
+  int columns;
+  int rows;
+};
+
+// Think about the 3D terrain
+
+class Terrain {
+public:
+  Tileset tileset;
+  std::vector<TileLayer> layers;
+  void Render(Renderer &renderer);
+};
+
+} // namespace criogenio

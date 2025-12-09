@@ -1,0 +1,12 @@
+out/
+bin/
+build/
+.vs
+.idea/
+CMakeSettings.json
+Makefile
+logs.txt
+raygui-master
+raylib-master
+imgui-master
+*/obj
