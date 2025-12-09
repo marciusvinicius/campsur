@@ -70,11 +70,11 @@ function check_raylib()
 end
 
 function check_raygui()
-	if os.isdir("raygui") == false and os.isdir("imgui-master") == false then
+	if os.isdir("raygui") == false and os.isdir("raygui-master") == false then
 		if not os.isfile("raygui-master.zip") then
 			print("raygui not found, downloading from github")
 			local result_str, response_code =
-				http.download("https://github.com/ocornut/raygui/archive/refs/tags/v1.92.5.zip", "imgui-master.zip", {
+				http.download("https://github.com/raysan5/raygui/archive/refs/heads/master.zip", "raygui-master.zip", {
 					progress = download_progress,
 					headers = { "From: Premake", "Referer: Premake" },
 				})

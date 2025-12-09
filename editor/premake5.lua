@@ -5,6 +5,9 @@ kind("ConsoleApp")
 location("./")
 targetdir("../bin/%{cfg.buildcfg}")
 
+cdialect("C23")
+cppdialect("C++23")
+
 filter("action:vs*")
 debugdir("$(SolutionDir)")
 

@@ -1,6 +1,8 @@
 #include "system.h"
 #include "components.h"
 #include "scene.h"
+#include <set>
+#include <algorithm>
 
 namespace criogenio {
 

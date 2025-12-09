@@ -10,3 +10,8 @@ raygui-master
 raylib-master
 imgui-master
 */obj
+*.sln
+*.filters
+*.zip
+*.vcxproj
+*.user
