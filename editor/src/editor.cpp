@@ -5,7 +5,7 @@
 #include "raymath.h" // <-- add this
 #include "terrain.h"
 
-#define RAYGUI_IMPLEMENTATION
+//#define RAYGUI_IMPLEMENTATION
 // #include "raygui.h"
 
 using namespace criogenio;
