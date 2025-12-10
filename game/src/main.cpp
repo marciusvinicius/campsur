@@ -1,6 +1,6 @@
+#include "components.h"
 #include "engine.h"
 #include "game.h"
-#include "components.h"
 #include "scene.h"
 
 // TODO:(maraujo) remove this and create this on engine
@@ -23,11 +23,11 @@ int main() {
 
   int entityId = scene.CreateEntity("Player");
 
-  criogenio::Transform* transform = scene.AddComponent<criogenio::Transform>(entityId);
+  criogenio::Transform *transform =
+      scene.AddComponent<criogenio::Transform>(entityId);
 
   transform->x = 200;
   transform->y = 100;
-
   engine.Run();
   return 0;
 }

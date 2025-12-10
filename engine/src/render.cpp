@@ -1,4 +1,3 @@
-#include "include/renderer.h"
 #include "renderer.h"
 
 namespace criogenio {

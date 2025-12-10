@@ -77,9 +77,14 @@ void EditorApp::DrawSceneView() {
   GetScene().Render(GetRenderer()); // expose renderer getter
   // highlight selected entity
   if (selectedEntityId.has_value()) {
+<<<<<<< HEAD
     auto &transform =
 		GetScene().GetComponent<criogenio::Transform>(selectedEntityId.value());
     DrawRectangleLines(transform.x - 2, transform.y - 2, 36, 36, YELLOW);
+=======
+    auto &e = GetScene().GetEntityById(selectedEntityId.value());
+    DrawRectangleLines(e.transform.x - 2, e.transform.y - 2, 36, 36, YELLOW);
+>>>>>>> 8ae6e0b (Adding a naive aproach for entity component)
   }
 
   EndScissorMode();
@@ -125,17 +130,29 @@ void EditorApp::DrawInspectorPanel() {
   if (!selectedEntityId.has_value())
     return;
 
+<<<<<<< HEAD
   auto &name = GetScene().GetComponent<Name>(selectedEntityId.value());
 
   char buf[128];
   snprintf(buf, sizeof(buf), "Entity: %s", name.name.c_str());
+=======
+  auto name = GetScene().GetComponent<Name>(selectedEntityId.value());
+
+  char buf[128];
+  snprintf(buf, sizeof(buf), "Entity: %s", name->name.c_str());
+>>>>>>> 8ae6e0b (Adding a naive aproach for entity component)
   DrawText(buf, x + 10, 50, 18, WHITE);
 
   // Transform fields
   DrawText("Position:", x + 10, 100, 16, WHITE);
 
+<<<<<<< HEAD
   auto &transform =
       GetScene().GetComponent<criogenio::Transform>(selectedEntityId.value());
+=======
+  auto *transform =
+      GetScene().GetComponent<Transform>(selectedEntityId.value());
+>>>>>>> 8ae6e0b (Adding a naive aproach for entity component)
 
   DrawText(TextFormat("X: %.1f", transform.x), x + 20, 130, 16, WHITE);
   DrawText(TextFormat("Y: %.1f", transform.y), x + 20, 160, 16, WHITE);
@@ -156,8 +173,13 @@ void EditorApp::HandleMouseSelection() {
     Vector2 mouseScreen = GetMousePosition();
     Vector2 worldMouse = GetScreenToWorld2D(mouseScreen, GetScene().maincamera);
 
+<<<<<<< HEAD
     for (int entityId : GetScene().GetEntitiesWith<criogenio::Transform>()) {
       auto &transform = GetScene().GetComponent<criogenio::Transform>(entityId);
+=======
+    for (int entityId : GetScene().GetEntitiesWith<Transform>()) {
+      auto *transform = GetScene().GetComponent<Transform>(entityId);
+>>>>>>> 8ae6e0b (Adding a naive aproach for entity component)
       // Assuming each entity has a 32x32 size for selection purposes
       Rectangle r = {transform.x, transform.y, 32.0f,
                      32.0f}; // world-space rect
@@ -189,10 +211,17 @@ void EditorApp::HandleEntityDrag() {
 
     Vector2 drag = Vector2Subtract(currWorld, prevWorld);
 
+<<<<<<< HEAD
     auto &transform =
         GetScene().GetComponent<criogenio::Transform>(selectedEntityId.value());
     transform.x += drag.x;
     transform.y += drag.y;
+=======
+    auto *transform =
+        GetScene().GetComponent<Transform>(selectedEntityId.value());
+    transform->x += drag.x;
+    transform->y += drag.y;
+>>>>>>> 8ae6e0b (Adding a naive aproach for entity component)
   }
 }
 
@@ -255,7 +284,12 @@ void EditorApp::HandleInput() {
 
 void EditorApp::OnGUI() {
   if (selectedEntityId.has_value()) {
+<<<<<<< HEAD
     auto &nameComp = GetScene().GetComponent<criogenio::Name>(selectedEntityId.value());
     DrawText(nameComp.name.c_str(), 10, 10, 20, WHITE);
+=======
+    auto *nameComp = GetScene().GetComponent<Name>(selectedEntityId.value());
+    DrawText(nameComp->name.c_str(), 10, 10, 20, WHITE);
+>>>>>>> 8ae6e0b (Adding a naive aproach for entity component)
   }
 }
