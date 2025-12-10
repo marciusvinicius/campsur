@@ -81,6 +81,7 @@ echo "==== Building camp_sur_cpp (debug_x64) ===="
 make --no-print-directory -C editor -f Makefile config=debug_x64
 echo Creating obj/x64/Debug
 mkdir -p obj/x64/Debug
+ 
 echo "editor.cpp"
 g++   -MD -MP -DDEBUG -D_GLIBCXX_ASSERTIONS -DPLATFORM_DESKTOP -DGRAPHICS_API_OPENGL_33 -D_GLFW_X11 -D_GNU_SOURCE -I../game -I../game/src -I../game/include -I../snakegame -I../snakegame/src -I../snakegame/include -I. -Isrc -Iinclude -I../engine/include -I../engine -I../raylib-master/src -I../raylib-master/src/external -I../raylib-master/src/external/glfw/include -Iraygui-master -Iraygui-masterbackends -Iraygui-mastermisc -Iraygui-mastermisccpp -m64 -O0 -g -std=c++23  -o "obj/x64/Debug/editor.o" -MF "obj/x64/Debug/editor.d" -c "src/editor.cpp"
 echo "main.cpp"

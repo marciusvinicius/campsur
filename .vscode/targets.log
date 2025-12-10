@@ -6,12 +6,12 @@ make all --print-data-base --no-builtin-variables --no-builtin-rules --question
 # This is free software: you are free to change and redistribute it.
 # There is NO WARRANTY, to the extent permitted by law.
 
-# Make data base, printed on Tue Dec  9 13:16:14 2025
+# Make data base, printed on Wed Dec 10 08:38:46 2025
 
 # Variables
 
 # environment
-TMUX_PANE = %1
+TMUX_PANE = %2
 # environment
 GDK_BACKEND = wayland
 # environment
@@ -19,12 +19,12 @@ LC_ALL = C
 # environment
 NO_AT_BRIDGE = 1
 # environment
+ 
 LC_NAME = pt_BR.UTF-8
 # environment
 LC_NUMERIC = pt_BR.UTF-8
 # environment
 VSCODE_CRASH_REPORTER_PROCESS_TYPE = extensionHost
- 
 # environment
 VSCODE_CWD = /home/marcius/Workspace/criogenio/camp_sur_cpp
 # environment
@@ -104,7 +104,7 @@ raylib_config = debug_x64
 # environment
 ZSH = /home/marcius/.oh-my-zsh
 # environment
-VSCODE_PID = 338806
+VSCODE_PID = 548391
 # environment
 MOZ_ENABLE_WAYLAND = 1
 # environment
@@ -112,7 +112,7 @@ XDG_SESSION_TYPE = wayland
 # makefile (from 'Makefile', line 51)
 PROJECTS := raylib raygui camp_sur_cpp engine
 # environment
-TMUX = /tmp/tmux-1000/default,234897,0
+TMUX = /tmp/tmux-1000/default,234897,1
 # automatic
 ?D = $(patsubst %/,%,$(dir $?))
 # environment
@@ -142,13 +142,13 @@ KITTY_PUBLIC_KEY = 1:K-x$c8hZ+)m{g&fU|c=|GmQVEfEz6`(AP&6wQUt}
 # environment
 QT_QPA_PLATFORM = wayland;xcb
 # environment
+ 
 HYPRCURSOR_SIZE = 24
 # environment
 SHLVL = 3
 # environment
 TERMINFO = /usr/lib/kitty/terminfo
 # environment
- 
 STEAM_LIBRARY = /mnt/criogenio/SteamLibrary
 # environment
 MAKELEVEL := 0
@@ -213,6 +213,7 @@ XDG_VTNR = 1
 # environment
 KITTY_WINDOW_ID = 1
 # environment
+ 
 DISPLAY = :1
 # environment
 USER = marcius
@@ -283,6 +284,7 @@ VSCODE_ESM_ENTRYPOINT = vs/workbench/api/node/extensionHostProcess
 # environment
 LC_IDENTIFICATION = pt_BR.UTF-8
 # variable set hash-table stats:
+ 
 # Load=135/1024=13%, Rehash=0, Collisions=16/180=9%
 
 # Pattern-specific Variable Values
@@ -291,9 +293,9 @@ LC_IDENTIFICATION = pt_BR.UTF-8
 
 # Directories
 
-# . (device 48, inode 4799213): 21 files, no impossibilities.
+# . (device 48, inode 4799213): 20 files, no impossibilities.
 
-# 21 files, no impossibilities in 1 directories.
+# 20 files, no impossibilities in 1 directories.
 
 # Implicit Rules
 
@@ -329,8 +331,8 @@ camp_sur_cpp: engine raylib raygui
 
 clean:
 #  Phony target (prerequisite of .PHONY).
-#  Implicit rule search has not been done.
  
+#  Implicit rule search has not been done.
 #  File does not exist.
 #  File has not been updated.
 #  recipe to execute (from 'Makefile', line 82):
@@ -382,6 +384,7 @@ help:
 	@echo "For more information, see https://github.com/premake/premake-core/wiki"
 
 raygui:
+ 
 #  Phony target (prerequisite of .PHONY).
 #  Implicit rule search has not been done.
 #  File does not exist.
@@ -435,15 +438,16 @@ raylib:
 # VPATH Search Paths
 
 # No 'vpath' search paths.
+ 
 
 # No general ('VPATH' variable) search path.
 
-# strcache buffers: 1 (0) / strings = 33 / storage = 312 B / avg = 9 B
-# current buf: size = 8162 B / used = 312 B / count = 33 / avg = 9 B
+# strcache buffers: 1 (0) / strings = 32 / storage = 302 B / avg = 9 B
+# current buf: size = 8162 B / used = 302 B / count = 32 / avg = 9 B
 
-# strcache performance: lookups = 61 / hit rate = 45%
+# strcache performance: lookups = 60 / hit rate = 46%
 # hash-table stats:
-# Load=33/8192=0%, Rehash=0, Collisions=0/61=0%
-# Finished Make data base on Tue Dec  9 13:16:14 2025
+# Load=32/8192=0%, Rehash=0, Collisions=0/60=0%
+# Finished Make data base on Wed Dec 10 08:38:46 2025
 
  
