@@ -2,7 +2,7 @@
 
 #include "input.h"
 
-#include "raymath.h" // <-- add this
+#include "raymath.h"
 #include "terrain.h"
 
 #define RAYGUI_IMPLEMENTATION
@@ -73,17 +73,14 @@ void EditorApp::DrawSceneView() {
   // Let engine render inside
   BeginScissorMode(leftPanelWidth, 0, sceneRect.width, sceneRect.height);
   // Debug: draw grid and origin so you can see things are visible
-  BeginMode2D(cam);
-  DrawGrid(100, 32);
-  DrawCircle(0, 0, 6, RED);
 
   GetScene().Render(GetRenderer()); // expose renderer getter
   // highlight selected entity
   if (selectedEntityId.has_value()) {
-    auto &e = GetScene().GetEntityById(*selectedEntityId);
+    auto &e = GetScene().GetEntityById(selectedEntityId.value());
     DrawRectangleLines(e.transform.x - 2, e.transform.y - 2, 36, 36, YELLOW);
   }
-  EndMode2D();
+
   EndScissorMode();
 }
 
@@ -94,26 +91,28 @@ void EditorApp::DrawHierarchyPanel() {
   int y = 40;
 
   DrawButton(10, y, 180, 25, "Create Terrain", [&]() {
-    auto &t = GetScene().CreateTerrain("Terrain", "editor/assets/terrain.jpg");
+    auto &t =
+        GetScene().CreateTerrain2D("Terrain", "editor/assets/terrain.jpg");
   });
   y += 40;
 
   DrawButton(10, y, 180, 25, "Create Entity",
-             [&]() { auto &e = GetScene().CreateEntity("New Entity"); });
+             [&]() { int id = GetScene().CreateEntity("New Entity"); });
   y += 40;
+  /**
+    for (auto &e : GetScene().GetEntities()) { // add getter (shown below)
+      Color col = (selectedEntityId == e->id) ? YELLOW : WHITE;
+      DrawText(e->name.c_str(), 10, y, 18, col);
 
-  for (auto &e : GetScene().GetEntities()) { // add getter (shown below)
-    Color col = (selectedEntityId == e->id) ? YELLOW : WHITE;
-    DrawText(e->name.c_str(), 10, y, 18, col);
+      if (CheckCollisionPointRec(GetMousePosition(),
+                                 {0, (float)y, (float)leftPanelWidth, 20}) &&
+          IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        selectedEntityId = e->id;
+      }
 
-    if (CheckCollisionPointRec(GetMousePosition(),
-                               {0, (float)y, (float)leftPanelWidth, 20}) &&
-        IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-      selectedEntityId = e->id;
+      y += 22;
     }
-
-    y += 22;
-  }
+    **/
 }
 
 void EditorApp::DrawInspectorPanel() {
@@ -125,17 +124,20 @@ void EditorApp::DrawInspectorPanel() {
   if (!selectedEntityId.has_value())
     return;
 
-  auto &e = GetScene().GetEntityById(*selectedEntityId);
+  auto name = GetScene().GetComponent<Name>(selectedEntityId.value());
 
   char buf[128];
-  snprintf(buf, sizeof(buf), "Entity: %s", e.name.c_str());
+  snprintf(buf, sizeof(buf), "Entity: %s", name->name.c_str());
   DrawText(buf, x + 10, 50, 18, WHITE);
 
   // Transform fields
   DrawText("Position:", x + 10, 100, 16, WHITE);
 
-  DrawText(TextFormat("X: %.1f", e.transform.x), x + 20, 130, 16, WHITE);
-  DrawText(TextFormat("Y: %.1f", e.transform.y), x + 20, 160, 16, WHITE);
+  auto *transform =
+      GetScene().GetComponent<Transform>(selectedEntityId.value());
+
+  DrawText(TextFormat("X: %.1f", transform.x), x + 20, 130, 16, WHITE);
+  DrawText(TextFormat("Y: %.1f", transform.y), x + 20, 160, 16, WHITE);
 }
 
 bool EditorApp::IsMouseInSceneView() {
@@ -153,15 +155,16 @@ void EditorApp::HandleMouseSelection() {
     Vector2 mouseScreen = GetMousePosition();
     Vector2 worldMouse = GetScreenToWorld2D(mouseScreen, GetScene().maincamera);
 
-    for (auto &e : GetScene().GetEntities()) {
-      Rectangle r = {e->transform.x, e->transform.y, 32.0f,
+    for (int entityId : GetScene().GetEntitiesWith<Transform>()) {
+      auto *transform = GetScene().GetComponent<Transform>(entityId);
+      // Assuming each entity has a 32x32 size for selection purposes
+      Rectangle r = {transform.x, transform.y, 32.0f,
                      32.0f}; // world-space rect
       if (CheckCollisionPointRec(worldMouse, r)) {
-        selectedEntityId = e->id;
+        selectedEntityId = entityId;
         return;
       }
     }
-    selectedEntityId.reset();
   }
 }
 
@@ -172,7 +175,6 @@ void EditorApp::HandleEntityDrag() {
     return;
 
   if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
-    auto &e = GetScene().GetEntityById(*selectedEntityId);
     // Convert previous and current mouse positions to world coordinates,
     // so drag works correctly under zoom and pan.
     Vector2 mouseScreen = GetMousePosition();
@@ -186,8 +188,10 @@ void EditorApp::HandleEntityDrag() {
 
     Vector2 drag = Vector2Subtract(currWorld, prevWorld);
 
-    e.transform.x += drag.x;
-    e.transform.y += drag.y;
+    auto *transform =
+        GetScene().GetComponent<Transform>(selectedEntityId.value());
+    transform->x += drag.x;
+    transform->y += drag.y;
   }
 }
 
@@ -249,17 +253,8 @@ void EditorApp::HandleInput() {
 }
 
 void EditorApp::OnGUI() {
-  // ImGui::Begin("Hierarchy");
-  for (auto &e : GetScene().GetEntities()) {
-    // ImGui::Text("%s", e->name.c_str());
-  }
-  // ImGui::End();
-
-  // ImGui::Begin("Inspector");
   if (selectedEntityId.has_value()) {
-    auto &ent = GetScene().GetEntityById(*selectedEntityId);
-    // ImGui::InputFloat("X", &ent.transform.x);
-    // ImGui::InputFloat("Y", &ent.transform.y);
+    auto *nameComp = GetScene().GetComponent<Name>(selectedEntityId.value());
+    DrawText(nameComp->name.c_str(), 10, 10, 20, WHITE);
   }
-  // ImGui::End();
 }

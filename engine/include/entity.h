@@ -6,7 +6,8 @@
 // ID and I have a array of components
 
 namespace criogenio {
-class Entity {
+
+/**  class Entity {
 public:
   int id;
   std::string name;
@@ -15,6 +16,10 @@ public:
   Collider collider;
   bool hasCollider = false;
   Entity(int id, const std::string &name);
+};
+**/
+struct Entity {
+  int id;
 };
 
 } // namespace criogenio

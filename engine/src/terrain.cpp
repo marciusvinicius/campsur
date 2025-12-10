@@ -1,7 +1,7 @@
 #include "terrain.h"
 
 namespace criogenio {
-void Terrain::Render(Renderer &renderer) {
+void Terrain2D ::Render(Renderer &renderer) {
   // Render the terrain lay
   for (const auto &layer : layers) {
     for (int y = 0; y < layer.height; y++) {
@@ -23,6 +23,11 @@ void Terrain::Render(Renderer &renderer) {
       }
     }
   }
+}
+
+void Terrain3D ::Render(Renderer &renderer) {
+  // Render the 3D terrain model
+  DrawModel(model, Vector3{0.0f, 0.0f, 0.0f}, 1.0f, WHITE);
 }
 
 } // namespace criogenio
