@@ -2,6 +2,7 @@ out/
 bin/
 build/
 .vs
+
 .idea/
 CMakeSettings.json
 Makefile
@@ -15,3 +16,4 @@ imgui-master
 *.zip
 *.vcxproj
 *.user
+.vscode/*.log
