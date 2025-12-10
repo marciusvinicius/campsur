@@ -60,19 +60,53 @@ end
 function link_raygui()
 	links({ "raygui" })
 	raygui_dir = get_raygui_dir()
+
+	platform_defines()
+
+	filter("files:**.dll")
+	buildaction("Copy")
 	includedirs({ raygui_dir })
 	includedirs({ raygui_dir .. "backends" })
 	includedirs({ raygui_dir .. "misc" })
 	includedirs({ raygui_dir .. "misc" .. "cpp" })
-	filter("files:**.dll")
-	buildaction("Copy")
+
+	filter("action:vs*")
+	defines({ "_WINSOCK_DEPRECATED_NO_WARNINGS", "_CRT_SECURE_NO_WARNINGS" })
+	dependson({ "raylib" })
+	links({ "raylib.lib" })
+	characterset("MBCS")
+	buildoptions({ "/Zc:__cplusplus" })
+
+	filter("system:windows")
+	defines({ "_WIN32" })
+	links({ "winmm", "gdi32", "opengl32" })
+	libdirs({ "../bin/%{cfg.buildcfg}" })
+
+	filter("system:linux")
+	links({ "pthread", "m", "dl", "rt", "X11" })
+
+	filter("system:macosx")
+	links({
+		"OpenGL.framework",
+		"Cocoa.framework",
+		"IOKit.framework",
+		"CoreFoundation.framework",
+		"CoreAudio.framework",
+		"CoreVideo.framework",
+		"AudioToolbox.framework",
+	})
 	filter({})
+
 end
 
 function include_raygui()
 	raygui_dir = get_raygui_dir()
 	includedirs({ raygui_dir })
 	includedirs({ raygui_dir .. "backends" })
+	filter("action:vs*")
+	defines({ "_WINSOCK_DEPRECATED_NO_WARNINGS", "_CRT_SECURE_NO_WARNINGS" })
+	filter({})
+
 end
 
 project("raygui")
@@ -83,6 +117,16 @@ platform_defines()
 location(raygui_dir)
 language("C")
 targetdir("bin/%{cfg.buildcfg}")
+
+filter({ "system:windows", "options:backend=SDL3", "platforms:x64", "action:gmake*" })
+includedirs({ "SDL3/x86_64-w64-mingw32/include/SDL3" })
+includedirs({ "SDL3/x86_64-w64-mingw32/include" })
+
+filter("action:vs*")
+defines({ "_WINSOCK_DEPRECATED_NO_WARNINGS", "_CRT_SECURE_NO_WARNINGS" })
+characterset("MBCS")
+buildoptions({ "/Zc:__cplusplus" })
+filter({})
 
 print("Using raygui dir " .. raygui_dir)
 filter("system:linux")
@@ -95,4 +139,5 @@ vpaths({
 	["Header Files/*"] = { raygui_dir .. "src/**.h" },
 })
 files({ raygui_dir .. "/src/*.h", raylib_dir .. "/src/*.c" })
+compileas("Objective-C")
 filter({})

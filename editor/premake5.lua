@@ -47,7 +47,7 @@ includedirs({ "include" })
 
 link_to("engine")
 link_raylib()
-link_raygui()
+--link_raygui()
 --link_to("../bin/Debug/ImGui")
 
 -- To link to a lib use link_to("LIB_FOLDER_NAME")

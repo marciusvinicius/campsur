@@ -195,10 +195,10 @@ end
 cdialect("C23")
 cppdialect("C++23")
 check_raylib()
-check_raygui()
+--check_raygui()
 
 include("raylib_premake5.lua")
-include("raygui_premake5.lua")
+--include("raygui_premake5.lua")
 
 if os.isdir("game") then
 	include("game")
@@ -207,7 +207,7 @@ end
 if os.isdir("snakegame") then
 	include("snakegame")
 end
-
+  
 if os.isdir("editor") then
 	include("editor")
 end
