@@ -77,8 +77,9 @@ void EditorApp::DrawSceneView() {
   GetScene().Render(GetRenderer()); // expose renderer getter
   // highlight selected entity
   if (selectedEntityId.has_value()) {
-    auto &e = GetScene().GetEntityById(selectedEntityId.value());
-    DrawRectangleLines(e.transform.x - 2, e.transform.y - 2, 36, 36, YELLOW);
+    auto &transform =
+		GetScene().GetComponent<criogenio::Transform>(selectedEntityId.value());
+    DrawRectangleLines(transform.x - 2, transform.y - 2, 36, 36, YELLOW);
   }
 
   EndScissorMode();
@@ -124,17 +125,17 @@ void EditorApp::DrawInspectorPanel() {
   if (!selectedEntityId.has_value())
     return;
 
-  auto name = GetScene().GetComponent<Name>(selectedEntityId.value());
+  auto &name = GetScene().GetComponent<Name>(selectedEntityId.value());
 
   char buf[128];
-  snprintf(buf, sizeof(buf), "Entity: %s", name->name.c_str());
+  snprintf(buf, sizeof(buf), "Entity: %s", name.name.c_str());
   DrawText(buf, x + 10, 50, 18, WHITE);
 
   // Transform fields
   DrawText("Position:", x + 10, 100, 16, WHITE);
 
-  auto *transform =
-      GetScene().GetComponent<Transform>(selectedEntityId.value());
+  auto &transform =
+      GetScene().GetComponent<criogenio::Transform>(selectedEntityId.value());
 
   DrawText(TextFormat("X: %.1f", transform.x), x + 20, 130, 16, WHITE);
   DrawText(TextFormat("Y: %.1f", transform.y), x + 20, 160, 16, WHITE);
@@ -155,8 +156,8 @@ void EditorApp::HandleMouseSelection() {
     Vector2 mouseScreen = GetMousePosition();
     Vector2 worldMouse = GetScreenToWorld2D(mouseScreen, GetScene().maincamera);
 
-    for (int entityId : GetScene().GetEntitiesWith<Transform>()) {
-      auto *transform = GetScene().GetComponent<Transform>(entityId);
+    for (int entityId : GetScene().GetEntitiesWith<criogenio::Transform>()) {
+      auto &transform = GetScene().GetComponent<criogenio::Transform>(entityId);
       // Assuming each entity has a 32x32 size for selection purposes
       Rectangle r = {transform.x, transform.y, 32.0f,
                      32.0f}; // world-space rect
@@ -188,10 +189,10 @@ void EditorApp::HandleEntityDrag() {
 
     Vector2 drag = Vector2Subtract(currWorld, prevWorld);
 
-    auto *transform =
-        GetScene().GetComponent<Transform>(selectedEntityId.value());
-    transform->x += drag.x;
-    transform->y += drag.y;
+    auto &transform =
+        GetScene().GetComponent<criogenio::Transform>(selectedEntityId.value());
+    transform.x += drag.x;
+    transform.y += drag.y;
   }
 }
 
@@ -254,7 +255,7 @@ void EditorApp::HandleInput() {
 
 void EditorApp::OnGUI() {
   if (selectedEntityId.has_value()) {
-    auto *nameComp = GetScene().GetComponent<Name>(selectedEntityId.value());
-    DrawText(nameComp->name.c_str(), 10, 10, 20, WHITE);
+    auto &nameComp = GetScene().GetComponent<criogenio::Name>(selectedEntityId.value());
+    DrawText(nameComp.name.c_str(), 10, 10, 20, WHITE);
   }
 }

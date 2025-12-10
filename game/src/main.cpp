@@ -1,5 +1,8 @@
 #include "engine.h"
 #include "game.h"
+#include "components.h"
+#include "scene.h"
+
 // TODO:(maraujo) remove this and create this on engine
 #include "raylib.h"
 
@@ -18,22 +21,12 @@ int main() {
 
   scene.AttachCamera2D(maincamera);
 
-  Entity &player = scene.CreateEntity("Player");
+  int entityId = scene.CreateEntity("Player");
 
-  player.transform.x = 200;
-  player.transform.y = 100;
+  criogenio::Transform* transform = scene.AddComponent<criogenio::Transform>(entityId);
 
-  AnimatedSprite animatedSprite;
-  animatedSprite.path = "game/assets/body_man_";
-  // Load frames for animated sprite
-  for (int i = 1; i <= 4; ++i) {
-    std::string framePath = animatedSprite.path + std::to_string(i) + ".png";
-    Texture2D frameTexture = CriogenioLoadTexture(framePath);
-    animatedSprite.frames.push_back(frameTexture);
-  }
-  animatedSprite.loaded = true;
-
-  scene.AttachCompoentntToEntity(player.id, animatedSprite);
+  transform->x = 200;
+  transform->y = 100;
 
   engine.Run();
   return 0;

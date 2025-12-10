@@ -9,8 +9,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "components.h"
 #include "terrain.h"
+#include "components.h"
 
 namespace criogenio {
 
@@ -33,17 +33,17 @@ public:
     return component;
   }
 
-  template <typename T> T *GetComponent(int entityId) {
+  template <typename T> T &GetComponent(int entityId) {
     auto it = entities.find(entityId);
     if (it == entities.end())
-      return nullptr;
+          throw std::runtime_error("Entity not found");
 
     auto &comps = it->second;
     for (auto &c : comps) {
-      if (auto casted = dynamic_cast<T *>(c.get()))
-        return casted;
+        if (auto casted = dynamic_cast<T *>(c.get()))
+            return *casted;
     }
-    return nullptr;
+    throw std::runtime_error("Component not found");
   }
 
   template <typename T> std::vector<int> GetEntitiesWith() {

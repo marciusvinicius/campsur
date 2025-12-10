@@ -27,6 +27,9 @@ class Transform : public Component {
 public:
   float x = 0;
   float y = 0;
+
+  Transform() = default;
+  Transform(float x, float y) : x(x), y(y) {}
 };
 
 class Sprite : public Component {
