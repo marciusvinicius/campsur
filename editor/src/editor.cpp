@@ -64,15 +64,14 @@ void EditorApp::DrawSceneView() {
   DrawRectangleRec(sceneRect, BLACK);
   Camera2D cam = Camera2D();
   cam.offset = {sceneRect.x + sceneRect.width / 2.0f,
-				sceneRect.y + sceneRect.height / 2.0f };
-  cam.target = { 0.0f, 0.0f };
+                sceneRect.y + sceneRect.height / 2.0f};
+  cam.target = {0.0f, 0.0f};
   cam.rotation = 0.0f;
   cam.zoom = 1.0f;
 
-
   // Update camera offset to the center of the scene view (important!)
   GetScene().AttachCamera2D(cam);
-  
+
   DrawRectangleRec(sceneRect, BLACK);
 
   // Let engine render inside
@@ -94,17 +93,57 @@ void EditorApp::DrawHierarchyPanel() {
   DrawText("Entities", 10, 10, 20, RAYWHITE);
 
   int y = 40;
-
   DrawButton(10, y, 180, 25, "Create Terrain", [&]() {
     auto &t =
         GetScene().CreateTerrain2D("Terrain", "editor/assets/terrain.jpg");
   });
   y += 40;
 
-  DrawButton(10, y, 180, 25, "Create Entity",
-             [&]() { int id = GetScene().CreateEntity("New Entity"); });
-  y += 40;
+  DrawButton(10, y, 180, 25, "Create Animated Entity", [&]() {
+    int id = GetScene().CreateEntity("New Entity");
+    GetScene().AddComponent<criogenio::Transform>(id, 0.0f, 0.0f);
+    auto texture = LoadTexture("editor/assets/body_man.png");
+    if (!texture.id) {
+      printf("Failed to load texture for animated sprite\n");
+      return;
+    }
+    /// Make this data-driven later
+    std::vector<Rectangle> idleUp = {
+        {0, 0, 64, 64},
+        {64, 0, 64, 64},
+        {128, 0, 64, 64},
+    };
 
+    std::vector<Rectangle> idleDown = {
+        {0, 64, 64, 64},
+        {64, 64, 64, 64},
+        {128, 64, 64, 64},
+    };
+
+    std::vector<Rectangle> idleLeft = {
+        {0, 128, 64, 64},
+        {64, 128, 64, 64},
+        {128, 128, 64, 64},
+    };
+
+    std::vector<Rectangle> idleRight = {
+        {0, 192, 64, 64},
+        {64, 192, 64, 64},
+        {128, 192, 64, 64},
+    };
+
+    auto *anim = GetScene().AddComponent<criogenio::AnimatedSprite>(
+        id,
+        "idleUp", // initial animation
+        idleUp,   // frames
+        0.15f,    // speed
+        texture);
+
+    anim->AddAnimation("idleDown", idleLeft, 0.15f);
+    anim->AddAnimation("idleLeft", idleDown, 0.15f);
+    anim->AddAnimation("idleRight", idleRight, 0.15f);
+  });
+  y += 40;
   for (int entityId : GetScene().GetEntitiesWith<criogenio::Name>()) {
     auto &name = GetScene().GetComponent<Name>(entityId);
     bool isSelected =
@@ -143,6 +182,26 @@ void EditorApp::DrawInspectorPanel() {
       GetScene().GetComponent<criogenio::Transform>(selectedEntityId.value());
   DrawText(TextFormat("X: %.1f", transform.x), x + 20, 130, 16, WHITE);
   DrawText(TextFormat("Y: %.1f", transform.y), x + 20, 160, 16, WHITE);
+
+  // More components can be added here later
+  auto &animSprite = GetScene().GetComponent<criogenio::AnimatedSprite>(
+      selectedEntityId.value());
+  DrawText("Animated Sprite:", x + 10, 200, 16, WHITE);
+  DrawText(TextFormat("Current Anim: %s", animSprite.currentAnim.c_str()),
+           x + 20, 230, 16, WHITE);
+  DrawText(TextFormat("Frame Index: %d", animSprite.frameIndex), x + 20, 260,
+           16, WHITE);
+  DrawText(TextFormat("Timer: %.2f", animSprite.timer), x + 20, 290, 16, WHITE);
+  DrawText(TextFormat("Total Anims: %d", (int)animSprite.animations.size()),
+           x + 20, 320, 16, WHITE);
+  // Select animation
+  int y = 350;
+  for (const auto &pair : animSprite.animations) {
+    const std::string &animName = pair.first;
+    DrawButton(x + 20, y, rightPanelWidth - 40, 25, animName.c_str(),
+               [&]() { animSprite.SetAnimation(animName); });
+    y += 35;
+  }
 }
 
 bool EditorApp::IsMouseInSceneView() {
@@ -218,7 +277,6 @@ void EditorApp::HandleInput() {
   if (wheel != 0) {
     float zoomSpeed = 0.1f;
     GetScene().maincamera.zoom += wheel * zoomSpeed;
-
     if (GetScene().maincamera.zoom < 0.1f)
       GetScene().maincamera.zoom = 0.1f;
     if (GetScene().maincamera.zoom > 8.0f)

@@ -1,13 +1,8 @@
 #include "scene.h"
-
+#include "components.h"
 #include "engine.h"
 #include "raylib.h"
 #include "raymath.h"
-#include <algorithm>
-#include <charconv>
-#include <memory>
-
-#include "components.h"
 
 namespace criogenio {
 
@@ -25,8 +20,7 @@ Scene::~Scene() {
 int Scene::CreateEntity(const std::string &name) {
   int id = nextId++;
   entities[id] = std::vector<std::unique_ptr<Component>>();
-  AddComponent<Transform>(id, 0.0f, 0.0f);
-  AddComponent<Name>(id, name);
+  AddComponent<criogenio::Name>(id, "New Entity");
   return id;
 }
 
@@ -57,23 +51,48 @@ void Scene::Update(float dt) {
   if (userUpdate)
     userUpdate(dt);
 
-  // update all components
-  for (auto &[entityId, components] : entities) {
-    for (auto &component : components) {
-      // Here you would typically have some kind of update method in your
-      // Component class component->Update(dt);
+  // Update animated sprites
+  auto entityIdsAnimatedSprite = GetEntitiesWith<AnimatedSprite>();
+  if (!entityIdsAnimatedSprite.empty()) {
+    for (auto entityId : entityIdsAnimatedSprite) {
+      auto &animSprite = GetComponent<AnimatedSprite>(entityId);
+      animSprite.Update(dt);
     }
   }
 }
 
 void Scene::Render(Renderer &renderer) {
-  // Render on world position for now
   BeginMode2D(maincamera);
   DrawGrid(100, 32);
   DrawCircle(0, 0, 6, RED);
+
+  // Draw all sprite components or animated components
+  auto entityIdsSprites = GetEntitiesWith<Sprite>();
+  if (!entityIdsSprites.empty()) {
+    for (auto entityId : entityIdsSprites) {
+      auto &sprite = GetComponent<Sprite>(entityId);
+      auto &transform = GetComponent<Transform>(entityId);
+      Rectangle sourceRec = {32.0f, 32.0f,
+                             static_cast<float>(sprite.texture.width),
+                             static_cast<float>(sprite.texture.height)};
+      Vector2 position = {transform.x, transform.y};
+      DrawTextureRec(sprite.texture, sourceRec, position, WHITE);
+    }
+  }
+  // Try to draw animated sprites
+  auto entityIdsAnimatedSprite = GetEntitiesWith<AnimatedSprite>();
+  if (!entityIdsAnimatedSprite.empty()) {
+    for (auto entityId : entityIdsAnimatedSprite) {
+      auto &animSprite = GetComponent<AnimatedSprite>(entityId);
+      auto &transform = GetComponent<Transform>(entityId);
+      Rectangle src = animSprite.GetFrame();
+      Rectangle dest = {transform.x, transform.y, static_cast<float>(src.width),
+                        static_cast<float>(src.height)};
+      DrawTexturePro(animSprite.texture, src, dest, {0, 0}, 0.0f, WHITE);
+    }
+  }
   if (terrain)
     terrain->Render(renderer);
-
   EndMode2D();
 }
 

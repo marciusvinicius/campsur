@@ -1,9 +1,6 @@
-#ifndef COMPONENTS_H
-
-#define COMPONENTS_H
 #pragma once
-
 #include "raylib.h"
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -14,18 +11,16 @@ namespace criogenio {
 
 class ComponentTypeRegistry {
 public:
-    static ComponentTypeId NewId() {
-        static ComponentTypeId lastId = 0;
-        return lastId++;
-    }
+  static ComponentTypeId NewId() {
+    static ComponentTypeId lastId = 0;
+    return lastId++;
+  }
 };
 
-template <typename T>
-ComponentTypeId GetComponentTypeId() {
-    static ComponentTypeId id = ComponentTypeRegistry::NewId();
-    return id;
+template <typename T> ComponentTypeId GetComponentTypeId() {
+  static ComponentTypeId id = ComponentTypeRegistry::NewId();
+  return id;
 }
-
 
 class Component {
 public:
@@ -43,19 +38,68 @@ public:
 
 class Sprite : public Component {
 public:
+  Sprite() {
+    loaded = true;
+    // Add this on the constructor later
+    texture = LoadTextureFromImage(GenImageColor(32, 32, WHITE));
+  }
   Texture2D texture;
   bool loaded = false;
   std::string path;
 };
 
+struct Animation {
+  std::vector<Rectangle> frames;
+  float frameTime = 0.1f;
+};
+
 class AnimatedSprite : public Component {
 public:
-  std::vector<Texture2D> frames;
-  int currentFrame = 0;
-  float frameTime = 0.1f; // Time per frame in seconds
-  float elapsedTime = 0.0f;
-  bool loaded = false;
-  std::string path; // Base path for frames (e.g., "assets/sprite_")
+  struct Animation {
+    std::vector<Rectangle> frames;
+    float frameSpeed = 0.2f;
+  };
+
+  std::unordered_map<std::string, Animation> animations;
+  std::string currentAnim = "";
+  float timer = 0.0f;
+  int frameIndex = 0;
+
+  Texture2D texture;
+
+  AnimatedSprite(const std::string &initialAnim,
+                 const std::vector<Rectangle> &frames, float speed,
+                 Texture2D tex)
+      : texture(tex) {
+    AddAnimation(initialAnim, frames, speed);
+    SetAnimation(initialAnim);
+  }
+
+  void AddAnimation(const std::string &name,
+                    const std::vector<Rectangle> &frames, float speed) {
+    animations[name] = Animation{frames, speed};
+  }
+
+  void SetAnimation(const std::string &name) {
+    if (currentAnim == name)
+      return;
+    currentAnim = name;
+    frameIndex = 0;
+    timer = 0.0f;
+  }
+
+  void Update(float dt) {
+    auto &anim = animations[currentAnim];
+    timer += dt;
+    if (timer >= anim.frameSpeed) {
+      timer = 0;
+      frameIndex = (frameIndex + 1) % anim.frames.size();
+    }
+  }
+
+  Rectangle GetFrame() const {
+    return animations.at(currentAnim).frames[frameIndex];
+  }
 };
 
 class Collider : public Component {
@@ -72,6 +116,11 @@ public:
   bool active = false;
 };
 
+class Controller : public Component {
+public:
+  float speed = 200.0f;
+};
+
 class Name : public Component {
 public:
   std::string name;
@@ -79,5 +128,3 @@ public:
 };
 
 } // namespace criogenio
-
-#endif // !COMPONENTS_H

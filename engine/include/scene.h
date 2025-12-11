@@ -26,12 +26,23 @@ public:
 public:
   // Templates
   //
-  template<typename T, typename... Args>
-  void AddComponent(int entityId, Args &&...args) {
-      auto comp = std::make_unique<T>(std::forward<Args>(args)...);
-      ComponentTypeId typeId = GetComponentTypeId<T>();
-      registry[typeId].push_back(entityId);
-      entities[entityId].push_back(std::move(comp));
+  template <typename T, typename... Args>
+  T *AddComponent(int entityId, Args &&...args) {
+    // 1— Construct the component
+    auto comp = std::make_unique<T>(std::forward<Args>(args)...);
+
+    // 2— Save raw pointer *before* moving the unique_ptr
+    T *ptr = comp.get();
+
+    // 3— Register in type registry
+    ComponentTypeId typeId = GetComponentTypeId<T>();
+    registry[typeId].push_back(entityId);
+
+    // 4— Attach to entity
+    entities[entityId].push_back(std::move(comp));
+
+    // 5— Return pointer for configuration
+    return ptr;
   }
 
   template <typename T> T &GetComponent(int entityId) {
