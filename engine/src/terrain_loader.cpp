@@ -6,12 +6,12 @@
 using json = nlohmann::json;
 namespace criogenio {
 
-Terrain TilemapLoader::LoadFromJSON(const std::string &path) {
+Terrain2D TilemapLoader::LoadFromJSON(const std::string &path) {
   std::ifstream file(path);
   json data;
   file >> data;
 
-  Terrain terrain;
+  Terrain2D terrain;
 
   auto &tilesetJson = data["tilesets"][0];
   std::string img = tilesetJson["image"];

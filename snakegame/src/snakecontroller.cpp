@@ -12,18 +12,20 @@ void SnakeController::SpawnSnake() {
   segments.clear();
 
   for (int i = 0; i < 3; i++) {
-    auto &e = scene.CreateEntity("SnakePart");
-    e.transform.x = 100 - (i * 20);
-    e.transform.y = 100;
-    segments.push_back(e.id);
+    int entityId = scene.CreateEntity("SnakePart");
+	criogenio::Transform& transform = scene.GetComponent<criogenio::Transform>(entityId);
+    transform.x = 200 - i * 20;
+    transform.y = 200;
+	segments.push_back(entityId);
   }
 }
 
 void SnakeController::SpawnFood() {
-  auto &f = scene.CreateEntity("Food");
-  f.transform.x = (rand() % 20) * 20;
-  f.transform.y = (rand() % 20) * 20;
-  foodId = f.id;
+	int entityID = scene.CreateEntity("Food");
+	criogenio::Transform& transform = scene.GetComponent<criogenio::Transform>(entityID);
+    transform.x = (rand() % 30) * 20;
+    transform.y = (rand() % 20) * 20;
+	foodId = entityID;
 }
 
 void SnakeController::HandleInput() {
@@ -48,10 +50,13 @@ void SnakeController::Update(float dt) {
 }
 
 bool SnakeController::CheckSelfCollision() {
-  auto &head = scene.GetEntityById(segments[0]).transform;
+	auto& head = scene.GetComponent<criogenio::Transform>(segments[0]);
+
+
+  criogenio::Transform& headTransform = scene.GetComponent<criogenio::Transform>(segments[0]);
 
   for (int i = 1; i < segments.size(); i++) {
-    auto &part = scene.GetEntityById(segments[i]).transform;
+	criogenio::Transform & part = scene.GetComponent<criogenio::Transform>(segments[i]);
     if ((int)head.x == (int)part.x && (int)head.y == (int)part.y) {
       return true;
     }
@@ -62,15 +67,15 @@ bool SnakeController::CheckSelfCollision() {
 void SnakeController::Move() {
   // Move body segments
   for (int i = segments.size() - 1; i > 0; i--) {
-    auto &curr = scene.GetEntityById(segments[i]).transform;
-    auto &prev = scene.GetEntityById(segments[i - 1]).transform;
+    criogenio::Transform& curr = scene.GetComponent<criogenio::Transform>(segments[i]);
+	criogenio::Transform& prev = scene.GetComponent<criogenio::Transform>(segments[i - 1]);
 
     curr.x = prev.x;
     curr.y = prev.y;
   }
-
   // Move head
-  auto &head = scene.GetEntityById(segments[0]).transform;
+  auto& head = scene.GetComponent<criogenio::Transform>(segments[0]);
+
 
   switch (direction) {
   case UP:
@@ -94,14 +99,13 @@ void SnakeController::Move() {
   }
 
   // Check food
-  auto &food = scene.GetEntityById(foodId).transform;
+  auto& food = scene.GetComponent<criogenio::Transform>(foodId);
+
   if ((int)head.x == (int)food.x && (int)head.y == (int)food.y) {
     // Grow snake
-    auto &tail = scene.GetEntityById(segments.back()).transform;
-    auto &newSeg = scene.CreateEntity("SnakePart");
-    newSeg.transform.x = tail.x;
-    newSeg.transform.y = tail.y;
-    segments.push_back(newSeg.id);
+	  auto& tail = scene.GetComponent<criogenio::Transform>(segments.back());
+	  int newSeg = scene.CreateEntity("SnakePart");
+	  scene.AddComponent<criogenio::Transform>(newSeg, tail.x, tail.y);
 
     // Respawn food
     scene.DeleteEntity(foodId);

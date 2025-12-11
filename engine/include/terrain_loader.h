@@ -7,7 +7,7 @@ namespace criogenio {
 
 class TilemapLoader {
 public:
-  static Terrain LoadFromJSON(const std::string &path);
+  static Terrain2D LoadFromJSON(const std::string &path);
 };
 
 } // namespace criogenio

@@ -2,11 +2,11 @@
 
 #include "input.h"
 
-#include "raymath.h" // <-- add this
+#include "raymath.h"
 #include "terrain.h"
 
-//#define RAYGUI_IMPLEMENTATION
-// #include "raygui.h"
+// #define RAYGUI_IMPLEMENTATION
+//  #include "raygui.h"
 
 using namespace criogenio;
 
@@ -54,6 +54,17 @@ void EditorApp::DrawButton(int x, int y, int w, int h, const char *label,
     onClick();
 }
 
+// Simple input box (non-functional, just for display)
+void EditorApp::DrawInput(int x, int y, int w, int h, const char *label) {
+  Rectangle rect = {(float)x, (float)y, (float)w, (float)h};
+  bool hovered = CheckCollisionPointRec(GetMousePosition(), rect);
+
+  // Draw input box
+  Color color = hovered ? LIGHTGRAY : GRAY;
+  DrawRectangleRec(rect, color);
+  DrawText(label, x + 10, y + 6, 18, BLACK);
+}
+
 void EditorApp::DrawSceneView() {
   Rectangle sceneRect = {
       (float)leftPanelWidth, 0,
@@ -62,28 +73,35 @@ void EditorApp::DrawSceneView() {
 
   // Background for scene view
   DrawRectangleRec(sceneRect, BLACK);
-
-  // Update camera offset to the center of the scene view (important!)
-  Camera2D &cam = GetScene().maincamera;
+  Camera2D cam = Camera2D();
   cam.offset = {sceneRect.x + sceneRect.width / 2.0f,
                 sceneRect.y + sceneRect.height / 2.0f};
+  cam.target = {0.0f, 0.0f};
+  cam.rotation = 0.0f;
+  cam.zoom = 1.0f;
+
+  // Update camera offset to the center of the scene view (important!)
+  GetScene().AttachCamera2D(cam);
 
   DrawRectangleRec(sceneRect, BLACK);
 
   // Let engine render inside
   BeginScissorMode(leftPanelWidth, 0, sceneRect.width, sceneRect.height);
   // Debug: draw grid and origin so you can see things are visible
-  BeginMode2D(cam);
-  DrawGrid(100, 32);
-  DrawCircle(0, 0, 6, RED);
 
   GetScene().Render(GetRenderer()); // expose renderer getter
   // highlight selected entity
   if (selectedEntityId.has_value()) {
-    auto &e = GetScene().GetEntityById(*selectedEntityId);
-    DrawRectangleLines(e.transform.x - 2, e.transform.y - 2, 36, 36, YELLOW);
+    auto &transform =
+        GetScene().GetComponent<criogenio::Transform>(selectedEntityId.value());
+    // Draw Rectangle on the spritedanimatin considering the Screen position
+    auto word_position = GetWorldToScreen2D(Vector2{transform.x, transform.y},
+                                            GetScene().maincamera);
+    DrawRectangleLines(word_position.x, word_position.y, 64, 64, YELLOW);
+    // DrawRectangleLines(GetScreenToWorld2D(transform.x - 2,
+    // GetScene().maincamera), GetScreenToWorld2D(transform.y - 2,
+    // GetScene().maincamera), 36, 36, YELLOW);
   }
-  EndMode2D();
   EndScissorMode();
 }
 
@@ -92,27 +110,71 @@ void EditorApp::DrawHierarchyPanel() {
   DrawText("Entities", 10, 10, 20, RAYWHITE);
 
   int y = 40;
-
   DrawButton(10, y, 180, 25, "Create Terrain", [&]() {
-    auto &t = GetScene().CreateTerrain("Terrain", "editor/assets/terrain.jpg");
+    auto &t =
+        GetScene().CreateTerrain2D("Terrain", "editor/assets/terrain.jpg");
   });
   y += 40;
 
-  DrawButton(10, y, 180, 25, "Create Entity",
-             [&]() { auto &e = GetScene().CreateEntity("New Entity"); });
-  y += 40;
-
-  for (auto &e : GetScene().GetEntities()) { // add getter (shown below)
-    Color col = (selectedEntityId == e->id) ? YELLOW : WHITE;
-    DrawText(e->name.c_str(), 10, y, 18, col);
-
-    if (CheckCollisionPointRec(GetMousePosition(),
-                               {0, (float)y, (float)leftPanelWidth, 20}) &&
-        IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-      selectedEntityId = e->id;
+  DrawButton(10, y, 180, 25, "Create Animated Entity", [&]() {
+    int id = GetScene().CreateEntity("New Entity");
+    GetScene().AddComponent<criogenio::Transform>(id, 0.0f, 0.0f);
+    auto texture = LoadTexture("editor/assets/Woman/64X128_Idle_Free.png");
+    if (!texture.id) {
+      printf("Failed to load texture for animated sprite\n");
+      return;
     }
+    /// Make this data-driven later
+    std::vector<Rectangle> idleDown = {
+        {0, 0, 64, 128},
+        {64, 0, 64, 128},
+        {128, 0, 64, 128},
+    };
 
-    y += 22;
+    std::vector<Rectangle> idleLeft = {
+        {0, 128, 64, 128},
+        {64, 128, 64, 128},
+        {128, 128, 64, 128},
+    };
+
+    std::vector<Rectangle> idleRight = {
+        {0, 256, 64, 128},
+        {64, 256, 64, 128},
+        {128, 256, 64, 128},
+    };
+
+    std::vector<Rectangle> idleUp = {
+        {0, 384, 64, 128},
+        {64, 384, 64, 128},
+        {128, 384, 64, 128},
+
+    };
+
+    auto *anim = GetScene().AddComponent<criogenio::AnimatedSprite>(
+        id,
+        "idleDown", // initial animation
+        idleDown,   // frames
+        0.15f,      // speed
+        texture);
+
+    anim->AddAnimation("idleUp", idleUp, 0.15f);
+    anim->AddAnimation("idleLeft", idleLeft, 0.15f);
+    anim->AddAnimation("idleRight", idleRight, 0.15f);
+  });
+  y += 40;
+  for (int entityId : GetScene().GetEntitiesWith<criogenio::Name>()) {
+    auto &name = GetScene().GetComponent<Name>(entityId);
+    bool isSelected =
+        selectedEntityId.has_value() && selectedEntityId.value() == entityId;
+    Color textColor = isSelected ? YELLOW : WHITE;
+    DrawText(name.name.c_str(), 10, y, 18, textColor);
+    Rectangle rect = {(float)10, (float)y, 180.0f, 20.0f};
+    if (CheckCollisionPointRec(GetMousePosition(), rect)) {
+      if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        selectedEntityId = entityId;
+      }
+    }
+    y += 30;
   }
 }
 
@@ -125,17 +187,50 @@ void EditorApp::DrawInspectorPanel() {
   if (!selectedEntityId.has_value())
     return;
 
-  auto &e = GetScene().GetEntityById(*selectedEntityId);
+  auto &name = GetScene().GetComponent<Name>(selectedEntityId.value());
 
   char buf[128];
-  snprintf(buf, sizeof(buf), "Entity: %s", e.name.c_str());
-  DrawText(buf, x + 10, 50, 18, WHITE);
+  snprintf(buf, sizeof(buf), "Entity: %s", name.name.c_str());
+  // DrawText(buf, x + 10, 50, 18, WHITE);
+
+  // Change the entity name by clicking in text
+  DrawInput(x + 20, 50, 18, 18, buf);
 
   // Transform fields
   DrawText("Position:", x + 10, 100, 16, WHITE);
 
-  DrawText(TextFormat("X: %.1f", e.transform.x), x + 20, 130, 16, WHITE);
-  DrawText(TextFormat("Y: %.1f", e.transform.y), x + 20, 160, 16, WHITE);
+  auto &transform =
+      GetScene().GetComponent<criogenio::Transform>(selectedEntityId.value());
+  DrawText(TextFormat("X: %.1f", transform.x), x + 20, 130, 16, WHITE);
+  DrawText(TextFormat("Y: %.1f", transform.y), x + 20, 160, 16, WHITE);
+
+  // More components can be added here later
+  auto &animSprite = GetScene().GetComponent<criogenio::AnimatedSprite>(
+      selectedEntityId.value());
+  DrawText("Animated Sprite:", x + 10, 200, 16, WHITE);
+  DrawText(TextFormat("Current Anim: %s", animSprite.currentAnim.c_str()),
+           x + 20, 230, 16, WHITE);
+  DrawText(TextFormat("Frame Index: %d", animSprite.frameIndex), x + 20, 260,
+           16, WHITE);
+  DrawText(TextFormat("Timer: %.2f", animSprite.timer), x + 20, 290, 16, WHITE);
+  DrawText(TextFormat("Total Anims: %d", (int)animSprite.animations.size()),
+           x + 20, 320, 16, WHITE);
+  // Select animation
+  int y = 350;
+  Color color = WHITE;
+  for (const auto &pair : animSprite.animations) {
+    const std::string &animName = pair.first;
+    // Make button colored with animnation is selected
+    if (animSprite.currentAnim == animName) {
+      color = YELLOW;
+    } else {
+      color = WHITE;
+    }
+    DrawButton(x + 20, y, rightPanelWidth - 40, 25, animName.c_str(),
+               [&]() { animSprite.SetAnimation(animName); });
+    DrawRectangleLines(x + 20, y, rightPanelWidth - 40, 30, color);
+    y += 35;
+  }
 }
 
 bool EditorApp::IsMouseInSceneView() {
@@ -153,15 +248,16 @@ void EditorApp::HandleMouseSelection() {
     Vector2 mouseScreen = GetMousePosition();
     Vector2 worldMouse = GetScreenToWorld2D(mouseScreen, GetScene().maincamera);
 
-    for (auto &e : GetScene().GetEntities()) {
-      Rectangle r = {e->transform.x, e->transform.y, 32.0f,
-                     32.0f}; // world-space rect
+    for (int entityId : GetScene().GetEntitiesWith<criogenio::Transform>()) {
+      auto &transform = GetScene().GetComponent<criogenio::Transform>(entityId);
+      // Assuming each entity has a 32x32 size for selection purposes
+      Rectangle r = {transform.x, transform.y, 64.0f,
+                     64.0f}; // world-space rect
       if (CheckCollisionPointRec(worldMouse, r)) {
-        selectedEntityId = e->id;
+        selectedEntityId = entityId;
         return;
       }
     }
-    selectedEntityId.reset();
   }
 }
 
@@ -172,7 +268,6 @@ void EditorApp::HandleEntityDrag() {
     return;
 
   if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
-    auto &e = GetScene().GetEntityById(*selectedEntityId);
     // Convert previous and current mouse positions to world coordinates,
     // so drag works correctly under zoom and pan.
     Vector2 mouseScreen = GetMousePosition();
@@ -186,8 +281,10 @@ void EditorApp::HandleEntityDrag() {
 
     Vector2 drag = Vector2Subtract(currWorld, prevWorld);
 
-    e.transform.x += drag.x;
-    e.transform.y += drag.y;
+    auto &transform =
+        GetScene().GetComponent<criogenio::Transform>(selectedEntityId.value());
+    transform.x += drag.x;
+    transform.y += drag.y;
   }
 }
 
@@ -209,7 +306,6 @@ void EditorApp::HandleInput() {
   if (wheel != 0) {
     float zoomSpeed = 0.1f;
     GetScene().maincamera.zoom += wheel * zoomSpeed;
-
     if (GetScene().maincamera.zoom < 0.1f)
       GetScene().maincamera.zoom = 0.1f;
     if (GetScene().maincamera.zoom > 8.0f)
@@ -249,17 +345,9 @@ void EditorApp::HandleInput() {
 }
 
 void EditorApp::OnGUI() {
-  // ImGui::Begin("Hierarchy");
-  for (auto &e : GetScene().GetEntities()) {
-    // ImGui::Text("%s", e->name.c_str());
-  }
-  // ImGui::End();
-
-  // ImGui::Begin("Inspector");
   if (selectedEntityId.has_value()) {
-    auto &ent = GetScene().GetEntityById(*selectedEntityId);
-    // ImGui::InputFloat("X", &ent.transform.x);
-    // ImGui::InputFloat("Y", &ent.transform.y);
+    auto &nameComp =
+        GetScene().GetComponent<criogenio::Name>(selectedEntityId.value());
+    DrawText(nameComp.name.c_str(), 10, 10, 20, WHITE);
   }
-  // ImGui::End();
 }

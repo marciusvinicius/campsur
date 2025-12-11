@@ -1,49 +1,46 @@
 #include "scene.h"
-
+#include "components.h"
 #include "engine.h"
 #include "raylib.h"
 #include "raymath.h"
-#include <charconv>
 
 namespace criogenio {
 
-Scene::Scene() {
-  maincamera = Camera2D{};
-  maincamera.target = {0.0f, 0.0f};
-  maincamera.offset = {800 / 2.0f, 600 / 2.0f}; // IMPORTANT
-  maincamera.zoom = 1.0f;
-}
+Scene::Scene() {}
 
 Scene::~Scene() {
-  for (auto &e : entities) {
-    if (e->sprite.loaded) {
-      UnloadTexture(e->sprite.texture);
-    }
+  // clear all entities and components
+  entities.clear();
+  if (terrain) {
+    UnloadTexture(terrain->tileset.atlas);
+    terrain.reset();
   }
 }
 
-Entity &Scene::CreateEntity(const std::string &name) {
-  auto ent = std::make_unique<Entity>(nextId++, name);
-  Entity &ref = *ent;
-  entities.push_back(std::move(ent));
-  return ref;
+int Scene::CreateEntity(const std::string &name) {
+  int id = nextId++;
+  entities[id] = std::vector<std::unique_ptr<Component>>();
+  AddComponent<criogenio::Name>(id, "New Entity");
+  return id;
 }
 
-Terrain &Scene::CreateTerrain(const std::string &name,
-                              const std::string &texture_path) {
-  auto new_terrain = new Terrain();
+Terrain2D &Scene::CreateTerrain2D(const std::string &name,
+                                  const std::string &texture_path) {
+  auto new_terrain = new Terrain2D();
   auto atlas = CriogenioLoadTexture(texture_path.c_str());
-  auto tileset = Tileset{atlas, 32, 10, 8};
+  // This should be created on editor or loaded from file
+  auto tileset = Tileset{atlas, 24, 10, 8};
   new_terrain->tileset = tileset;
+  // Layers should be loaded from a file, but for now we create a simple one
+  // Or Empty
   new_terrain->layers.push_back(
       TileLayer(10, 10,
                 {
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-
+                    0, 0, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+                    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+                    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+                    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+                    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
                 }));
   terrain.reset(new_terrain);
   // terrain = &new_terrain;
@@ -53,47 +50,64 @@ Terrain &Scene::CreateTerrain(const std::string &name,
 void Scene::Update(float dt) {
   if (userUpdate)
     userUpdate(dt);
-}
 
-void Scene::Render(Renderer &renderer) {
-  // Render on world position for now
-  if (terrain)
-    terrain->Render(renderer);
-  // TODO:(maraujo) Entity dont have a animation or sprite yet
-  for (auto &e : entities) {
-    if (e->sprite.loaded) {
-      // TODO: Not broking when load error
-      renderer.DrawTexture(e->sprite.texture, e->transform.x, e->transform.y);
-      renderer.DrawRect(e->transform.x, e->transform.y, 32, 32, RED);
-    } else {
-      renderer.DrawRect(e->transform.x, e->transform.y, 32, 32, RED);
+  // Update animated sprites
+  auto entityIdsAnimatedSprite = GetEntitiesWith<AnimatedSprite>();
+  if (!entityIdsAnimatedSprite.empty()) {
+    for (auto entityId : entityIdsAnimatedSprite) {
+      auto &animSprite = GetComponent<AnimatedSprite>(entityId);
+      animSprite.Update(dt);
     }
   }
 }
 
-Entity &Scene::GetEntityById(int id) {
-  for (auto &e : entities) {
-    if (e->id == id)
-      return *e;
-  }
-  throw std::runtime_error("Entity not found");
-}
-std::vector<std::unique_ptr<Entity>> &Scene::GetEntities() { return entities; }
+void Scene::Render(Renderer &renderer) {
+  BeginMode2D(maincamera);
+  DrawGrid(100, 32);
+  DrawCircle(0, 0, 6, RED);
+  if (terrain)
+    terrain->Render(renderer);
 
-void Scene::DeleteEntity(int id) {
-  entities.erase(std::remove_if(entities.begin(), entities.end(),
-                                [&](auto &e) { return e->id == id; }),
-                 entities.end());
+  // Draw all sprite components or animated components
+  auto entityIdsSprites = GetEntitiesWith<Sprite>();
+  if (!entityIdsSprites.empty()) {
+    for (auto entityId : entityIdsSprites) {
+      auto &sprite = GetComponent<Sprite>(entityId);
+      auto &transform = GetComponent<Transform>(entityId);
+      Rectangle sourceRec = {32.0f, 32.0f,
+                             static_cast<float>(sprite.texture.width),
+                             static_cast<float>(sprite.texture.height)};
+      Vector2 position = {transform.x, transform.y};
+      DrawTextureRec(sprite.texture, sourceRec, position, WHITE);
+    }
+  }
+  // Try to draw animated sprites
+  auto entityIdsAnimatedSprite = GetEntitiesWith<AnimatedSprite>();
+  if (!entityIdsAnimatedSprite.empty()) {
+    for (auto entityId : entityIdsAnimatedSprite) {
+      auto &animSprite = GetComponent<AnimatedSprite>(entityId);
+      auto &transform = GetComponent<Transform>(entityId);
+      Rectangle src = animSprite.GetFrame();
+      Rectangle dest = {transform.x, transform.y, static_cast<float>(src.width),
+                        static_cast<float>(src.height)};
+      DrawTexturePro(animSprite.texture, src, dest, {0, 0}, 0.0f, PINK);
+    }
+  }
+  EndMode2D();
 }
+
+// Should I remove the map values?
+void Scene::DeleteEntity(int id) { entities.erase(id); }
 
 void Scene::OnUpdate(std::function<void(float)> fn) { userUpdate = fn; }
 
 bool Scene::HasEntity(int id) const {
-  for (const auto &e : entities) {
-    if (e->id == id)
-      return true;
-  }
-  return false;
+  return entities.find(id) != entities.end();
+}
+
+void Scene::AttachCamera2D(Camera2D cam) {
+  // For now we have only one camera
+  maincamera = cam;
 }
 
 } // namespace criogenio

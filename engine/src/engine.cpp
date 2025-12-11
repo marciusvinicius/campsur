@@ -25,7 +25,6 @@ Renderer &Engine::GetRenderer() { return *renderer; }
 
 void Engine::Run() {
   previousTime = GetTime();
-
   while (!renderer->WindowShouldClose()) {
     float now = GetTime();
     float dt = now - previousTime;
