@@ -29,7 +29,6 @@ void Engine::Run() {
     float now = GetTime();
     float dt = now - previousTime;
     previousTime = now;
-
     scene->Update(dt);
     renderer->BeginFrame();
     // TODO:(maraujo) think more abount this pointers

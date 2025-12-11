@@ -1,4 +1,5 @@
 #pragma once
+#include "animation_state.h"
 #include "raylib.h"
 #include <memory>
 #include <string>
@@ -8,6 +9,13 @@
 using ComponentTypeId = std::size_t;
 
 namespace criogenio {
+
+enum Direction {
+  UP,
+  DOWN,
+  LEFT,
+  RIGHT
+};
 
 class ComponentTypeRegistry {
 public:
@@ -119,12 +127,22 @@ public:
 class Controller : public Component {
 public:
   float speed = 200.0f;
+  Direction direction = UP;
+  Controller(float speed) : speed(speed) {}
 };
 
 class Name : public Component {
 public:
   std::string name;
   Name(const std::string &name) : name(name) {}
+};
+
+
+class AnimationState : public Component {
+public:
+    AnimState current = AnimState::Idle;
+    AnimState previous = AnimState::Idle;
+    Direction facing = DOWN;
 };
 
 } // namespace criogenio

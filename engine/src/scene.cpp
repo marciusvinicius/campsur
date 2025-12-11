@@ -51,6 +51,7 @@ void Scene::Update(float dt) {
   if (userUpdate)
     userUpdate(dt);
 
+  /*
   // Update animated sprites
   auto entityIdsAnimatedSprite = GetEntitiesWith<AnimatedSprite>();
   if (!entityIdsAnimatedSprite.empty()) {
@@ -59,6 +60,33 @@ void Scene::Update(float dt) {
       animSprite.Update(dt);
     }
   }
+
+  auto entityPlayerControllers = GetEntitiesWith<Controller>();
+  if (!entityPlayerControllers.empty()) {
+    for (auto entityId : entityPlayerControllers) {
+      auto &transform = GetComponent<Transform>(entityId);
+      auto &controller = GetComponent<Controller>(entityId);
+      Vector2 movement = {0.0f, 0.0f};
+      if (IsKeyDown(KEY_W))
+        movement.y -= 1.0f;
+      if (IsKeyDown(KEY_S))
+        movement.y += 1.0f;
+      if (IsKeyDown(KEY_A))
+        movement.x -= 1.0f;
+      if (IsKeyDown(KEY_D))
+        movement.x += 1.0f;
+      // Normalize movement vector
+      if (movement.x != 0.0f || movement.y != 0.0f) {
+        float length = sqrtf(movement.x * movement.x + movement.y * movement.y);
+        movement.x /= length;
+        movement.y /= length;
+      }
+      // Update position
+      transform.x += movement.x * controller.speed * dt;
+      transform.y += movement.y * controller.speed * dt;
+    }
+  }*/
+
 }
 
 void Scene::Render(Renderer &renderer) {
@@ -67,7 +95,8 @@ void Scene::Render(Renderer &renderer) {
   DrawCircle(0, 0, 6, RED);
   if (terrain)
     terrain->Render(renderer);
-
+  /*
+  //TODO:(maraujo) All this could go to a system later
   // Draw all sprite components or animated components
   auto entityIdsSprites = GetEntitiesWith<Sprite>();
   if (!entityIdsSprites.empty()) {
@@ -90,9 +119,9 @@ void Scene::Render(Renderer &renderer) {
       Rectangle src = animSprite.GetFrame();
       Rectangle dest = {transform.x, transform.y, static_cast<float>(src.width),
                         static_cast<float>(src.height)};
-      DrawTexturePro(animSprite.texture, src, dest, {0, 0}, 0.0f, PINK);
+      DrawTexturePro(animSprite.texture, src, dest, {0, 0}, 0.0f, WHITE);
     }
-  }
+  }*/
   EndMode2D();
 }
 

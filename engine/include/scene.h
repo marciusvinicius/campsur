@@ -18,7 +18,6 @@ class Scene {
 public:
   Scene();
   ~Scene();
-
   void OnUpdate(std::function<void(float)> fn);
   void Update(float dt);
   void Render(Renderer &renderer);
@@ -43,6 +42,27 @@ public:
 
     // 5— Return pointer for configuration
     return ptr;
+  }
+
+  template <typename T, typename... Args>
+  void RemoveComponent(int entityId, Args &&...args) {
+	  //Remove component from the entity and from the registry
+      auto it = entities.find(entityId);
+    if (it == entities.end())
+      throw std::runtime_error("Entity not found");
+    auto &comps = it->second;
+    for (auto compIt = comps.begin(); compIt != comps.end(); ++compIt) {
+      if (auto casted = dynamic_cast<T *>(compIt->get())) {
+        // Remove from registry
+        ComponentTypeId typeId = GetComponentTypeId<T>();
+        auto &entityList = registry[typeId];
+        entityList.erase(std::remove(entityList.begin(), entityList.end(), entityId), entityList.end());
+        // Remove from entity
+        comps.erase(compIt);
+        return;
+      }
+    }
+	throw std::runtime_error("Component not found");
   }
 
   template <typename T> T &GetComponent(int entityId) {
