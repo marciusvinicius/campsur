@@ -55,15 +55,14 @@ void EditorApp::DrawButton(int x, int y, int w, int h, const char *label,
 }
 
 // Simple input box (non-functional, just for display)
-void EditorApp::DrawInput(int x, int y, int w, int h, const char* label) {
-    Rectangle rect = { (float)x, (float)y, (float)w, (float)h };
-    bool hovered = CheckCollisionPointRec(GetMousePosition(), rect);
+void EditorApp::DrawInput(int x, int y, int w, int h, const char *label) {
+  Rectangle rect = {(float)x, (float)y, (float)w, (float)h};
+  bool hovered = CheckCollisionPointRec(GetMousePosition(), rect);
 
-	// Draw input box
-    Color color = hovered ? LIGHTGRAY : GRAY;
-    DrawRectangleRec(rect, color);
-	DrawText(label, x + 10, y + 6, 18, BLACK);
-
+  // Draw input box
+  Color color = hovered ? LIGHTGRAY : GRAY;
+  DrawRectangleRec(rect, color);
+  DrawText(label, x + 10, y + 6, 18, BLACK);
 }
 
 void EditorApp::DrawSceneView() {
@@ -95,10 +94,13 @@ void EditorApp::DrawSceneView() {
   if (selectedEntityId.has_value()) {
     auto &transform =
         GetScene().GetComponent<criogenio::Transform>(selectedEntityId.value());
-    //Draw Rectangle on the spritedanimatin considering the Screen position
-    auto word_position = GetWorldToScreen2D(Vector2{ transform.x, transform.y }, GetScene().maincamera);
+    // Draw Rectangle on the spritedanimatin considering the Screen position
+    auto word_position = GetWorldToScreen2D(Vector2{transform.x, transform.y},
+                                            GetScene().maincamera);
     DrawRectangleLines(word_position.x, word_position.y, 64, 64, YELLOW);
-       // DrawRectangleLines(GetScreenToWorld2D(transform.x - 2, GetScene().maincamera), GetScreenToWorld2D(transform.y - 2, GetScene().maincamera), 36, 36, YELLOW);
+    // DrawRectangleLines(GetScreenToWorld2D(transform.x - 2,
+    // GetScene().maincamera), GetScreenToWorld2D(transform.y - 2,
+    // GetScene().maincamera), 36, 36, YELLOW);
   }
   EndScissorMode();
 }
@@ -117,45 +119,46 @@ void EditorApp::DrawHierarchyPanel() {
   DrawButton(10, y, 180, 25, "Create Animated Entity", [&]() {
     int id = GetScene().CreateEntity("New Entity");
     GetScene().AddComponent<criogenio::Transform>(id, 0.0f, 0.0f);
-    auto texture = LoadTexture("editor/assets/body_man.png");
+    auto texture = LoadTexture("editor/assets/Woman/64X128_Idle_Free.png");
     if (!texture.id) {
       printf("Failed to load texture for animated sprite\n");
       return;
     }
     /// Make this data-driven later
-    std::vector<Rectangle> idleUp = {
-        {0, 0, 64, 64},
-        {64, 0, 64, 64},
-        {128, 0, 64, 64},
-    };
-
     std::vector<Rectangle> idleDown = {
-        {0, 64, 64, 64},
-        {64, 64, 64, 64},
-        {128, 64, 64, 64},
+        {0, 0, 64, 128},
+        {64, 0, 64, 128},
+        {128, 0, 64, 128},
     };
 
     std::vector<Rectangle> idleLeft = {
-        {0, 128, 64, 64},
-        {64, 128, 64, 64},
-        {128, 128, 64, 64},
+        {0, 128, 64, 128},
+        {64, 128, 64, 128},
+        {128, 128, 64, 128},
     };
 
     std::vector<Rectangle> idleRight = {
-        {0, 192, 64, 64},
-        {64, 192, 64, 64},
-        {128, 192, 64, 64},
+        {0, 256, 64, 128},
+        {64, 256, 64, 128},
+        {128, 256, 64, 128},
+    };
+
+    std::vector<Rectangle> idleUp = {
+        {0, 384, 64, 128},
+        {64, 384, 64, 128},
+        {128, 384, 64, 128},
+
     };
 
     auto *anim = GetScene().AddComponent<criogenio::AnimatedSprite>(
         id,
-        "idleUp", // initial animation
-        idleUp,   // frames
-        0.15f,    // speed
+        "idleDown", // initial animation
+        idleDown,   // frames
+        0.15f,      // speed
         texture);
 
-    anim->AddAnimation("idleDown", idleLeft, 0.15f);
-    anim->AddAnimation("idleLeft", idleDown, 0.15f);
+    anim->AddAnimation("idleUp", idleUp, 0.15f);
+    anim->AddAnimation("idleLeft", idleLeft, 0.15f);
     anim->AddAnimation("idleRight", idleRight, 0.15f);
   });
   y += 40;
@@ -188,12 +191,10 @@ void EditorApp::DrawInspectorPanel() {
 
   char buf[128];
   snprintf(buf, sizeof(buf), "Entity: %s", name.name.c_str());
-  //DrawText(buf, x + 10, 50, 18, WHITE);
+  // DrawText(buf, x + 10, 50, 18, WHITE);
 
-  //Change the entity name by clicking in text
+  // Change the entity name by clicking in text
   DrawInput(x + 20, 50, 18, 18, buf);
-
-
 
   // Transform fields
   DrawText("Position:", x + 10, 100, 16, WHITE);
@@ -219,12 +220,11 @@ void EditorApp::DrawInspectorPanel() {
   Color color = WHITE;
   for (const auto &pair : animSprite.animations) {
     const std::string &animName = pair.first;
-    //Make button colored with animnation is selected
+    // Make button colored with animnation is selected
     if (animSprite.currentAnim == animName) {
-        color = YELLOW;
-    }
-    else {
-        color = WHITE;
+      color = YELLOW;
+    } else {
+      color = WHITE;
     }
     DrawButton(x + 20, y, rightPanelWidth - 40, 25, animName.c_str(),
                [&]() { animSprite.SetAnimation(animName); });

@@ -66,7 +66,7 @@ void Scene::Render(Renderer &renderer) {
   DrawGrid(100, 32);
   DrawCircle(0, 0, 6, RED);
   if (terrain)
-      terrain->Render(renderer);
+    terrain->Render(renderer);
 
   // Draw all sprite components or animated components
   auto entityIdsSprites = GetEntitiesWith<Sprite>();
@@ -90,7 +90,7 @@ void Scene::Render(Renderer &renderer) {
       Rectangle src = animSprite.GetFrame();
       Rectangle dest = {transform.x, transform.y, static_cast<float>(src.width),
                         static_cast<float>(src.height)};
-      DrawTexturePro(animSprite.texture, src, dest, {0, 0}, 0.0f, WHITE);
+      DrawTexturePro(animSprite.texture, src, dest, {0, 0}, 0.0f, PINK);
     }
   }
   EndMode2D();
