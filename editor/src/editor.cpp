@@ -62,12 +62,17 @@ void EditorApp::DrawSceneView() {
 
   // Background for scene view
   DrawRectangleRec(sceneRect, BLACK);
+  Camera2D cam = Camera2D();
+  cam.offset = {sceneRect.x + sceneRect.width / 2.0f,
+				sceneRect.y + sceneRect.height / 2.0f };
+  cam.target = { 0.0f, 0.0f };
+  cam.rotation = 0.0f;
+  cam.zoom = 1.0f;
+
 
   // Update camera offset to the center of the scene view (important!)
-  Camera2D &cam = GetScene().maincamera;
-  cam.offset = {sceneRect.x + sceneRect.width / 2.0f,
-                sceneRect.y + sceneRect.height / 2.0f};
-
+  GetScene().AttachCamera2D(cam);
+  
   DrawRectangleRec(sceneRect, BLACK);
 
   // Let engine render inside
@@ -81,7 +86,6 @@ void EditorApp::DrawSceneView() {
         GetScene().GetComponent<criogenio::Transform>(selectedEntityId.value());
     DrawRectangleLines(transform.x - 2, transform.y - 2, 36, 36, YELLOW);
   }
-
   EndScissorMode();
 }
 
@@ -100,20 +104,21 @@ void EditorApp::DrawHierarchyPanel() {
   DrawButton(10, y, 180, 25, "Create Entity",
              [&]() { int id = GetScene().CreateEntity("New Entity"); });
   y += 40;
-  /**
-    for (auto &e : GetScene().GetEntities()) { // add getter (shown below)
-      Color col = (selectedEntityId == e->id) ? YELLOW : WHITE;
-      DrawText(e->name.c_str(), 10, y, 18, col);
 
-      if (CheckCollisionPointRec(GetMousePosition(),
-                                 {0, (float)y, (float)leftPanelWidth, 20}) &&
-          IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-        selectedEntityId = e->id;
+  for (int entityId : GetScene().GetEntitiesWith<criogenio::Name>()) {
+    auto &name = GetScene().GetComponent<Name>(entityId);
+    bool isSelected =
+        selectedEntityId.has_value() && selectedEntityId.value() == entityId;
+    Color textColor = isSelected ? YELLOW : WHITE;
+    DrawText(name.name.c_str(), 10, y, 18, textColor);
+    Rectangle rect = {(float)10, (float)y, 180.0f, 20.0f};
+    if (CheckCollisionPointRec(GetMousePosition(), rect)) {
+      if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        selectedEntityId = entityId;
       }
-
-      y += 22;
     }
-    **/
+    y += 30;
+  }
 }
 
 void EditorApp::DrawInspectorPanel() {

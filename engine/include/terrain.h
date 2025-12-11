@@ -4,6 +4,7 @@
 #include "render.h"
 #include <string>
 #include <vector>
+#include <optional>
 
 namespace criogenio {
 
@@ -27,16 +28,16 @@ public:
   void Render(Renderer &renderer);
 };
 
-class Terrain2D : Terrain {
+class Terrain2D : public Terrain {
 public:
-  void Render(Renderer &renderer);
+	void Render(Renderer &renderer);
 
 public:
   Tileset tileset;
   std::vector<TileLayer> layers;
 };
 
-class Terrain3D : Terrain {
+class Terrain3D : public Terrain {
 public:
   void Render(Renderer &renderer);
 

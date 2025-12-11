@@ -8,7 +8,7 @@
 
 using namespace criogenio;
 
-int main() {
+int game_main() {
   Engine engine(InitialWidth, InitialHeight, "Ways of the Truth");
 
   auto &scene = engine.GetScene();
@@ -22,12 +22,8 @@ int main() {
   scene.AttachCamera2D(maincamera);
 
   int entityId = scene.CreateEntity("Player");
+ scene.AddComponent<criogenio::Transform>(entityId);
 
-  criogenio::Transform *transform =
-      scene.AddComponent<criogenio::Transform>(entityId);
-
-  transform->x = 200;
-  transform->y = 100;
   engine.Run();
   return 0;
 }

@@ -1,4 +1,8 @@
+#ifndef COMPONENTS_H
+
+#define COMPONENTS_H
 #pragma once
+
 #include "raylib.h"
 #include <string>
 #include <unordered_map>
@@ -8,15 +12,20 @@ using ComponentTypeId = std::size_t;
 
 namespace criogenio {
 
-inline ComponentTypeId GetNewComponentTypeId() {
-  static ComponentTypeId lastId = 0;
-  return lastId++;
+class ComponentTypeRegistry {
+public:
+    static ComponentTypeId NewId() {
+        static ComponentTypeId lastId = 0;
+        return lastId++;
+    }
+};
+
+template <typename T>
+ComponentTypeId GetComponentTypeId() {
+    static ComponentTypeId id = ComponentTypeRegistry::NewId();
+    return id;
 }
 
-template <typename T> ComponentTypeId GetComponentTypeId() {
-  static ComponentTypeId id = GetNewComponentTypeId();
-  return id;
-}
 
 class Component {
 public:
@@ -70,3 +79,5 @@ public:
 };
 
 } // namespace criogenio
+
+#endif // !COMPONENTS_H

@@ -26,11 +26,12 @@ public:
 public:
   // Templates
   //
-  template <typename T, typename... Args>
-  T *AddComponent(int entityId, Args &&...args) {
-    T *component = new T(std::forward<Args>(args)...);
-    AttachComponentToEntity(entityId, component);
-    return component;
+  template<typename T, typename... Args>
+  void AddComponent(int entityId, Args &&...args) {
+      auto comp = std::make_unique<T>(std::forward<Args>(args)...);
+      ComponentTypeId typeId = GetComponentTypeId<T>();
+      registry[typeId].push_back(entityId);
+      entities[entityId].push_back(std::move(comp));
   }
 
   template <typename T> T &GetComponent(int entityId) {
@@ -62,7 +63,6 @@ public:
                              const std::string &texture_path);
   void AttachCamera2D(Camera2D cam);
 
-  void AttachComponentToEntity(int entityId, Component *component);
   // TODO:(maraujo) move this to private
   Camera2D maincamera;
 

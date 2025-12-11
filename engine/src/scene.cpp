@@ -7,6 +7,8 @@
 #include <charconv>
 #include <memory>
 
+#include "components.h"
+
 namespace criogenio {
 
 Scene::Scene() {}
@@ -23,6 +25,7 @@ Scene::~Scene() {
 int Scene::CreateEntity(const std::string &name) {
   int id = nextId++;
   entities[id] = std::vector<std::unique_ptr<Component>>();
+  AddComponent<Transform>(id, 0.0f, 0.0f);
   AddComponent<Name>(id, name);
   return id;
 }
@@ -74,15 +77,6 @@ void Scene::Render(Renderer &renderer) {
   EndMode2D();
 }
 
-/**std::vector<int> &Scene::GetEntities() {
-  std::vector<int> result;
-  result.reserve(entities.size()); // optional but good for performance
-  for (const auto &[id, components] : entities) {
-    result.push_back(id);
-  }
-  return result;
-}**/
-
 // Should I remove the map values?
 void Scene::DeleteEntity(int id) { entities.erase(id); }
 
@@ -95,17 +89,6 @@ bool Scene::HasEntity(int id) const {
 void Scene::AttachCamera2D(Camera2D cam) {
   // For now we have only one camera
   maincamera = cam;
-}
-
-void Scene::AttachComponentToEntity(int entityId, Component *component) {
-  auto &comps = entities[entityId];
-  comps.push_back(std::unique_ptr<Component>(component));
-
-  // Register in the type registry
-  ComponentTypeId typeId =
-      GetComponentTypeId<std::remove_pointer_t<decltype(*component)>>();
-
-  registry[typeId].push_back(entityId);
 }
 
 } // namespace criogenio
