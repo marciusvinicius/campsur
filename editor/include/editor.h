@@ -36,6 +36,7 @@ private:
   // helpers
   void DrawButton(int x, int y, int w, int h, const char *label,
                   std::function<void()> onClick);
+  void DrawInput(int x, int y, int w, int h, const char* label);
 
   void OnGUI() override; //
                          //

@@ -65,6 +65,8 @@ void Scene::Render(Renderer &renderer) {
   BeginMode2D(maincamera);
   DrawGrid(100, 32);
   DrawCircle(0, 0, 6, RED);
+  if (terrain)
+      terrain->Render(renderer);
 
   // Draw all sprite components or animated components
   auto entityIdsSprites = GetEntitiesWith<Sprite>();
@@ -91,8 +93,6 @@ void Scene::Render(Renderer &renderer) {
       DrawTexturePro(animSprite.texture, src, dest, {0, 0}, 0.0f, WHITE);
     }
   }
-  if (terrain)
-    terrain->Render(renderer);
   EndMode2D();
 }
 

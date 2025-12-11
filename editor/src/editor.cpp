@@ -54,6 +54,18 @@ void EditorApp::DrawButton(int x, int y, int w, int h, const char *label,
     onClick();
 }
 
+// Simple input box (non-functional, just for display)
+void EditorApp::DrawInput(int x, int y, int w, int h, const char* label) {
+    Rectangle rect = { (float)x, (float)y, (float)w, (float)h };
+    bool hovered = CheckCollisionPointRec(GetMousePosition(), rect);
+
+	// Draw input box
+    Color color = hovered ? LIGHTGRAY : GRAY;
+    DrawRectangleRec(rect, color);
+	DrawText(label, x + 10, y + 6, 18, BLACK);
+
+}
+
 void EditorApp::DrawSceneView() {
   Rectangle sceneRect = {
       (float)leftPanelWidth, 0,
@@ -83,7 +95,10 @@ void EditorApp::DrawSceneView() {
   if (selectedEntityId.has_value()) {
     auto &transform =
         GetScene().GetComponent<criogenio::Transform>(selectedEntityId.value());
-    DrawRectangleLines(transform.x - 2, transform.y - 2, 36, 36, YELLOW);
+    //Draw Rectangle on the spritedanimatin considering the Screen position
+    auto word_position = GetWorldToScreen2D(Vector2{ transform.x, transform.y }, GetScene().maincamera);
+    DrawRectangleLines(word_position.x, word_position.y, 64, 64, YELLOW);
+       // DrawRectangleLines(GetScreenToWorld2D(transform.x - 2, GetScene().maincamera), GetScreenToWorld2D(transform.y - 2, GetScene().maincamera), 36, 36, YELLOW);
   }
   EndScissorMode();
 }
@@ -173,7 +188,12 @@ void EditorApp::DrawInspectorPanel() {
 
   char buf[128];
   snprintf(buf, sizeof(buf), "Entity: %s", name.name.c_str());
-  DrawText(buf, x + 10, 50, 18, WHITE);
+  //DrawText(buf, x + 10, 50, 18, WHITE);
+
+  //Change the entity name by clicking in text
+  DrawInput(x + 20, 50, 18, 18, buf);
+
+
 
   // Transform fields
   DrawText("Position:", x + 10, 100, 16, WHITE);
@@ -196,10 +216,19 @@ void EditorApp::DrawInspectorPanel() {
            x + 20, 320, 16, WHITE);
   // Select animation
   int y = 350;
+  Color color = WHITE;
   for (const auto &pair : animSprite.animations) {
     const std::string &animName = pair.first;
+    //Make button colored with animnation is selected
+    if (animSprite.currentAnim == animName) {
+        color = YELLOW;
+    }
+    else {
+        color = WHITE;
+    }
     DrawButton(x + 20, y, rightPanelWidth - 40, 25, animName.c_str(),
                [&]() { animSprite.SetAnimation(animName); });
+    DrawRectangleLines(x + 20, y, rightPanelWidth - 40, 30, color);
     y += 35;
   }
 }
@@ -222,8 +251,8 @@ void EditorApp::HandleMouseSelection() {
     for (int entityId : GetScene().GetEntitiesWith<criogenio::Transform>()) {
       auto &transform = GetScene().GetComponent<criogenio::Transform>(entityId);
       // Assuming each entity has a 32x32 size for selection purposes
-      Rectangle r = {transform.x, transform.y, 32.0f,
-                     32.0f}; // world-space rect
+      Rectangle r = {transform.x, transform.y, 64.0f,
+                     64.0f}; // world-space rect
       if (CheckCollisionPointRec(worldMouse, r)) {
         selectedEntityId = entityId;
         return;
