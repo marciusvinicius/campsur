@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "components.h"
+#include "systems.h"
 #include "terrain.h"
 
 namespace criogenio {
@@ -24,6 +25,7 @@ public:
 
 public:
   // Templates
+  // Move all this to a entity manager system
   //
   template <typename T, typename... Args>
   T *AddComponent(int entityId, Args &&...args) {
@@ -46,8 +48,8 @@ public:
 
   template <typename T, typename... Args>
   void RemoveComponent(int entityId, Args &&...args) {
-	  //Remove component from the entity and from the registry
-      auto it = entities.find(entityId);
+    // Remove component from the entity and from the registry
+    auto it = entities.find(entityId);
     if (it == entities.end())
       throw std::runtime_error("Entity not found");
     auto &comps = it->second;
@@ -56,13 +58,15 @@ public:
         // Remove from registry
         ComponentTypeId typeId = GetComponentTypeId<T>();
         auto &entityList = registry[typeId];
-        entityList.erase(std::remove(entityList.begin(), entityList.end(), entityId), entityList.end());
+        entityList.erase(
+            std::remove(entityList.begin(), entityList.end(), entityId),
+            entityList.end());
         // Remove from entity
         comps.erase(compIt);
         return;
       }
     }
-	throw std::runtime_error("Component not found");
+    throw std::runtime_error("Component not found");
   }
 
   template <typename T> T &GetComponent(int entityId) {
@@ -84,6 +88,12 @@ public:
       return registry[typeId];
     return {};
   }
+  template <typename T, typename... Args> T *AddSystem(Args &&...args) {
+    auto sys = std::make_unique<T>(std::forward<Args>(args)...);
+    T *ptr = sys.get();
+    systems.push_back(std::move(sys));
+    return ptr;
+  }
 
   // std::vector<int> &GetEntities();
   // const std::vector<std::unique_ptr<Entity>> &GetEntities() const;
@@ -100,7 +110,7 @@ public:
 private:
   int nextId = 1;
   std::unordered_map<int, std::vector<std::unique_ptr<Component>>> entities;
-
+  std::vector<std::unique_ptr<ISystem>> systems;
   std::unordered_map<ComponentTypeId, std::vector<int>>
       registry; // <--- MISSING
   std::unique_ptr<Terrain2D> terrain;

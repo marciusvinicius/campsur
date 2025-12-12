@@ -5,6 +5,10 @@
     - Split btw editor and runtime
 [ ] Edit entities and add components
 [ ] Scene Graph (persist and load json for now)
+[ ] Organize better the arquitecture of scene and systems
+    [ ] Add a system manager
+    [ ] Add a component manager
+    [ ] Scene hold the managers and system comunicate with then
 
 ### Engine
 [ ] Move all raylib reference to engine

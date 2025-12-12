@@ -1,10 +1,8 @@
 #include "engine.h"
 #include "raylib.h"
 #include "raymath.h"
-#include "system.h"
 
 namespace criogenio {
-
 Texture2D CriogenioLoadTexture(const char *file_name) {
   return LoadTexture(file_name);
 }
@@ -31,7 +29,6 @@ void Engine::Run() {
     previousTime = now;
     scene->Update(dt);
     renderer->BeginFrame();
-    // TODO:(maraujo) think more abount this pointers
     scene->Render(*renderer);
     // Just call GUI hook — unused in game runtime
     OnGUI();

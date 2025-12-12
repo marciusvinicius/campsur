@@ -1,5 +1,6 @@
 #include "scene.h"
 #include "components.h"
+#include "core.h"
 #include "engine.h"
 #include "raylib.h"
 #include "raymath.h"
@@ -50,78 +51,21 @@ Terrain2D &Scene::CreateTerrain2D(const std::string &name,
 void Scene::Update(float dt) {
   if (userUpdate)
     userUpdate(dt);
-
-  /*
-  // Update animated sprites
-  auto entityIdsAnimatedSprite = GetEntitiesWith<AnimatedSprite>();
-  if (!entityIdsAnimatedSprite.empty()) {
-    for (auto entityId : entityIdsAnimatedSprite) {
-      auto &animSprite = GetComponent<AnimatedSprite>(entityId);
-      animSprite.Update(dt);
-    }
-  }
-
-  auto entityPlayerControllers = GetEntitiesWith<Controller>();
-  if (!entityPlayerControllers.empty()) {
-    for (auto entityId : entityPlayerControllers) {
-      auto &transform = GetComponent<Transform>(entityId);
-      auto &controller = GetComponent<Controller>(entityId);
-      Vector2 movement = {0.0f, 0.0f};
-      if (IsKeyDown(KEY_W))
-        movement.y -= 1.0f;
-      if (IsKeyDown(KEY_S))
-        movement.y += 1.0f;
-      if (IsKeyDown(KEY_A))
-        movement.x -= 1.0f;
-      if (IsKeyDown(KEY_D))
-        movement.x += 1.0f;
-      // Normalize movement vector
-      if (movement.x != 0.0f || movement.y != 0.0f) {
-        float length = sqrtf(movement.x * movement.x + movement.y * movement.y);
-        movement.x /= length;
-        movement.y /= length;
-      }
-      // Update position
-      transform.x += movement.x * controller.speed * dt;
-      transform.y += movement.y * controller.speed * dt;
-    }
-  }*/
-
+  for (auto &sys : systems)
+    sys->Update(dt);
 }
 
 void Scene::Render(Renderer &renderer) {
+
   BeginMode2D(maincamera);
   DrawGrid(100, 32);
   DrawCircle(0, 0, 6, RED);
   if (terrain)
     terrain->Render(renderer);
-  /*
-  //TODO:(maraujo) All this could go to a system later
-  // Draw all sprite components or animated components
-  auto entityIdsSprites = GetEntitiesWith<Sprite>();
-  if (!entityIdsSprites.empty()) {
-    for (auto entityId : entityIdsSprites) {
-      auto &sprite = GetComponent<Sprite>(entityId);
-      auto &transform = GetComponent<Transform>(entityId);
-      Rectangle sourceRec = {32.0f, 32.0f,
-                             static_cast<float>(sprite.texture.width),
-                             static_cast<float>(sprite.texture.height)};
-      Vector2 position = {transform.x, transform.y};
-      DrawTextureRec(sprite.texture, sourceRec, position, WHITE);
-    }
-  }
-  // Try to draw animated sprites
-  auto entityIdsAnimatedSprite = GetEntitiesWith<AnimatedSprite>();
-  if (!entityIdsAnimatedSprite.empty()) {
-    for (auto entityId : entityIdsAnimatedSprite) {
-      auto &animSprite = GetComponent<AnimatedSprite>(entityId);
-      auto &transform = GetComponent<Transform>(entityId);
-      Rectangle src = animSprite.GetFrame();
-      Rectangle dest = {transform.x, transform.y, static_cast<float>(src.width),
-                        static_cast<float>(src.height)};
-      DrawTexturePro(animSprite.texture, src, dest, {0, 0}, 0.0f, WHITE);
-    }
-  }*/
+
+  for (auto &sys : systems)
+    sys->Render(renderer);
+
   EndMode2D();
 }
 

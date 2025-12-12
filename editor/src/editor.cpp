@@ -4,7 +4,6 @@
 
 #include "raymath.h"
 #include "terrain.h"
-#include "system.h"
 
 // #define RAYGUI_IMPLEMENTATION
 //  #include "raygui.h"
@@ -15,32 +14,26 @@ EditorApp::EditorApp(int width, int height) : Engine(width, height, "Editor") {
   // rlImGuiSetup(true); // ImGui initialization only in editor
   //  auto t = new Terrain();
   // GetScene().SetTerrain(t);
+  GetScene().AddSystem<MovementSystem>(GetScene());
+  GetScene().AddSystem<AnimationSystem>(GetScene());
+  GetScene().AddSystem<RenderSystem>(GetScene());
 }
 
 // #TODO:(maraujo) Move this to Engine
 Vector2 EditorApp::GetMouseWorld() {
   return GetScreenToWorld2D(GetMousePosition(), GetScene().maincamera);
 }
+
 void EditorApp::Run() {
-    MovementSystem movement;
-    AnimationSystem animation;
-    RenderSystem render;
+
   while (!WindowShouldClose()) {
     float dt = GetFrameTime();
-
     HandleMouseSelection();
     HandleEntityDrag();
     HandleInput();
-
     GetScene().Update(dt);
-	animation.Update(dt, GetScene());
-    movement.Update(dt, GetScene());
-
     BeginDrawing();
     ClearBackground(DARKGRAY);
-
-	render.Render(GetScene());
-
     DrawSceneView();
     DrawHierarchyPanel();
     DrawInspectorPanel();
@@ -91,12 +84,11 @@ void EditorApp::DrawSceneView() {
   // Update camera offset to the center of the scene view (important!)
   GetScene().AttachCamera2D(cam);
 
-  //DrawRectangleRec(sceneRect, BLACK);
+  // DrawRectangleRec(sceneRect, BLACK);
 
   // Let engine render inside
   BeginScissorMode(leftPanelWidth, 0, sceneRect.width, sceneRect.height);
   // Debug: draw grid and origin so you can see things are visible
-
   GetScene().Render(GetRenderer()); // expose renderer getter
   // highlight selected entity
   if (selectedEntityId.has_value()) {
@@ -105,17 +97,16 @@ void EditorApp::DrawSceneView() {
     // Draw Rectangle on the spritedanimatin considering the Screen position
     auto word_position = GetWorldToScreen2D(Vector2{transform.x, transform.y},
                                             GetScene().maincamera);
-    auto &AnimatedSprite =
-        GetScene().GetComponent<criogenio::AnimatedSprite>(
-			selectedEntityId.value());
+    auto &AnimatedSprite = GetScene().GetComponent<criogenio::AnimatedSprite>(
+        selectedEntityId.value());
     int height = 32;
-	int widht = 32;
+    int widht = 32;
 
     if (AnimatedSprite.animations.size() > 0) {
       auto frame = AnimatedSprite.GetFrame();
       widht = frame.width;
       height = frame.height;
-	}
+    }
 
     DrawRectangleLines(word_position.x, word_position.y, widht, height, YELLOW);
   }
@@ -141,7 +132,6 @@ void EditorApp::DrawHierarchyPanel() {
       printf("Failed to load texture for animated sprite\n");
       return;
     }
-	GetScene().AddComponent<criogenio::AnimationState>(id);
 
     /// Make this data-driven later
     std::vector<Rectangle> idleDown = {
@@ -168,17 +158,46 @@ void EditorApp::DrawHierarchyPanel() {
         {128, 384, 64, 128},
 
     };
-
     auto *anim = GetScene().AddComponent<criogenio::AnimatedSprite>(
         id,
-        "idleDown", // initial animation
-        idleDown,   // frames
-        0.15f,      // speed
+        "idle_down", // initial animation
+        idleDown,    // frames
+        0.15f,       // speed
         texture);
 
-    anim->AddAnimation("idleUp", idleUp, 0.15f);
-    anim->AddAnimation("idleLeft", idleLeft, 0.15f);
-    anim->AddAnimation("idleRight", idleRight, 0.15f);
+    anim->AddAnimation("idle_up", idleUp, 0.15f);
+    anim->AddAnimation("idle_left", idleLeft, 0.15f);
+    anim->AddAnimation("idle_right", idleRight, 0.15f);
+
+    // add walking animations
+    std::vector<Rectangle> walkDown = {
+        {192, 0, 64, 128},
+        {256, 0, 64, 128},
+        {320, 0, 64, 128},
+    };
+    anim->AddAnimation("walk_down", walkDown, 0.1f);
+    std::vector<Rectangle> walkLeft = {
+        {192, 128, 64, 128},
+        {256, 128, 64, 128},
+        {320, 128, 64, 128},
+    };
+    anim->AddAnimation("walk_left", walkLeft, 0.1f);
+    std::vector<Rectangle> walkRight = {
+
+        {192, 256, 64, 128},
+        {256, 256, 64, 128},
+        {320, 256, 64, 128},
+    };
+    anim->AddAnimation("walk_right", walkRight, 0.1f);
+    std::vector<Rectangle> walkUp = {
+        {192, 384, 64, 128},
+        {256, 384, 64, 128},
+        {320, 384, 64, 128},
+    };
+    anim->AddAnimation("walk_up", walkUp, 0.1f);
+
+    // TODO:inter dependent of animatin sprited component
+    GetScene().AddComponent<AnimationState>(id);
   });
   y += 40;
   for (int entityId : GetScene().GetEntitiesWith<criogenio::Name>()) {
@@ -251,7 +270,7 @@ void EditorApp::DrawInspectorPanel() {
     y += 35;
   }
 
-  //Draw button to switch Player tag and add controller component
+  // Draw button to switch Player tag and add controller component
   DrawButton(x + 20, y + 20, rightPanelWidth - 40, 25, "Add Player Controller",
              [&]() {
                // Check if entity already has controller
@@ -265,32 +284,31 @@ void EditorApp::DrawInspectorPanel() {
                  GetScene().AddComponent<criogenio::Controller>(
                      selectedEntityId.value(), 200.0f);
                }
-	  });
+             });
 
-  //BUG removing player controller
-  DrawButton(x + 20, y + 70, rightPanelWidth - 40, 25, "Remove Player Controller",
-             [&]() {
+  // BUG removing player controller
+  DrawButton(x + 20, y + 70, rightPanelWidth - 40, 25,
+             "Remove Player Controller", [&]() {
                // Check if entity has controller
                try {
-                GetScene().RemoveComponent<criogenio::Controller>(
-					selectedEntityId.value());
+                 GetScene().RemoveComponent<criogenio::Controller>(
+                     selectedEntityId.value());
                } catch (const std::runtime_error &e) {
                  // Not found, do nothing
                  return;
                }
-	  });
+             });
 
-  //Sow information about controller if present
+  // Sow information about controller if present
   try {
-    auto &controller =
-        GetScene().GetComponent<criogenio::Controller>(selectedEntityId.value());
+    auto &controller = GetScene().GetComponent<criogenio::Controller>(
+        selectedEntityId.value());
     DrawText("Controller Component:", x + 10, y + 120, 16, WHITE);
     DrawText(TextFormat("Speed: %.1f", controller.speed), x + 20, y + 150, 16,
              WHITE);
   } catch (const std::runtime_error &e) {
     // Not found, do nothing
   }
-
 }
 
 bool EditorApp::IsMouseInSceneView() {
@@ -307,7 +325,7 @@ void EditorApp::HandleMouseSelection() {
     // Convert mouse position to world coordinates using the scene camera
     Vector2 mouseScreen = GetMousePosition();
     Vector2 worldMouse = GetScreenToWorld2D(mouseScreen, GetScene().maincamera);
-	selectedEntityId.reset();
+    selectedEntityId.reset();
 
     for (int entityId : GetScene().GetEntitiesWith<criogenio::Transform>()) {
       auto &transform = GetScene().GetComponent<criogenio::Transform>(entityId);

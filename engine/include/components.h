@@ -10,12 +10,7 @@ using ComponentTypeId = std::size_t;
 
 namespace criogenio {
 
-enum Direction {
-  UP,
-  DOWN,
-  LEFT,
-  RIGHT
-};
+enum Direction { UP, DOWN, LEFT, RIGHT };
 
 class ComponentTypeRegistry {
 public:
@@ -91,13 +86,23 @@ public:
   void SetAnimation(const std::string &name) {
     if (currentAnim == name)
       return;
+
     currentAnim = name;
     frameIndex = 0;
     timer = 0.0f;
   }
 
   void Update(float dt) {
-    auto &anim = animations[currentAnim];
+    if (animations.empty() || currentAnim.empty())
+      return;
+    auto it = animations.find(currentAnim);
+    if (it == animations.end())
+      return;
+
+    auto &anim = it->second;
+    if (anim.frames.empty())
+      return;
+
     timer += dt;
     if (timer >= anim.frameSpeed) {
       timer = 0;
@@ -106,7 +111,14 @@ public:
   }
 
   Rectangle GetFrame() const {
-    return animations.at(currentAnim).frames[frameIndex];
+
+    const auto &anim = animations.at(currentAnim);
+    if (anim.frames.empty()) {
+      TraceLog(LOG_ERROR, "AnimatedSprite: animation '%s' has 0 frames!",
+               currentAnim.c_str());
+      return {0, 0, 0, 0}; // prevent crash
+    }
+    return anim.frames[frameIndex];
   }
 };
 
@@ -137,12 +149,11 @@ public:
   Name(const std::string &name) : name(name) {}
 };
 
-
 class AnimationState : public Component {
 public:
-    AnimState current = AnimState::Idle;
-    AnimState previous = AnimState::Idle;
-    Direction facing = DOWN;
+  AnimState current = AnimState::IDLE;
+  AnimState previous = AnimState::IDLE;
+  Direction facing = DOWN;
 };
 
 } // namespace criogenio
