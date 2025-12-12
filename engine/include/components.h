@@ -143,6 +143,13 @@ public:
   Controller(float speed) : speed(speed) {}
 };
 
+class AIController : public Component {
+public:
+  float speed = 100.0f;
+  Direction direction = DOWN;
+  AIController(float speed) : speed(speed) {}
+};
+
 class Name : public Component {
 public:
   std::string name;

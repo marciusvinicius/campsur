@@ -127,7 +127,7 @@ void EditorApp::DrawHierarchyPanel() {
   DrawButton(10, y, 180, 25, "Create Animated Entity", [&]() {
     int id = GetScene().CreateEntity("New Entity");
     GetScene().AddComponent<criogenio::Transform>(id, 0.0f, 0.0f);
-    auto texture = LoadTexture("editor/assets/Woman/64X128_Idle_Free.png");
+    auto texture = LoadTexture("editor/assets/Woman/woman.png");
     if (!texture.id) {
       printf("Failed to load texture for animated sprite\n");
       return;
@@ -135,64 +135,63 @@ void EditorApp::DrawHierarchyPanel() {
 
     /// Make this data-driven later
     std::vector<Rectangle> idleDown = {
-        {0, 0, 64, 128},
-        {64, 0, 64, 128},
-        {128, 0, 64, 128},
+        {0, 0, 64, 128},   {64, 0, 64, 128},  {128, 0, 64, 128},
+        {192, 0, 64, 128}, {256, 0, 64, 128}, {320, 0, 64, 128},
+        {384, 0, 64, 128}, {448, 0, 64, 128}, {512, 0, 64, 128},
     };
 
     std::vector<Rectangle> idleLeft = {
-        {0, 128, 64, 128},
-        {64, 128, 64, 128},
-        {128, 128, 64, 128},
+        {0, 128, 64, 128},   {64, 128, 64, 128},  {128, 128, 64, 128},
+        {192, 128, 64, 128}, {256, 128, 64, 128}, {320, 128, 64, 128},
+        {384, 128, 64, 128}, {448, 128, 64, 128}, {512, 128, 64, 128},
     };
 
     std::vector<Rectangle> idleRight = {
-        {0, 256, 64, 128},
-        {64, 256, 64, 128},
-        {128, 256, 64, 128},
+        {0, 256, 64, 128},   {64, 256, 64, 128},  {128, 256, 64, 128},
+        {192, 256, 64, 128}, {256, 256, 64, 128}, {320, 256, 64, 128},
+        {384, 256, 64, 128}, {448, 256, 64, 128}, {512, 256, 64, 128},
     };
 
     std::vector<Rectangle> idleUp = {
-        {0, 384, 64, 128},
-        {64, 384, 64, 128},
-        {128, 384, 64, 128},
+        {0, 384, 64, 128},   {64, 384, 64, 128},  {128, 384, 64, 128},
+        {192, 384, 64, 128}, {256, 384, 64, 128}, {320, 384, 64, 128},
+        {384, 384, 64, 128}, {448, 384, 64, 128}, {512, 384, 64, 128},
 
     };
     auto *anim = GetScene().AddComponent<criogenio::AnimatedSprite>(
         id,
         "idle_down", // initial animation
         idleDown,    // frames
-        0.15f,       // speed
+        0.10f,       // speed
         texture);
 
-    anim->AddAnimation("idle_up", idleUp, 0.15f);
-    anim->AddAnimation("idle_left", idleLeft, 0.15f);
-    anim->AddAnimation("idle_right", idleRight, 0.15f);
+    anim->AddAnimation("idle_up", idleUp, 0.10f);
+    anim->AddAnimation("idle_left", idleLeft, 0.10f);
+    anim->AddAnimation("idle_right", idleRight, 0.10f);
 
-    // add walking animations
+    // Add walking animation, should start after 64 pixels in y axis
     std::vector<Rectangle> walkDown = {
-        {192, 0, 64, 128},
-        {256, 0, 64, 128},
-        {320, 0, 64, 128},
+        {0, 512, 64, 128},   {64, 512, 64, 128},  {128, 512, 64, 128},
+        {192, 512, 64, 128}, {256, 512, 64, 128}, {320, 512, 64, 128},
+        {384, 512, 64, 128}, {448, 512, 64, 128}, {512, 512, 64, 128},
     };
     anim->AddAnimation("walk_down", walkDown, 0.1f);
     std::vector<Rectangle> walkLeft = {
-        {192, 128, 64, 128},
-        {256, 128, 64, 128},
-        {320, 128, 64, 128},
+        {0, 640, 64, 128},   {64, 640, 64, 128},  {128, 640, 64, 128},
+        {192, 640, 64, 128}, {256, 640, 64, 128}, {320, 640, 64, 128},
+        {384, 640, 64, 128}, {448, 640, 64, 128}, {512, 640, 64, 128},
     };
     anim->AddAnimation("walk_left", walkLeft, 0.1f);
     std::vector<Rectangle> walkRight = {
-
-        {192, 256, 64, 128},
-        {256, 256, 64, 128},
-        {320, 256, 64, 128},
+        {0, 768, 64, 128},   {64, 768, 64, 128},  {128, 768, 64, 128},
+        {192, 768, 64, 128}, {256, 768, 64, 128}, {320, 768, 64, 128},
+        {384, 768, 64, 128}, {448, 768, 64, 128}, {512, 768, 64, 128},
     };
     anim->AddAnimation("walk_right", walkRight, 0.1f);
     std::vector<Rectangle> walkUp = {
-        {192, 384, 64, 128},
-        {256, 384, 64, 128},
-        {320, 384, 64, 128},
+        {0, 896, 64, 128},   {64, 896, 64, 128},  {128, 896, 64, 128},
+        {192, 896, 64, 128}, {256, 896, 64, 128}, {320, 896, 64, 128},
+        {384, 896, 64, 128}, {448, 896, 64, 128}, {512, 896, 64, 128},
     };
     anim->AddAnimation("walk_up", walkUp, 0.1f);
 
