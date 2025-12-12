@@ -1,0 +1,104 @@
+#include "core.h"
+#include "components.h"
+
+namespace criogenio {
+void MovementSystem::Update(float dt)  {
+    auto ids = scene.GetEntitiesWith<Controller>();
+
+    for (int id : ids) {
+        auto& ctrl = scene.GetComponent<Controller>(id);
+        auto& tr = scene.GetComponent<Transform>(id);
+        auto& anim = scene.GetComponent<AnimationState>(id);
+
+        float dx = 0, dy = 0;
+
+        if (IsKeyDown(KEY_RIGHT)) {
+            dx += 1;
+            anim.facing = RIGHT;
+        }
+        if (IsKeyDown(KEY_LEFT)) {
+            dx -= 1;
+            anim.facing = LEFT;
+        }
+        if (IsKeyDown(KEY_UP)) {
+            dy -= 1;
+            anim.facing = UP;
+        }
+        if (IsKeyDown(KEY_DOWN)) {
+            dy += 1;
+            anim.facing = DOWN;
+        }
+
+        if (dx != 0 || dy != 0) {
+            tr.x += dx * ctrl.speed * dt;
+            tr.y += dy * ctrl.speed * dt;
+            anim.current = AnimState::WALKING;
+        }
+        else {
+            anim.current = AnimState::IDLE;
+        }
+    }
+}
+
+void MovementSystem::Render(Renderer&)  {}
+
+        
+std::string AnimationSystem::FacingToString(Direction d) const {
+    switch (d) {
+    case UP:
+        return "up";
+    case DOWN:
+        return "down";
+    case LEFT:
+        return "left";
+    case RIGHT:
+        return "right";
+    }
+    return "down";
+}
+
+std::string AnimationSystem::BuildClipKey(const AnimationState& st) {
+    switch (st.current) {
+    case AnimState::IDLE:
+        return "idle_" + FacingToString(st.facing);
+    case AnimState::WALKING:
+        return "walk_" + FacingToString(st.facing);
+    case AnimState::ATTACKING:
+        return "attack_" + FacingToString(st.facing);
+    }
+    return "idle_down";
+}
+
+void AnimationSystem::Update(float dt) {
+    auto ids = scene.GetEntitiesWith<AnimatedSprite>();
+    for (int id : ids) {
+        auto& sprite = scene.GetComponent<AnimatedSprite>(id);
+        auto& st = scene.GetComponent<AnimationState>(id);
+
+        if (st.current != st.previous) {
+            sprite.SetAnimation(BuildClipKey(st));
+        }
+        st.previous = st.current;
+        sprite.Update(dt);
+    }
+}
+
+void AnimationSystem::Render(Renderer&)  {}
+
+      
+void RenderSystem::Update(float) {}
+
+void RenderSystem::Render(Renderer& renderer)  {
+    auto ids = scene.GetEntitiesWith<AnimatedSprite>();
+    for (int id : ids) {
+        auto& animSprite = scene.GetComponent<AnimatedSprite>(id);
+        auto& tr = scene.GetComponent<Transform>(id);
+
+        Rectangle src = animSprite.GetFrame();
+        Rectangle dest = { tr.x, tr.y, (float)src.width, (float)src.height };
+
+        renderer.DrawTexturePro(animSprite.texture, src, dest, { 0, 0 }, 0.0f,
+            WHITE);
+    }
+}
+} // namespace criogenio
