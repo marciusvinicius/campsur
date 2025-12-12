@@ -25,7 +25,7 @@ Vector2 EditorApp::GetMouseWorld() {
 }
 
 void EditorApp::Run() {
-
+	ToggleFullscreen();     
   while (!WindowShouldClose()) {
     float dt = GetFrameTime();
     HandleMouseSelection();
