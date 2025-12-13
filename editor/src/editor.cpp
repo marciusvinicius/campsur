@@ -212,6 +212,13 @@ void EditorApp::DrawHierarchyPanel() {
         selectedEntityId = entityId;
       }
     }
+    auto ids = GetScene().GetEntitiesWith<AIController>();
+    if (selectedEntityId.has_value()) {
+        for (auto id : ids) {
+            auto& ctrl = GetScene().GetComponent<AIController>(id);
+            ctrl.entityTarget = selectedEntityId.value();
+    }
+    }
     y += 30;
   }
 }
@@ -285,7 +292,7 @@ void EditorApp::DrawInspectorPanel() {
                      selectedEntityId.value(), 200.0f);
                }
              });
-
+  //I need to start to integrate some kind of interface
   // BUG removing player controller
   /*DrawButton(x + 20, y + 70, rightPanelWidth - 40, 25,
              "Remove Player Controller", [&]() {
@@ -305,7 +312,7 @@ void EditorApp::DrawInspectorPanel() {
       try {
           auto ai = GetScene().AddComponent<criogenio::AIController>(
               selectedEntityId.value());
-          ai->target = Vector2{ 291, -372 };
+
       }
       catch (const std::runtime_error& e) {
           // Not found, do nothing

@@ -1,5 +1,6 @@
 #pragma once
 #include "animation_state.h"
+#include "serialization.h"
 #include "raylib.h"
 #include <memory>
 #include <string>
@@ -10,6 +11,7 @@ using ComponentTypeId = std::size_t;
 
 namespace criogenio {
 
+//TODO(maraujo): Move this to a const.h
 enum Direction { UP, DOWN, LEFT, RIGHT };
 
 class ComponentTypeRegistry {
@@ -24,6 +26,16 @@ template <typename T> ComponentTypeId GetComponentTypeId() {
   static ComponentTypeId id = ComponentTypeRegistry::NewId();
   return id;
 }
+
+
+struct ISerializableComponent {
+    virtual ~ISerializableComponent() = default;
+
+    virtual std::string TypeName() const = 0;
+    virtual SerializedComponent Serialize() const = 0;
+    virtual void Deserialize(const SerializedComponent& data) = 0;
+};
+
 
 class Component {
 public:
@@ -149,7 +161,7 @@ public:
     float speed = 200.0f;
     Direction direction = UP;
     AIBrainState brainState = FRIENDLY;
-    Vector2 target;
+    int entityTarget;
 };
 
 

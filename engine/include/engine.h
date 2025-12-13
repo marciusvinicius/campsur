@@ -9,6 +9,14 @@ namespace criogenio {
 
 Texture2D CriogenioLoadTexture(const char *file_name);
 
+/*
+
+	Start to think about how to serialize the scene, for now we dont have a simple way
+	to build the scenes and then load it from a file
+	that should include entities and components
+
+*/
+
 class Engine {
 public:
   Engine(int width, int height, const char *title);

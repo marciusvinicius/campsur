@@ -51,10 +51,15 @@ void AIMovementSystem::Update(float dt) {
         auto& tr = scene.GetComponent<Transform>(id);
         auto& anim = scene.GetComponent<AnimationState>(id);
         
+        if (ctrl.entityTarget == 0 and ctrl.entityTarget != id) {
+            return;
+        }
+
         const float arriveRadius = 0.01f;
 
-        float dx = ctrl.target.x - tr.x;
-        float dy = ctrl.target.y - tr.y;
+        auto& targetTrasnform = scene.GetComponent<Transform>(ctrl.entityTarget);
+        float dx = targetTrasnform.x - tr.x;
+        float dy = targetTrasnform.y - tr.y;
 
         float distSq = dx * dx + dy * dy;
 
@@ -70,8 +75,8 @@ void AIMovementSystem::Update(float dt) {
             // Prevent overshoot
             if (step >= dist)
             {
-                tr.x = ctrl.target.x;
-                tr.y = ctrl.target.y;
+                tr.x = targetTrasnform.x;
+                tr.y = targetTrasnform.y;
             }
             else
             {
@@ -88,8 +93,8 @@ void AIMovementSystem::Update(float dt) {
         }
         else
         {
-            tr.x = ctrl.target.x;
-            tr.y = ctrl.target.y;
+            tr.x = targetTrasnform.x;
+            tr.y = targetTrasnform.y;
             anim.current = AnimState::IDLE;
         }
     }   
@@ -128,10 +133,7 @@ void AnimationSystem::Update(float dt) {
     for (int id : ids) {
         auto& sprite = scene.GetComponent<AnimatedSprite>(id);
         auto& st = scene.GetComponent<AnimationState>(id);
-
-        if (st.current != st.previous) {
-            sprite.SetAnimation(BuildClipKey(st));
-        }
+        sprite.SetAnimation(BuildClipKey(st));
         st.previous = st.current;
         sprite.Update(dt);
     }
