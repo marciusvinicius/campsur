@@ -40,8 +40,62 @@ void MovementSystem::Update(float dt)  {
     }
 }
 
-void MovementSystem::Render(Renderer&)  {}
+void MovementSystem::Render(Renderer& renderer)  {}
 
+
+void AIMovementSystem::Update(float dt) {
+    auto ids = scene.GetEntitiesWith<AIController>();
+
+    for (int id : ids) {
+        auto& ctrl = scene.GetComponent<AIController>(id);
+        auto& tr = scene.GetComponent<Transform>(id);
+        auto& anim = scene.GetComponent<AnimationState>(id);
+        
+        const float arriveRadius = 0.01f;
+
+        float dx = ctrl.target.x - tr.x;
+        float dy = ctrl.target.y - tr.y;
+
+        float distSq = dx * dx + dy * dy;
+
+        if (distSq > arriveRadius * arriveRadius)
+        {
+            float dist = sqrtf(distSq);
+
+            float dirX = dx / dist;
+            float dirY = dy / dist;
+
+            float step = ctrl.speed * dt;
+
+            // Prevent overshoot
+            if (step >= dist)
+            {
+                tr.x = ctrl.target.x;
+                tr.y = ctrl.target.y;
+            }
+            else
+            {
+                tr.x += dirX * step;
+                tr.y += dirY * step;
+            }
+            // --- Facing logic ---
+            if (fabsf(dx) > fabsf(dy))
+                anim.facing = (dx > 0) ? Direction::RIGHT : Direction::LEFT;
+            else
+                anim.facing = (dy > 0) ? Direction::DOWN : Direction::UP;
+
+            anim.current = AnimState::WALKING;
+        }
+        else
+        {
+            tr.x = ctrl.target.x;
+            tr.y = ctrl.target.y;
+            anim.current = AnimState::IDLE;
+        }
+    }   
+}
+
+void AIMovementSystem::Render(Renderer& renderer) {};
         
 std::string AnimationSystem::FacingToString(Direction d) const {
     switch (d) {
@@ -83,7 +137,7 @@ void AnimationSystem::Update(float dt) {
     }
 }
 
-void AnimationSystem::Render(Renderer&)  {}
+void AnimationSystem::Render(Renderer& renderer)  {}
 
       
 void RenderSystem::Update(float) {}

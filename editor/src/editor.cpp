@@ -17,6 +17,7 @@ EditorApp::EditorApp(int width, int height) : Engine(width, height, "Editor") {
   GetScene().AddSystem<MovementSystem>(GetScene());
   GetScene().AddSystem<AnimationSystem>(GetScene());
   GetScene().AddSystem<RenderSystem>(GetScene());
+  GetScene().AddSystem<AIMovementSystem>(GetScene());
 }
 
 // #TODO:(maraujo) Move this to Engine
@@ -286,7 +287,7 @@ void EditorApp::DrawInspectorPanel() {
              });
 
   // BUG removing player controller
-  DrawButton(x + 20, y + 70, rightPanelWidth - 40, 25,
+  /*DrawButton(x + 20, y + 70, rightPanelWidth - 40, 25,
              "Remove Player Controller", [&]() {
                // Check if entity has controller
                try {
@@ -297,6 +298,22 @@ void EditorApp::DrawInspectorPanel() {
                  return;
                }
              });
+             */
+  //Add Button to add AIController
+  DrawButton(x + 20, y + 70, rightPanelWidth - 40, 25, "Add AI Controller", [&]() {
+      // Check if entity has controller
+      try {
+          auto ai = GetScene().AddComponent<criogenio::AIController>(
+              selectedEntityId.value());
+          ai->target = Vector2{ 291, -372 };
+      }
+      catch (const std::runtime_error& e) {
+          // Not found, do nothing
+          return;
+      }
+      });
+
+
 
   // Sow information about controller if present
   try {

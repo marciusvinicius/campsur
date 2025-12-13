@@ -143,6 +143,16 @@ public:
   Controller(float speed) : speed(speed) {}
 };
 
+
+class AIController : public Component {
+public:
+    float speed = 200.0f;
+    Direction direction = UP;
+    AIBrainState brainState = FRIENDLY;
+    Vector2 target;
+};
+
+
 class InteractableComponent : public Component {
 public:
 

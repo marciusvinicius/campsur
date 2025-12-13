@@ -16,8 +16,19 @@ public:
   MovementSystem(Scene &s) : scene(s) {}
 
   void Update(float dt) override;
-  void Render(Renderer&) override;
+  void Render(Renderer& renderer) override;
 };
+
+
+class AIMovementSystem : public ISystem {
+public:
+	Scene& scene;
+	AIMovementSystem(Scene &s) : scene(s) {}
+
+	void Update(float dt) override;
+	void Render(Renderer& renderer) override;
+};
+
 
 class AnimationSystem : public ISystem {
 public:
