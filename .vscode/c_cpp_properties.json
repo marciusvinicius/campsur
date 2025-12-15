@@ -12,7 +12,11 @@
       "compilerArgs": [
         ""
       ]
+    },
+    {
+      "name": "Windows Run",
+      "includePath": ["${workspaceFolder}/**"]
     }
   ],
   "version": 4
-}
+},

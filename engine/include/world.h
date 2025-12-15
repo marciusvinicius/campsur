@@ -16,7 +16,6 @@
 namespace criogenio {
 
 class World {
-
 public:
   World();
   ~World();

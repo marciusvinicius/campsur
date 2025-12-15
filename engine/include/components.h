@@ -13,6 +13,14 @@ namespace criogenio {
 
 enum Direction { UP, DOWN, LEFT, RIGHT };
 
+struct ISerializableComponent {
+    virtual ~ISerializableComponent() = default;
+
+    virtual std::string TypeName() const = 0;
+    virtual SerializedComponent Serialize() const = 0;
+    virtual void Deserialize(const SerializedComponent& data) = 0;
+};
+
 class ComponentTypeRegistry {
 public:
   static ComponentTypeId NewId() {
@@ -41,13 +49,32 @@ public:
   virtual ~Component() = default;
 };
 
-class Transform : public Component {
+class Transform : public Component, public ISerializableComponent {
 public:
   float x = 0;
   float y = 0;
 
   Transform() = default;
   Transform(float x, float y) : x(x), y(y) {}
+
+   std::string TypeName() const override {
+        return "Transform";
+    }
+
+    SerializedComponent Serialize() const override {
+        return {
+            "Transform",
+            {
+                {"x", x},
+                {"y", y}
+            }
+        };
+    }
+
+    void Deserialize(const SerializedComponent& data) override {
+        x = std::get<float>(data.fields.at("x"));
+        y = std::get<float>(data.fields.at("y"));
+    }
 };
 
 class Sprite : public Component {

@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "type": "lldb",
+      "type": "cppdbg",
       "request": "launch",
       "name": "Debug",
       "program": "${workspaceRoot}/bin/Debug/camp_sur_cpp",
@@ -16,8 +16,9 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": false,
-      "cwd": "/home/marcius/Workspace/criogenio/camp_sur_cpp/engine/src",
-      "program": "/home/marcius/Workspace/criogenio/camp_sur_cpp/engine/src/build/Debug/outDebug",
+      "cwd": "/home/marcius/Workspace/criogenio/camp_sur_cpp/editor/src",
+      "program": "/home/marcius/Workspace/criogenio/camp_sur_cpp/bin/Debug/campsur",
+      "preLaunchTask": "Build",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
