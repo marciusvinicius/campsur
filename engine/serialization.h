@@ -6,6 +6,7 @@
 #include <vector>
 
 namespace criogenio {
+
 using Variant = std::variant<int, float, bool, std::string>;
 
 struct SerializedComponent {
@@ -23,4 +24,5 @@ struct SerializedWorld {
   std::string name;
   std::vector<SerializedEntity> entities;
 };
+
 } // namespace criogenio

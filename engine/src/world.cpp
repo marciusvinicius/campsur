@@ -60,6 +60,7 @@ void World::Render(Renderer &renderer) {
   BeginMode2D(maincamera);
   DrawGrid(100, 32);
   DrawCircle(0, 0, 6, RED);
+
   if (terrain)
     terrain->Render(renderer);
 

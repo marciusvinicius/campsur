@@ -1,7 +1,5 @@
 #include "editor.h"
-
 #include "input.h"
-
 #include "raymath.h"
 #include "terrain.h"
 #include <cstddef>
@@ -161,6 +159,7 @@ void EditorApp::DrawHierarchyPanel() {
         {384, 384, 64, 128}, {448, 384, 64, 128}, {512, 384, 64, 128},
 
     };
+
     auto *anim = GetWorld().AddComponent<criogenio::AnimatedSprite>(
         id,
         "idle_down", // initial animation
@@ -202,6 +201,7 @@ void EditorApp::DrawHierarchyPanel() {
     GetWorld().AddComponent<AnimationState>(id);
   });
   y += 40;
+
   for (int entityId : GetWorld().GetEntitiesWith<criogenio::Name>()) {
     auto &name = GetWorld().GetComponent<Name>(entityId);
     bool isSelected =

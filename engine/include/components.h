@@ -11,7 +11,6 @@ using ComponentTypeId = std::size_t;
 
 namespace criogenio {
 
-//TODO(maraujo): Move this to a const.h
 enum Direction { UP, DOWN, LEFT, RIGHT };
 
 class ComponentTypeRegistry {
@@ -138,7 +137,7 @@ class Collider : public Component {
 public:
   float width = 20;
   float height = 20;
-  bool isTrigger = false; // If true, no physics resolution
+  bool isTrigger = false;
 };
 
 class CameraComponent : public Component {

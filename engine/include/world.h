@@ -16,6 +16,7 @@
 namespace criogenio {
 
 class World {
+
 public:
   World();
   ~World();
@@ -95,8 +96,6 @@ public:
     return ptr;
   }
 
-  // std::vector<int> &GetEntities();
-  // const std::vector<std::unique_ptr<Entity>> &GetEntities() const;
   int CreateEntity(const std::string &name);
   void DeleteEntity(int id);
   bool HasEntity(int id) const;
@@ -104,7 +103,6 @@ public:
                              const std::string &texture_path);
   void AttachCamera2D(Camera2D cam);
 
-  // TODO:(maraujo) move this to private
   Camera2D maincamera;
 
 private:
@@ -112,7 +110,7 @@ private:
   std::unordered_map<int, std::vector<std::unique_ptr<Component>>> entities;
   std::vector<std::unique_ptr<ISystem>> systems;
   std::unordered_map<ComponentTypeId, std::vector<int>>
-      registry; // <--- MISSING
+      registry;
   std::unique_ptr<Terrain2D> terrain;
   std::function<void(float)> userUpdate = nullptr;
 };
