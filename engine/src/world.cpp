@@ -1,4 +1,4 @@
-#include "scene.h"
+#include "world.h"
 #include "components.h"
 #include "core.h"
 #include "engine.h"
@@ -7,9 +7,9 @@
 
 namespace criogenio {
 
-Scene::Scene() {}
+World::World() {}
 
-Scene::~Scene() {
+World::~World() {
   // clear all entities and components
   entities.clear();
   if (terrain) {
@@ -18,14 +18,14 @@ Scene::~Scene() {
   }
 }
 
-int Scene::CreateEntity(const std::string &name) {
+int World::CreateEntity(const std::string &name) {
   int id = nextId++;
   entities[id] = std::vector<std::unique_ptr<Component>>();
   AddComponent<criogenio::Name>(id, "New Entity");
   return id;
 }
 
-Terrain2D &Scene::CreateTerrain2D(const std::string &name,
+Terrain2D &World::CreateTerrain2D(const std::string &name,
                                   const std::string &texture_path) {
   auto new_terrain = new Terrain2D();
   auto atlas = CriogenioLoadTexture(texture_path.c_str());
@@ -48,14 +48,14 @@ Terrain2D &Scene::CreateTerrain2D(const std::string &name,
   return *terrain;
 }
 
-void Scene::Update(float dt) {
+void World::Update(float dt) {
   if (userUpdate)
     userUpdate(dt);
   for (auto &sys : systems)
     sys->Update(dt);
 }
 
-void Scene::Render(Renderer &renderer) {
+void World::Render(Renderer &renderer) {
 
   BeginMode2D(maincamera);
   DrawGrid(100, 32);
@@ -70,15 +70,15 @@ void Scene::Render(Renderer &renderer) {
 }
 
 // Should I remove the map values?
-void Scene::DeleteEntity(int id) { entities.erase(id); }
+void World::DeleteEntity(int id) { entities.erase(id); }
 
-void Scene::OnUpdate(std::function<void(float)> fn) { userUpdate = fn; }
+void World::OnUpdate(std::function<void(float)> fn) { userUpdate = fn; }
 
-bool Scene::HasEntity(int id) const {
+bool World::HasEntity(int id) const {
   return entities.find(id) != entities.end();
 }
 
-void Scene::AttachCamera2D(Camera2D cam) {
+void World::AttachCamera2D(Camera2D cam) {
   // For now we have only one camera
   maincamera = cam;
 }

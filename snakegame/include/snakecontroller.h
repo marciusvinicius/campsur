@@ -1,18 +1,18 @@
 #pragma once
 #include "event.h"
-#include "scene.h"
+#include "world.h"
 #include <deque>
 
 using namespace criogenio;
 
 class SnakeController {
 public:
-  SnakeController(Scene &scene, EventBus &bus);
+  SnakeController(World &world, EventBus &bus);
 
   void Update(float dt);
 
 private:
-  Scene &scene;
+  World &world;
   EventBus &bus;
 
   float timer = 0.0f;

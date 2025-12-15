@@ -2,7 +2,7 @@
 
 #include "engine.h"
 #include "raylib.h"
-#include "scene.h"
+#include "world.h"
 #include <optional>
 
 using namespace criogenio;
@@ -25,17 +25,17 @@ private:
   void DrawUI();
   void DrawHierarchyPanel();
   void DrawInspectorPanel();
-  void DrawSceneView();
+  void DrawWorldView();
 
   void HandleMouseSelection();
   void HandleEntityDrag();
   void HandleInput();
 
-  bool IsMouseInSceneView();
+  bool IsMouseInWorldView();
 
   // helpers
   void DrawButton(int x, int y, int w, int h, const char *label,
                   std::function<void()> onClick);
-  void DrawInput(int x, int y, int w, int h, const char* label);
+  void DrawInput(int x, int y, int w, int h, const char *label);
   void OnGUI() override;
 };

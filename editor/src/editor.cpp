@@ -13,29 +13,29 @@ using namespace criogenio;
 EditorApp::EditorApp(int width, int height) : Engine(width, height, "Editor") {
   // rlImGuiSetup(true); // ImGui initialization only in editor
   //  auto t = new Terrain();
-  // GetScene().SetTerrain(t);
-  GetScene().AddSystem<MovementSystem>(GetScene());
-  GetScene().AddSystem<AnimationSystem>(GetScene());
-  GetScene().AddSystem<RenderSystem>(GetScene());
-  GetScene().AddSystem<AIMovementSystem>(GetScene());
+  // GetWorld().SetTerrain(t);
+  GetWorld().AddSystem<MovementSystem>(GetWorld());
+  GetWorld().AddSystem<AnimationSystem>(GetWorld());
+  GetWorld().AddSystem<RenderSystem>(GetWorld());
+  GetWorld().AddSystem<AIMovementSystem>(GetWorld());
 }
 
 // #TODO:(maraujo) Move this to Engine
 Vector2 EditorApp::GetMouseWorld() {
-  return GetScreenToWorld2D(GetMousePosition(), GetScene().maincamera);
+  return GetScreenToWorld2D(GetMousePosition(), GetWorld().maincamera);
 }
 
 void EditorApp::Run() {
-	ToggleFullscreen();     
+  ToggleFullscreen();
   while (!WindowShouldClose()) {
     float dt = GetFrameTime();
     HandleMouseSelection();
     HandleEntityDrag();
     HandleInput();
-    GetScene().Update(dt);
+    GetWorld().Update(dt);
     BeginDrawing();
     ClearBackground(DARKGRAY);
-    DrawSceneView();
+    DrawWorldView();
     DrawHierarchyPanel();
     DrawInspectorPanel();
 
@@ -67,38 +67,38 @@ void EditorApp::DrawInput(int x, int y, int w, int h, const char *label) {
   DrawText(label, x + 10, y + 6, 18, BLACK);
 }
 
-void EditorApp::DrawSceneView() {
-  Rectangle sceneRect = {
+void EditorApp::DrawWorldView() {
+  Rectangle WorldRect = {
       (float)leftPanelWidth, 0,
       (float)(GetScreenWidth() - leftPanelWidth - rightPanelWidth),
       (float)GetScreenHeight()};
 
-  // Background for scene view
-  DrawRectangleRec(sceneRect, BLACK);
+  // Background for World view
+  DrawRectangleRec(WorldRect, BLACK);
   Camera2D cam = Camera2D();
-  cam.offset = {sceneRect.x + sceneRect.width / 2.0f,
-                sceneRect.y + sceneRect.height / 2.0f};
+  cam.offset = {WorldRect.x + WorldRect.width / 2.0f,
+                WorldRect.y + WorldRect.height / 2.0f};
   cam.target = {0.0f, 0.0f};
   cam.rotation = 0.0f;
   cam.zoom = 1.0f;
 
-  // Update camera offset to the center of the scene view (important!)
-  GetScene().AttachCamera2D(cam);
+  // Update camera offset to the center of the World view (important!)
+  GetWorld().AttachCamera2D(cam);
 
-  // DrawRectangleRec(sceneRect, BLACK);
+  // DrawRectangleRec(WorldRect, BLACK);
 
   // Let engine render inside
-  BeginScissorMode(leftPanelWidth, 0, sceneRect.width, sceneRect.height);
+  BeginScissorMode(leftPanelWidth, 0, WorldRect.width, WorldRect.height);
   // Debug: draw grid and origin so you can see things are visible
-  GetScene().Render(GetRenderer()); // expose renderer getter
+  GetWorld().Render(GetRenderer()); // expose renderer getter
   // highlight selected entity
   if (selectedEntityId.has_value()) {
     auto &transform =
-        GetScene().GetComponent<criogenio::Transform>(selectedEntityId.value());
+        GetWorld().GetComponent<criogenio::Transform>(selectedEntityId.value());
     // Draw Rectangle on the spritedanimatin considering the Screen position
     auto word_position = GetWorldToScreen2D(Vector2{transform.x, transform.y},
-                                            GetScene().maincamera);
-    auto &AnimatedSprite = GetScene().GetComponent<criogenio::AnimatedSprite>(
+                                            GetWorld().maincamera);
+    auto &AnimatedSprite = GetWorld().GetComponent<criogenio::AnimatedSprite>(
         selectedEntityId.value());
     int height = 32;
     int widht = 32;
@@ -121,13 +121,13 @@ void EditorApp::DrawHierarchyPanel() {
   int y = 40;
   DrawButton(10, y, 180, 25, "Create Terrain", [&]() {
     auto &t =
-        GetScene().CreateTerrain2D("Terrain", "editor/assets/terrain.jpg");
+        GetWorld().CreateTerrain2D("Terrain", "editor/assets/terrain.jpg");
   });
   y += 40;
 
   DrawButton(10, y, 180, 25, "Create Animated Entity", [&]() {
-    int id = GetScene().CreateEntity("New Entity");
-    GetScene().AddComponent<criogenio::Transform>(id, 0.0f, 0.0f);
+    int id = GetWorld().CreateEntity("New Entity");
+    GetWorld().AddComponent<criogenio::Transform>(id, 0.0f, 0.0f);
     auto texture = LoadTexture("editor/assets/Woman/woman.png");
     if (!texture.id) {
       printf("Failed to load texture for animated sprite\n");
@@ -159,7 +159,7 @@ void EditorApp::DrawHierarchyPanel() {
         {384, 384, 64, 128}, {448, 384, 64, 128}, {512, 384, 64, 128},
 
     };
-    auto *anim = GetScene().AddComponent<criogenio::AnimatedSprite>(
+    auto *anim = GetWorld().AddComponent<criogenio::AnimatedSprite>(
         id,
         "idle_down", // initial animation
         idleDown,    // frames
@@ -197,11 +197,11 @@ void EditorApp::DrawHierarchyPanel() {
     anim->AddAnimation("walk_up", walkUp, 0.1f);
 
     // TODO:inter dependent of animatin sprited component
-    GetScene().AddComponent<AnimationState>(id);
+    GetWorld().AddComponent<AnimationState>(id);
   });
   y += 40;
-  for (int entityId : GetScene().GetEntitiesWith<criogenio::Name>()) {
-    auto &name = GetScene().GetComponent<Name>(entityId);
+  for (int entityId : GetWorld().GetEntitiesWith<criogenio::Name>()) {
+    auto &name = GetWorld().GetComponent<Name>(entityId);
     bool isSelected =
         selectedEntityId.has_value() && selectedEntityId.value() == entityId;
     Color textColor = isSelected ? YELLOW : WHITE;
@@ -212,12 +212,12 @@ void EditorApp::DrawHierarchyPanel() {
         selectedEntityId = entityId;
       }
     }
-    auto ids = GetScene().GetEntitiesWith<AIController>();
+    auto ids = GetWorld().GetEntitiesWith<AIController>();
     if (selectedEntityId.has_value()) {
-        for (auto id : ids) {
-            auto& ctrl = GetScene().GetComponent<AIController>(id);
-            ctrl.entityTarget = selectedEntityId.value();
-    }
+      for (auto id : ids) {
+        auto &ctrl = GetWorld().GetComponent<AIController>(id);
+        ctrl.entityTarget = selectedEntityId.value();
+      }
     }
     y += 30;
   }
@@ -232,7 +232,7 @@ void EditorApp::DrawInspectorPanel() {
   if (!selectedEntityId.has_value())
     return;
 
-  auto &name = GetScene().GetComponent<Name>(selectedEntityId.value());
+  auto &name = GetWorld().GetComponent<Name>(selectedEntityId.value());
 
   char buf[128];
   snprintf(buf, sizeof(buf), "Entity: %s", name.name.c_str());
@@ -245,12 +245,12 @@ void EditorApp::DrawInspectorPanel() {
   DrawText("Position:", x + 10, 100, 16, WHITE);
 
   auto &transform =
-      GetScene().GetComponent<criogenio::Transform>(selectedEntityId.value());
+      GetWorld().GetComponent<criogenio::Transform>(selectedEntityId.value());
   DrawText(TextFormat("X: %.1f", transform.x), x + 20, 130, 16, WHITE);
   DrawText(TextFormat("Y: %.1f", transform.y), x + 20, 160, 16, WHITE);
 
   // More components can be added here later
-  auto &animSprite = GetScene().GetComponent<criogenio::AnimatedSprite>(
+  auto &animSprite = GetWorld().GetComponent<criogenio::AnimatedSprite>(
       selectedEntityId.value());
   DrawText("Animated Sprite:", x + 10, 200, 16, WHITE);
   DrawText(TextFormat("Current Anim: %s", animSprite.currentAnim.c_str()),
@@ -282,23 +282,23 @@ void EditorApp::DrawInspectorPanel() {
              [&]() {
                // Check if entity already has controller
                try {
-                 GetScene().GetComponent<criogenio::Controller>(
+                 GetWorld().GetComponent<criogenio::Controller>(
                      selectedEntityId.value());
                  // If found, do nothing
                  return;
                } catch (const std::runtime_error &e) {
                  // Not found, add component
-                 GetScene().AddComponent<criogenio::Controller>(
+                 GetWorld().AddComponent<criogenio::Controller>(
                      selectedEntityId.value(), 200.0f);
                }
              });
-  //I need to start to integrate some kind of interface
-  // BUG removing player controller
+  // I need to start to integrate some kind of interface
+  //  BUG removing player controller
   /*DrawButton(x + 20, y + 70, rightPanelWidth - 40, 25,
              "Remove Player Controller", [&]() {
                // Check if entity has controller
                try {
-                 GetScene().RemoveComponent<criogenio::Controller>(
+                 GetWorld().RemoveComponent<criogenio::Controller>(
                      selectedEntityId.value());
                } catch (const std::runtime_error &e) {
                  // Not found, do nothing
@@ -306,25 +306,23 @@ void EditorApp::DrawInspectorPanel() {
                }
              });
              */
-  //Add Button to add AIController
-  DrawButton(x + 20, y + 70, rightPanelWidth - 40, 25, "Add AI Controller", [&]() {
-      // Check if entity has controller
-      try {
-          auto ai = GetScene().AddComponent<criogenio::AIController>(
-              selectedEntityId.value());
+  // Add Button to add AIController
+  DrawButton(x + 20, y + 70, rightPanelWidth - 40, 25, "Add AI Controller",
+             [&]() {
+               // Check if entity has controller
+               try {
+                 auto ai = GetWorld().AddComponent<criogenio::AIController>(
+                     selectedEntityId.value());
 
-      }
-      catch (const std::runtime_error& e) {
-          // Not found, do nothing
-          return;
-      }
-      });
-
-
+               } catch (const std::runtime_error &e) {
+                 // Not found, do nothing
+                 return;
+               }
+             });
 
   // Sow information about controller if present
   try {
-    auto &controller = GetScene().GetComponent<criogenio::Controller>(
+    auto &controller = GetWorld().GetComponent<criogenio::Controller>(
         selectedEntityId.value());
     DrawText("Controller Component:", x + 10, y + 120, 16, WHITE);
     DrawText(TextFormat("Speed: %.1f", controller.speed), x + 20, y + 150, 16,
@@ -334,24 +332,24 @@ void EditorApp::DrawInspectorPanel() {
   }
 }
 
-bool EditorApp::IsMouseInSceneView() {
+bool EditorApp::IsMouseInWorldView() {
   int mx = GetMouseX();
   int my = GetMouseY();
   return mx > leftPanelWidth && mx < GetScreenWidth() - rightPanelWidth;
 }
 
 void EditorApp::HandleMouseSelection() {
-  if (!IsMouseInSceneView())
+  if (!IsMouseInWorldView())
     return;
 
   if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-    // Convert mouse position to world coordinates using the scene camera
+    // Convert mouse position to world coordinates using the World camera
     Vector2 mouseScreen = GetMousePosition();
-    Vector2 worldMouse = GetScreenToWorld2D(mouseScreen, GetScene().maincamera);
+    Vector2 worldMouse = GetScreenToWorld2D(mouseScreen, GetWorld().maincamera);
     selectedEntityId.reset();
 
-    for (int entityId : GetScene().GetEntitiesWith<criogenio::Transform>()) {
-      auto &transform = GetScene().GetComponent<criogenio::Transform>(entityId);
+    for (int entityId : GetWorld().GetEntitiesWith<criogenio::Transform>()) {
+      auto &transform = GetWorld().GetComponent<criogenio::Transform>(entityId);
       // Assuming each entity has a 32x32 size for selection purposes
       Rectangle r = {transform.x, transform.y, 64.0f,
                      64.0f}; // world-space rect
@@ -366,7 +364,7 @@ void EditorApp::HandleMouseSelection() {
 void EditorApp::HandleEntityDrag() {
   if (!selectedEntityId.has_value())
     return;
-  if (!IsMouseInSceneView())
+  if (!IsMouseInWorldView())
     return;
 
   if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
@@ -378,13 +376,13 @@ void EditorApp::HandleEntityDrag() {
 
     // TODO:(maraujo) Do I need a editor camera here?
     Vector2 prevWorld =
-        GetScreenToWorld2D(prevMouseScreen, GetScene().maincamera);
-    Vector2 currWorld = GetScreenToWorld2D(mouseScreen, GetScene().maincamera);
+        GetScreenToWorld2D(prevMouseScreen, GetWorld().maincamera);
+    Vector2 currWorld = GetScreenToWorld2D(mouseScreen, GetWorld().maincamera);
 
     Vector2 drag = Vector2Subtract(currWorld, prevWorld);
 
     auto &transform =
-        GetScene().GetComponent<criogenio::Transform>(selectedEntityId.value());
+        GetWorld().GetComponent<criogenio::Transform>(selectedEntityId.value());
     transform.x += drag.x;
     transform.y += drag.y;
   }
@@ -395,8 +393,8 @@ void EditorApp::HandleInput() {
     return;
   }
 
-  // SCENE VIEW CAMERA ONLY IF MOUSE IS INSIDE SCENE VIEW
-  if (!IsMouseInSceneView())
+  // World VIEW CAMERA ONLY IF MOUSE IS INSIDE World VIEW
+  if (!IsMouseInWorldView())
     return;
 
   float dt = GetFrameTime();
@@ -407,11 +405,11 @@ void EditorApp::HandleInput() {
   float wheel = GetMouseWheelMove();
   if (wheel != 0) {
     float zoomSpeed = 0.1f;
-    GetScene().maincamera.zoom += wheel * zoomSpeed;
-    if (GetScene().maincamera.zoom < 0.1f)
-      GetScene().maincamera.zoom = 0.1f;
-    if (GetScene().maincamera.zoom > 8.0f)
-      GetScene().maincamera.zoom = 8.0f;
+    GetWorld().maincamera.zoom += wheel * zoomSpeed;
+    if (GetWorld().maincamera.zoom < 0.1f)
+      GetWorld().maincamera.zoom = 0.1f;
+    if (GetWorld().maincamera.zoom > 8.0f)
+      GetWorld().maincamera.zoom = 8.0f;
   }
 
   // ------------------------------------------
@@ -419,8 +417,8 @@ void EditorApp::HandleInput() {
   // ------------------------------------------
   if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) {
     Vector2 delta = GetMouseDelta();
-    GetScene().maincamera.target.x -= delta.x / GetScene().maincamera.zoom;
-    GetScene().maincamera.target.y -= delta.y / GetScene().maincamera.zoom;
+    GetWorld().maincamera.target.x -= delta.x / GetWorld().maincamera.zoom;
+    GetWorld().maincamera.target.y -= delta.y / GetWorld().maincamera.zoom;
   }
 
   // ------------------------------------------
@@ -428,8 +426,8 @@ void EditorApp::HandleInput() {
   // ------------------------------------------
   if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
     Vector2 delta = GetMouseDelta();
-    GetScene().maincamera.target.x -= delta.x / GetScene().maincamera.zoom;
-    GetScene().maincamera.target.y -= delta.y / GetScene().maincamera.zoom;
+    GetWorld().maincamera.target.x -= delta.x / GetWorld().maincamera.zoom;
+    GetWorld().maincamera.target.y -= delta.y / GetWorld().maincamera.zoom;
   }
 
   // ------------------------------------------
@@ -437,19 +435,19 @@ void EditorApp::HandleInput() {
   // ------------------------------------------
   float speed = 500.0f * dt;
   if (IsKeyDown(KEY_W))
-    GetScene().maincamera.target.y -= speed;
+    GetWorld().maincamera.target.y -= speed;
   if (IsKeyDown(KEY_S))
-    GetScene().maincamera.target.y += speed;
+    GetWorld().maincamera.target.y += speed;
   if (IsKeyDown(KEY_A))
-    GetScene().maincamera.target.x -= speed;
+    GetWorld().maincamera.target.x -= speed;
   if (IsKeyDown(KEY_D))
-    GetScene().maincamera.target.x += speed;
+    GetWorld().maincamera.target.x += speed;
 }
 
 void EditorApp::OnGUI() {
   if (selectedEntityId.has_value()) {
     auto &nameComp =
-        GetScene().GetComponent<criogenio::Name>(selectedEntityId.value());
+        GetWorld().GetComponent<criogenio::Name>(selectedEntityId.value());
     DrawText(nameComp.name.c_str(), 10, 10, 20, WHITE);
   }
 }

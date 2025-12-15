@@ -9,15 +9,15 @@ Texture2D CriogenioLoadTexture(const char *file_name) {
 
 Engine::Engine(int width, int height, const char *title) {
   renderer = new Renderer(width, height, title);
-  scene = new Scene();
+  world = new World();
 }
 
 Engine::~Engine() {
-  delete scene;
+  delete world;
   delete renderer;
 }
 
-Scene &Engine::GetScene() { return *scene; }
+World &Engine::GetWorld() { return *world; }
 EventBus &Engine::GetEventBus() { return eventBus; }
 Renderer &Engine::GetRenderer() { return *renderer; }
 
@@ -27,9 +27,9 @@ void Engine::Run() {
     float now = GetTime();
     float dt = now - previousTime;
     previousTime = now;
-    scene->Update(dt);
+    world->Update(dt);
     renderer->BeginFrame();
-    scene->Render(*renderer);
+    world->Render(*renderer);
     // Just call GUI hook — unused in game runtime
     OnGUI();
     renderer->EndFrame();

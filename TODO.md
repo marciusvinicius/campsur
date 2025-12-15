@@ -4,11 +4,11 @@
 [ ] Make play on editor works
     - Split btw editor and runtime
 [ ] Edit entities and add components
-[ ] Scene Graph (persist and load json for now)
-[ ] Organize better the arquitecture of scene and systems
+[ ] World Graph (persist and load json for now)
+[ ] Organize better the arquitecture of World and systems
     [ ] Add a system manager
     [ ] Add a component manager
-    [ ] Scene hold the managers and system comunicate with then
+    [ ] World hold the managers and system comunicate with then
 
 ### Engine
 [ ] Move all raylib reference to engine

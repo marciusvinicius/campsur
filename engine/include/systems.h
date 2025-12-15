@@ -4,7 +4,7 @@
 #include "render.h"
 
 namespace criogenio {
-class Scene;
+class World;
 
 class ISystem {
 public:

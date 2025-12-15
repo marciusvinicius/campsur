@@ -3,7 +3,7 @@
 #include "core.h"
 #include "event.h"
 #include "render.h"
-#include "scene.h"
+#include "world.h"
 
 namespace criogenio {
 
@@ -11,9 +11,9 @@ Texture2D CriogenioLoadTexture(const char *file_name);
 
 /*
 
-	Start to think about how to serialize the scene, for now we dont have a simple way
-	to build the scenes and then load it from a file
-	that should include entities and components
+        Start to think about how to serialize the World, for now we dont have a
+   simple way to build the Worlds and then load it from a file that should
+   include entities and components
 
 */
 
@@ -24,7 +24,7 @@ public:
 
   void Run();
 
-  Scene &GetScene();
+  World &GetWorld();
   EventBus &GetEventBus();
   Renderer &GetRenderer();
 
@@ -34,7 +34,7 @@ protected:
 private:
   // TODO:(maraujo) use smartpointer
   Renderer *renderer;
-  Scene *scene;
+  World *world;
   EventBus eventBus;
   float previousTime = 0;
 };

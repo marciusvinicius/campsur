@@ -15,10 +15,10 @@
 
 namespace criogenio {
 
-class Scene {
+class World {
 public:
-  Scene();
-  ~Scene();
+  World();
+  ~World();
   void OnUpdate(std::function<void(float)> fn);
   void Update(float dt);
   void Render(Renderer &renderer);
