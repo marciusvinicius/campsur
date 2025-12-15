@@ -4,6 +4,8 @@
 
 #include "raymath.h"
 #include "terrain.h"
+#include <cstddef>
+#include <optional>
 
 // #define RAYGUI_IMPLEMENTATION
 //  #include "raygui.h"
@@ -294,7 +296,7 @@ void EditorApp::DrawInspectorPanel() {
              });
   // I need to start to integrate some kind of interface
   //  BUG removing player controller
-  /*DrawButton(x + 20, y + 70, rightPanelWidth - 40, 25,
+  DrawButton(x + 20, y + 70, rightPanelWidth - 40, 25,
              "Remove Player Controller", [&]() {
                // Check if entity has controller
                try {
@@ -305,15 +307,31 @@ void EditorApp::DrawInspectorPanel() {
                  return;
                }
              });
-             */
+
   // Add Button to add AIController
-  DrawButton(x + 20, y + 70, rightPanelWidth - 40, 25, "Add AI Controller",
+  DrawButton(x + 20, y + 140, rightPanelWidth - 40, 25, "Add AI Controller",
+             [&]() {
+               // Check if entity has aicontroller
+               try {
+
+                 GetWorld().GetComponent<criogenio::AIController>(
+                     selectedEntityId.value());
+                 // If found, do nothing
+                 return;
+
+               } catch (const std::runtime_error &e) {
+                 // Not found add
+                 auto ai = GetWorld().AddComponent<criogenio::AIController>(
+                     selectedEntityId.value());
+               }
+             });
+
+  DrawButton(x + 20, y + 220, rightPanelWidth - 40, 25, "Remove AI Controller",
              [&]() {
                // Check if entity has controller
                try {
-                 auto ai = GetWorld().AddComponent<criogenio::AIController>(
+                 GetWorld().RemoveComponent<criogenio::AIController>(
                      selectedEntityId.value());
-
                } catch (const std::runtime_error &e) {
                  // Not found, do nothing
                  return;

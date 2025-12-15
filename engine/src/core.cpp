@@ -3,6 +3,7 @@
 #include "math.h"
 
 namespace criogenio {
+
 void MovementSystem::Update(float dt) {
   auto ids = world.GetEntitiesWith<Controller>();
 

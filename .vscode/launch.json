@@ -2,12 +2,10 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "type": "lldb-dap",
+      "type": "lldb",
       "request": "launch",
       "name": "Debug",
       "program": "${workspaceRoot}/bin/Debug/camp_sur_cpp",
-      "args": [],
-      "env": [],
       "preLaunchTask": "Build",
       "cwd": "${workspaceRoot}"
     },

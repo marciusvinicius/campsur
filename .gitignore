@@ -17,3 +17,5 @@ imgui-master
 *.vcxproj
 *.user
 .vscode/*.log
+
+*/assets/*.*

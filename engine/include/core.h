@@ -1,6 +1,5 @@
 #pragma once
 
-#include "components.h"
 #include "systems.h"
 #include "world.h"
 #include <algorithm>
@@ -9,7 +8,9 @@
 #include <memory>
 #include <unordered_map>
 #include <vector>
+
 namespace criogenio {
+
 class MovementSystem : public ISystem {
 public:
   World &world;
