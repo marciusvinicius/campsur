@@ -108,8 +108,7 @@ private:
   int nextId = 1;
   std::unordered_map<int, std::vector<std::unique_ptr<Component>>> entities;
   std::vector<std::unique_ptr<ISystem>> systems;
-  std::unordered_map<ComponentTypeId, std::vector<int>>
-      registry;
+  std::unordered_map<ComponentTypeId, std::vector<int>> registry;
   std::unique_ptr<Terrain2D> terrain;
   std::function<void(float)> userUpdate = nullptr;
 };

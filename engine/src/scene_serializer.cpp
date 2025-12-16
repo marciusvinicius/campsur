@@ -1,31 +1,30 @@
 #include "scene_serializer.h"
-
-#include "components.h"   // Transform, Controller, AnimatedSprite, etc.
-#include <iostream>
+#include "components.h" // Transform, Controller, AnimatedSprite, etc.
 
 namespace criogenio {
 
 SceneSerializer::SceneSerializer() {
-    // Register built-in components here
-    RegisterComponent("Transform",
-        [](Scene& scene, int entityId) -> Component* {
-            return scene.AddComponent<Transform>(entityId);
-        });
+  // Register built-in components here
+  RegisterComponent("Transform", [](Scene &scene, int entityId) -> Component * {
+    return scene.AddComponent<Transform>(entityId);
+  });
 
-    RegisterComponent("Controller",
-        [](Scene& scene, int entityId) -> Component* {
-            return scene.AddComponent<Controller>(entityId);
-        });
+  RegisterComponent("Controller",
+                    [](Scene &scene, int entityId) -> Component * {
+                      return scene.AddComponent<Controller>(entityId);
+                    });
 
-    RegisterComponent("AnimatedSprite",
-        [](Scene& scene, int entityId) -> Component* {
-            return scene.AddComponent<AnimatedSprite>(entityId);
-        });
+  RegisterComponent("AnimatedSprite",
+                    [](Scene &scene, int entityId) -> Component * {
+                      return scene.AddComponent<AnimatedSprite>(entityId);
+                    });
 
-    // Add more as needed
+  // Add more as needed
 }
 
-void SceneSerializer::RegisterComponent(const std::string& type,
+void SceneSerializer::RegisterComponent(const std::string &type,
                                         ComponentFactory factory) {
-    componentFactories[type] = factory;
+  componentFactories[type] = factory;
 }
+
+} // namespace criogenio

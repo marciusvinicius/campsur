@@ -1,7 +1,7 @@
 #pragma once
 #include "animation_state.h"
-#include "serialization.h"
 #include "raylib.h"
+#include "serialization.h"
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -14,11 +14,11 @@ namespace criogenio {
 enum Direction { UP, DOWN, LEFT, RIGHT };
 
 struct ISerializableComponent {
-    virtual ~ISerializableComponent() = default;
+  virtual ~ISerializableComponent() = default;
 
-    virtual std::string TypeName() const = 0;
-    virtual SerializedComponent Serialize() const = 0;
-    virtual void Deserialize(const SerializedComponent& data) = 0;
+  virtual std::string TypeName() const = 0;
+  virtual SerializedComponent Serialize() const = 0;
+  virtual void Deserialize(const SerializedComponent &data) = 0;
 };
 
 class ComponentTypeRegistry {
@@ -34,16 +34,6 @@ template <typename T> ComponentTypeId GetComponentTypeId() {
   return id;
 }
 
-
-struct ISerializableComponent {
-    virtual ~ISerializableComponent() = default;
-
-    virtual std::string TypeName() const = 0;
-    virtual SerializedComponent Serialize() const = 0;
-    virtual void Deserialize(const SerializedComponent& data) = 0;
-};
-
-
 class Component {
 public:
   virtual ~Component() = default;
@@ -57,24 +47,16 @@ public:
   Transform() = default;
   Transform(float x, float y) : x(x), y(y) {}
 
-   std::string TypeName() const override {
-        return "Transform";
-    }
+  std::string TypeName() const override { return "Transform"; }
 
-    SerializedComponent Serialize() const override {
-        return {
-            "Transform",
-            {
-                {"x", x},
-                {"y", y}
-            }
-        };
-    }
+  SerializedComponent Serialize() const override {
+    return {"Transform", {{"x", x}, {"y", y}}};
+  }
 
-    void Deserialize(const SerializedComponent& data) override {
-        x = std::get<float>(data.fields.at("x"));
-        y = std::get<float>(data.fields.at("y"));
-    }
+  void Deserialize(const SerializedComponent &data) override {
+    x = std::get<float>(data.fields.at("x"));
+    y = std::get<float>(data.fields.at("y"));
+  }
 };
 
 class Sprite : public Component {
@@ -181,19 +163,16 @@ public:
   Controller(float speed) : speed(speed) {}
 };
 
-
 class AIController : public Component {
 public:
-    float speed = 200.0f;
-    Direction direction = UP;
-    AIBrainState brainState = FRIENDLY;
-    int entityTarget;
+  float speed = 200.0f;
+  Direction direction = UP;
+  AIBrainState brainState = FRIENDLY;
+  int entityTarget;
 };
-
 
 class InteractableComponent : public Component {
 public:
-
 };
 
 class Name : public Component {
