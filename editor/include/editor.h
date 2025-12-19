@@ -5,6 +5,11 @@
 #include "world.h"
 #include <optional>
 
+struct Hierarchy {
+  int parent = -1;
+  std::vector<int> children;
+};
+
 class EditorApp : public criogenio::Engine {
 public:
   EditorApp(int width, int height);
@@ -30,10 +35,13 @@ private:
   void DrawInspectorPanel();
   void DrawWorldView();
   void DrawMainMenuBar();
-
+  void DrawToolbar();
   void HandleMouseSelection();
   void HandleEntityDrag();
   void HandleInput();
+
+  void DrawHierarchyNodes();
+  void DrawEntityNode(int entity);
 
   bool IsMouseInWorldView();
 

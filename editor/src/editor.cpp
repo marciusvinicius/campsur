@@ -152,11 +152,28 @@ void EditorApp::DrawWorldView() {
 void EditorApp::DrawHierarchyPanel() {
   if (ImGui::Begin("Hierarchy")) {
     ImGui::Text("Scene entities here");
+
+    if (ImGui::BeginPopupContextWindow()) {
+
+      if (ImGui::MenuItem("Create Empty")) {
+        // CreateEmptyEntity();
+      }
+
+      if (selectedEntityId.has_value()) {
+        ImGui::Separator();
+        if (ImGui::MenuItem("Delete")) {
+          // DeleteEntity(selectedEntityId.value());
+        }
+      }
+
+      ImGui::EndPopup();
+
+      DrawHierarchyNodes();
+    }
   }
   ImGui::End();
 
   if (ImGui::Begin("Inspector")) {
-    ImGui::Text("Component editor here");
   }
   ImGui::End();
 
@@ -189,6 +206,19 @@ void EditorApp::DrawHierarchyPanel() {
 
     if (hovered) {
       // Convert mouse to world using camera
+    }
+
+    if (ImGui::BeginPopupContextWindow()) {
+
+      if (ImGui::MenuItem("Create Empty")) {
+        // CreateEmptyEntityAtMouse();
+      }
+
+      if (ImGui::MenuItem("Create Sprite")) {
+        // CreateSpriteEntityAtMouse();
+      }
+
+      ImGui::EndPopup();
     }
   }
   ImGui::End();
@@ -545,6 +575,7 @@ void EditorApp::HandleInput() {
 void EditorApp::OnGUI() {
 
   rlImGuiBegin(); // creates ImGui frame
+  DrawToolbar();
   DrawMainMenuBar();
   DrawDockSpace();
   // DrawHierarchyPanel();
@@ -596,6 +627,7 @@ void EditorApp::DrawDockSpace() {
     ImGui::DockBuilderDockWindow("Hierarchy", dock_left);
     ImGui::DockBuilderDockWindow("Inspector", dock_right);
     ImGui::DockBuilderDockWindow("Viewport", dock_main);
+    ImGui::DockBuilderDockWindow("##Toolbar", dock_main);
     if (ImGui::Button("Click Me")) {
       // Action to take when clicked
     }
@@ -729,3 +761,113 @@ void EditorApp::DrawMainMenuBar() {
     ImGui::EndMainMenuBar();
   }
 }
+void EditorApp::DrawToolbar() {
+  ImGui::Begin("##Toolbar", nullptr,
+               ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoScrollbar |
+                   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking);
+
+  if (ImGui::Button("+ Entity")) {
+    //  CreateEmptyEntity();
+  }
+
+  ImGui::SameLine();
+
+  if (ImGui::Button("▶ Play")) {
+    //    EnterPlayMode();
+  }
+
+  ImGui::SameLine();
+
+  if (ImGui::Button("■ Stop")) {
+    // ExitPlayMode();
+  }
+
+  ImGui::End();
+}
+
+void EditorApp::DrawEntityNode(int entity) {
+
+  auto &name = GetWorld().GetComponent<Name>(entity);
+  // auto *hierarchy = GetWorld().TryGetComponent<Hierarchy>(entity);
+
+  // bool hasChildren = hierarchy && !hierarchy->children.empty();
+
+  ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth;
+
+  // if (!hasChildren)
+  //   flags |= ImGuiTreeNodeFlags_Leaf;
+
+  if (selectedEntityId == entity)
+    flags |= ImGuiTreeNodeFlags_Selected;
+
+  bool open = ImGui::TreeNodeEx((void *)(intptr_t)entity, flags, "%s",
+                                name.name.c_str());
+
+  if (ImGui::IsItemClicked()) {
+    selectedEntityId = entity;
+  }
+
+  // Context menu
+  if (ImGui::BeginPopupContextItem()) {
+    if (ImGui::MenuItem("Create Child")) {
+      // CreateChildEntity(entity);
+    }
+    if (ImGui::MenuItem("Delete")) {
+      // DeleteEntity(entity);
+      ImGui::EndPopup();
+      return;
+    }
+    ImGui::EndPopup();
+  }
+
+  // ImGui::EndPopup();
+
+  // if (open && hasChildren) {
+  //  for (int child : hierarchy->children) {
+  //    DrawEntityNode(child);
+  //  }
+  ImGui::TreePop();
+  //}
+}
+
+void EditorApp::DrawHierarchyNodes() {
+  // for (int entity : GetWorld().GetEntitiesWith<Hierarchy>()) {
+  //   auto &h = GetWorld().GetComponent<Hierarchy>(entity);
+  //   if (h.parent == -1) {
+  //
+  for (int entity : GetWorld().GetEntitiesWith<Name>()) {
+    DrawEntityNode(entity);
+  }
+}
+/*
+void EditorApp::DrawHierarchyNodes() {
+
+  for (int entity : GetWorld().GetEntitiesWith<Name>()) {
+
+    auto &name = GetWorld().GetComponent<Name>(entity);
+
+    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf |
+                               ImGuiTreeNodeFlags_NoTreePushOnOpen |
+                               ImGuiTreeNodeFlags_SpanAvailWidth;
+
+    if (selectedEntityId.has_value() && selectedEntityId.value() == entity)
+      flags |= ImGuiTreeNodeFlags_Selected;
+
+    ImGui::TreeNodeEx((void *)(intptr_t)entity, flags, "%s", name.name.c_str());
+
+    // Selection
+    if (ImGui::IsItemClicked()) {
+      selectedEntityId = entity;
+    }
+
+    // Context menu (right-click)
+    if (ImGui::BeginPopupContextItem()) {
+      if (ImGui::MenuItem("Delete")) {
+        DeleteEntity(entity);
+        ImGui::EndPopup();
+        return; // entity list changed
+      }
+      ImGui::EndPopup();
+    }
+  }
+}*/

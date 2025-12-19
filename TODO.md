@@ -15,17 +15,18 @@
   - [ ] World hold the managers and system comunicate with then
 
 ### Editor
-- [ ] Make play on editor works
-    - Split btw editor and runtime
+- [x] Make editor integrate with ImGui
+  - [ ] Make play on editor works
+  - [ ] Play and Stop should go into scene in the MIDDLE
+  - [ ] Edit entities and add components
+  - [ ] Making possible to serialize scene on SaveScene
 - [ ] Working on tileset map editor
-- [ ] Making possible to serialize scene
-- [ ] Edit entities and add components
-
 
 ### Game
 - [ ] Simplest game end to end
-- [ ] Movment
-- [ ] Events
-- [ ] Collision
-- [ ] Controll
+  - [x] Movment
+    - [x] Movement Working as system
+  - [x] Controll
+  - [ ] Events
+  - [ ] Collision
 - [ ] Network
