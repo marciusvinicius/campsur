@@ -15,6 +15,10 @@
 
 namespace criogenio {
 
+struct Scene {};
+struct GameMode {};
+struct GameState {};
+
 class World {
 public:
   World();

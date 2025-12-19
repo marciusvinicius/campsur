@@ -4,6 +4,7 @@
 namespace criogenio {
 
 SceneSerializer::SceneSerializer() {
+  /**
   // Register built-in components here
   RegisterComponent("Transform", [](Scene &scene, int entityId) -> Component * {
     return scene.AddComponent<Transform>(entityId);
@@ -20,6 +21,7 @@ SceneSerializer::SceneSerializer() {
                     });
 
   // Add more as needed
+  */
 }
 
 void SceneSerializer::RegisterComponent(const std::string &type,

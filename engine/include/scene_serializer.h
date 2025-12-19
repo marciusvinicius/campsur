@@ -1,27 +1,27 @@
 #pragma once
 
-#include "scene.h"
-#include "scene_serialized_types.h"
+#include "serialization.h"
+#include "world.h"
 
 #include <functional>
 #include <unordered_map>
 
 namespace criogenio {
+class SerializedScene {};
 
 class SceneSerializer {
 public:
-    using ComponentFactory = std::function<Component* (Scene&, int entityId)>;
+  using ComponentFactory = std::function<Component *(Scene &, int entityId)>;
 
-    SceneSerializer();
+  SceneSerializer();
 
-    SerializedScene Serialize(Scene& scene);
-    void Deserialize(Scene& scene, const SerializedScene& data);
+  SerializedScene Serialize(Scene &scene);
+  void Deserialize(Scene &scene, const SerializedScene &data);
 
-    void RegisterComponent(const std::string& type,
-                           ComponentFactory factory);
+  void RegisterComponent(const std::string &type, ComponentFactory factory);
 
 private:
-    std::unordered_map<std::string, ComponentFactory> componentFactories;
+  std::unordered_map<std::string, ComponentFactory> componentFactories;
 };
 
 } // namespace criogenio

@@ -5,11 +5,10 @@
 
 // TODO:(maraujo) remove this and create this on engine
 #include "raylib.h"
-#include <string>
 
 using namespace criogenio;
 
-int main() {
+int main_game() {
   Engine engine(InitialWidth, InitialHeight, "Ways of the Truth");
 
   auto &World = engine.GetWorld();
@@ -91,6 +90,7 @@ int main() {
       {192, 768, 64, 128}, {256, 768, 64, 128}, {320, 768, 64, 128},
       {384, 768, 64, 128}, {448, 768, 64, 128}, {512, 768, 64, 128},
   };
+
   anim->AddAnimation("walk_right", walkRight, 0.1f);
   std::vector<Rectangle> walkUp = {
       {0, 896, 64, 128},   {64, 896, 64, 128},  {128, 896, 64, 128},
@@ -102,6 +102,10 @@ int main() {
   // TODO:inter dependent of animatin sprited component
   World.AddComponent<criogenio::AnimationState>(entityId);
   World.AddComponent<criogenio::Controller>(entityId, 200);
+
+  static_assert(std::is_base_of_v<criogenio::ISystem, MySystem>);
+  static_assert(!std::is_abstract_v<MySystem>);
+  World.AddSystem<MySystem>(World);
 
   engine.Run();
   return 0;
