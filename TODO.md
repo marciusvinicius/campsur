@@ -17,6 +17,7 @@
 ### Editor
 - [x] Make editor integrate with ImGui
   - [x] Select entity
+    - [ ] Make selected entity visual better
     - [x] Move entity
     - [ ] Add component to selected entity
   - [ ] Make play on editor works
