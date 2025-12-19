@@ -29,6 +29,7 @@ private:
   void DrawHierarchyPanel();
   void DrawInspectorPanel();
   void DrawWorldView();
+  void DrawMainMenuBar();
 
   void HandleMouseSelection();
   void HandleEntityDrag();
