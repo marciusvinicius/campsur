@@ -19,6 +19,8 @@ Texture2D CriogenioLoadTexture(const char *file_name);
 
 class Engine {
 public:
+  int width;
+  int height;
   Engine(int width, int height, const char *title);
   ~Engine();
 

@@ -5,14 +5,14 @@
 #include "world.h"
 #include <optional>
 
-using namespace criogenio;
-
-class EditorApp : public Engine {
+class EditorApp : public criogenio::Engine {
 public:
   EditorApp(int width, int height);
+  //~EditorApp();
   void Run();
 
 private:
+  RenderTexture2D sceneRT;
   // Panels sizes
   int leftPanelWidth = 200;
   int rightPanelWidth = 220;
@@ -21,8 +21,11 @@ private:
 
   Vector2 GetMouseWorld();
 
+  void InitImGUI();
+  void RenderSceneToTexture();
   // Internal loops
   void DrawUI();
+  void DrawDockSpace();
   void DrawHierarchyPanel();
   void DrawInspectorPanel();
   void DrawWorldView();
@@ -38,4 +41,6 @@ private:
                   std::function<void()> onClick);
   void DrawInput(int x, int y, int w, int h, const char *label);
   void OnGUI() override;
+
+  bool dockLayoutBuilt = false;
 };

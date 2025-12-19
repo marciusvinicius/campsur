@@ -4,7 +4,7 @@
 
 using namespace criogenio;
 
-int main_snake() {
+int main() {
   Engine engine(640, 480, "Snake Using Custom Engine");
 
   World &World = engine.GetWorld();

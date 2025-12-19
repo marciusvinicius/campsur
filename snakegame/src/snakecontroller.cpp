@@ -2,6 +2,8 @@
 #include "input.h"
 #include <cstdlib>
 
+using namespace criogenio;
+
 SnakeController::SnakeController(World &world, EventBus &bus)
     : world(world), bus(bus) {
   SpawnSnake();

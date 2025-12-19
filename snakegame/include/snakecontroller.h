@@ -3,17 +3,15 @@
 #include "world.h"
 #include <deque>
 
-using namespace criogenio;
-
 class SnakeController {
 public:
-  SnakeController(World &world, EventBus &bus);
+  SnakeController(criogenio::World &world, criogenio::EventBus &bus);
 
   void Update(float dt);
 
 private:
-  World &world;
-  EventBus &bus;
+  criogenio::World &world;
+  criogenio::EventBus &bus;
 
   float timer = 0.0f;
   float moveInterval = 0.15f;

@@ -8,16 +8,16 @@
 
 using namespace criogenio;
 
-int main_game() {
+int main() {
   Engine engine(InitialWidth, InitialHeight, "Ways of the Truth");
 
   auto &World = engine.GetWorld();
   World.CreateTerrain2D("MainTerrain", "game/assets/terrain.jpg");
 
-  World.AddSystem<MovementSystem>(World);
-  World.AddSystem<AnimationSystem>(World);
-  World.AddSystem<RenderSystem>(World);
-  World.AddSystem<AIMovementSystem>(World);
+  World.AddSystem<criogenio::MovementSystem>(World);
+  World.AddSystem<criogenio::AnimationSystem>(World);
+  World.AddSystem<criogenio::RenderSystem>(World);
+  World.AddSystem<criogenio::AIMovementSystem>(World);
 
   auto maincamera = Camera2D{};
   maincamera.target = {0.0f, 0.0f};

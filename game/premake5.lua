@@ -1,7 +1,11 @@
 baseName = path.getbasename(os.getcwd())
 
-project(workspaceName)
+project(workspaceName .. "_game")
 kind("ConsoleApp")
+language("C++")
+cppdialect("C++23")
+staticruntime("off")
+
 location("./")
 targetdir("../bin/%{cfg.buildcfg}")
 
@@ -34,6 +38,10 @@ filter({})
 includedirs({ "./" })
 includedirs({ "src" })
 includedirs({ "include" })
+
+-----------------------------------------
+-- LINKS
+-----------------------------------------
 
 link_to("engine")
 link_raylib()

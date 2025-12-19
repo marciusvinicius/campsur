@@ -2,43 +2,77 @@
 #include "input.h"
 #include "raymath.h"
 #include "terrain.h"
-#include <cstddef>
-#include <optional>
 
-// #define RAYGUI_IMPLEMENTATION
-//  #include "raygui.h"
+#include "imgui.h"
+#include "imgui_internal.h"
+#include "rlImGui.h"
+#include <cstdio>
 
 using namespace criogenio;
 
 EditorApp::EditorApp(int width, int height) : Engine(width, height, "Editor") {
-  // rlImGuiSetup(true); // ImGui initialization only in editor
-  //  auto t = new Terrain();
-  // GetWorld().SetTerrain(t);
   GetWorld().AddSystem<MovementSystem>(GetWorld());
   GetWorld().AddSystem<AnimationSystem>(GetWorld());
   GetWorld().AddSystem<RenderSystem>(GetWorld());
   GetWorld().AddSystem<AIMovementSystem>(GetWorld());
 }
 
+// EditorApp::~EditorApp() { rlImGuiShutdown(); }
+
 // #TODO:(maraujo) Move this to Engine
 Vector2 EditorApp::GetMouseWorld() {
   return GetScreenToWorld2D(GetMousePosition(), GetWorld().maincamera);
 }
 
+void EditorApp::InitImGUI() {
+  rlImGuiSetup(true); // creates context + renderer + backend
+
+  IMGUI_CHECKVERSION();
+  ImGuiIO &io = ImGui::GetIO();
+
+  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+  io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+
+  ImGui::StyleColorsDark();
+
+  // ---- Fonts (base font FIRST) ----
+  ImFont *baseFont = io.Fonts->AddFontFromFileTTF(
+      "editor/assets/fonts/Poppins-Black.ttf", 16.0f);
+
+  IM_ASSERT(baseFont != nullptr);
+
+  io.Fonts->Build();
+}
+
 void EditorApp::Run() {
-  ToggleFullscreen();
+
+  InitImGUI();
+  bool firstFrame = false;
+  // TODO:(maraujo) clean this code dude
   while (!WindowShouldClose()) {
+    if (firstFrame == false) {
+      firstFrame = true;
+      sceneRT = LoadRenderTexture(width, height);
+    }
+
     float dt = GetFrameTime();
     HandleMouseSelection();
     HandleEntityDrag();
     HandleInput();
-    GetWorld().Update(dt);
-    BeginDrawing();
-    ClearBackground(DARKGRAY);
-    DrawWorldView();
-    DrawHierarchyPanel();
-    DrawInspectorPanel();
 
+    Camera2D &cam = GetWorld().maincamera;
+    cam.offset = {sceneRT.texture.width * 0.5f, sceneRT.texture.height * 0.5f};
+    cam.target = {0.0f, 0.0f};
+    cam.rotation = 0.0f;
+    cam.zoom = 1.0f;
+    GetWorld().Update(dt);
+
+    // TODO:(maraujo) I need this?
+    //  === DRAW ===
+    RenderSceneToTexture();
+    BeginDrawing();
+    ClearBackground(BLUE);
+    OnGUI();
     EndDrawing();
   }
 }
@@ -76,8 +110,9 @@ void EditorApp::DrawWorldView() {
   // Background for World view
   DrawRectangleRec(WorldRect, BLACK);
   Camera2D cam = Camera2D();
-  cam.offset = {WorldRect.x + WorldRect.width / 2.0f,
-                WorldRect.y + WorldRect.height / 2.0f};
+
+  GetWorld().maincamera.offset = {sceneRT.texture.width * 0.5f,
+                                  sceneRT.texture.height * 0.5f};
   cam.target = {0.0f, 0.0f};
   cam.rotation = 0.0f;
   cam.zoom = 1.0f;
@@ -115,8 +150,52 @@ void EditorApp::DrawWorldView() {
 }
 
 void EditorApp::DrawHierarchyPanel() {
-  DrawRectangle(0, 0, leftPanelWidth, GetScreenHeight(), {40, 40, 40, 255});
-  DrawText("Entities", 10, 10, 20, RAYWHITE);
+  if (ImGui::Begin("Hierarchy")) {
+    ImGui::Text("Scene entities here");
+  }
+  ImGui::End();
+
+  if (ImGui::Begin("Inspector")) {
+    ImGui::Text("Component editor here");
+  }
+  ImGui::End();
+
+  if (ImGui::Begin("Viewport")) {
+    static ImVec2 lastSize = {0, 0};
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+
+    if ((int)avail.x != (int)lastSize.x || (int)avail.y != (int)lastSize.y) {
+      if (sceneRT.id != 0)
+        UnloadRenderTexture(sceneRT);
+
+      sceneRT = LoadRenderTexture((int)avail.x, (int)avail.y);
+      lastSize = avail;
+    }
+
+    if (avail.x > 0 && avail.y > 0) {
+      ImGui::Image((ImTextureID)(intptr_t)sceneRT.texture.id, avail,
+                   ImVec2(0, 1), ImVec2(1, 0));
+    }
+
+    ImVec2 viewportPos = ImGui::GetWindowPos();
+    ImVec2 cursorPos = ImGui::GetCursorPos();
+    ImVec2 size = ImGui::GetContentRegionAvail();
+
+    Vector2 mouse = GetMousePosition();
+
+    bool hovered = mouse.x > viewportPos.x && mouse.y > viewportPos.y &&
+                   mouse.x < viewportPos.x + size.x &&
+                   mouse.y < viewportPos.y + size.y;
+
+    if (hovered) {
+      // Convert mouse to world using camera
+    }
+  }
+  ImGui::End();
+
+  /*
+  DrawWorldViewawRectangle(0, 0, leftPanelWidth, GetScreenHeight(), {40, 40, 40,
+  255}); DrawText("Entities", 10, 10, 20, RAYWHITE);
 
   int y = 40;
   DrawButton(10, y, 180, 25, "Create Terrain", [&]() {
@@ -223,6 +302,7 @@ void EditorApp::DrawHierarchyPanel() {
     }
     y += 30;
   }
+  */
 }
 
 void EditorApp::DrawInspectorPanel() {
@@ -463,9 +543,69 @@ void EditorApp::HandleInput() {
 }
 
 void EditorApp::OnGUI() {
-  if (selectedEntityId.has_value()) {
-    auto &nameComp =
-        GetWorld().GetComponent<criogenio::Name>(selectedEntityId.value());
-    DrawText(nameComp.name.c_str(), 10, 10, 20, WHITE);
+
+  rlImGuiBegin(); // creates ImGui frame
+  DrawDockSpace();
+  // DrawHierarchyPanel();
+  rlImGuiEnd(); // renders ImGui
+}
+
+void EditorApp::DrawDockSpace() {
+  ImGuiIO &io = ImGui::GetIO();
+  if (!(io.ConfigFlags & ImGuiConfigFlags_DockingEnable))
+    return;
+
+  ImGuiViewport *viewport = ImGui::GetMainViewport();
+
+  ImGui::SetNextWindowPos(viewport->Pos);
+  ImGui::SetNextWindowSize(viewport->Size);
+  ImGui::SetNextWindowViewport(viewport->ID);
+
+  ImGuiWindowFlags flags =
+      ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar |
+      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+      ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus |
+      ImGuiWindowFlags_NoNavFocus;
+
+  ImGui::Begin("EditorDockSpace", nullptr, flags);
+
+  ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
+
+  ImGui::DockSpace(dockspace_id, ImVec2(0, 0));
+
+  // 🔒 BUILD LAYOUT ONCE
+  if (!dockLayoutBuilt) {
+    dockLayoutBuilt = true;
+    printf("Build dock");
+
+    ImGui::DockBuilderRemoveNode(dockspace_id);
+    ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+
+    ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->Size);
+
+    ImGuiID dock_main = dockspace_id;
+    ImGuiID dock_left, dock_right;
+
+    dock_left = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.20f,
+                                            nullptr, &dock_main);
+
+    dock_right = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Right, 0.25f,
+                                             nullptr, &dock_main);
+
+    ImGui::DockBuilderDockWindow("Hierarchy", dock_left);
+    ImGui::DockBuilderDockWindow("Inspector", dock_right);
+    ImGui::DockBuilderDockWindow("Viewport", dock_main);
+    ImGui::DockBuilderFinish(dockspace_id);
   }
+  DrawHierarchyPanel();
+  ImGui::End();
+}
+
+void EditorApp::RenderSceneToTexture() {
+  BeginTextureMode(sceneRT);
+  ClearBackground(BLACK);
+  BeginMode2D(GetWorld().maincamera);
+  GetWorld().Render(GetRenderer());
+  EndMode2D();
+  EndTextureMode();
 }

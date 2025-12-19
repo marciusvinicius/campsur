@@ -7,7 +7,7 @@ Texture2D CriogenioLoadTexture(const char *file_name) {
   return LoadTexture(file_name);
 }
 
-Engine::Engine(int width, int height, const char *title) {
+Engine::Engine(int width, int height, const char *title) : width(width) {
   renderer = new Renderer(width, height, title);
   world = new World();
 }
