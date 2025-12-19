@@ -5,6 +5,7 @@
 #include "world.h"
 #include <optional>
 
+#include "imgui.h"
 struct Hierarchy {
   int parent = -1;
   std::vector<int> children;
@@ -21,6 +22,10 @@ private:
   // Panels sizes
   int leftPanelWidth = 200;
   int rightPanelWidth = 220;
+  /// TODO: move this to UI
+  ImVec2 viewportPos;
+  ImVec2 viewportSize;
+  bool viewportHovered = false;
 
   std::optional<int> selectedEntityId;
 
@@ -39,6 +44,11 @@ private:
   void HandleMouseSelection();
   void HandleEntityDrag();
   void HandleInput();
+  void HandleScenePicking();
+
+  void PickEntityAt(Vector2 worldPos);
+
+  bool IsSceneInputAllowed() const;
 
   void DrawHierarchyNodes();
   void DrawEntityNode(int entity);

@@ -16,10 +16,12 @@
 
 ### Editor
 - [x] Make editor integrate with ImGui
+  - [x] Select entity
+    - [x] Move entity
+    - [ ] Add component to selected entity
   - [ ] Make play on editor works
-  - [ ] Play and Stop should go into scene in the MIDDLE
-  - [ ] Edit entities and add components
-  - [ ] Making possible to serialize scene on SaveScene
+    - [ ] Play and Stop should go into scene in the MIDDLE
+- [ ] Making possible to serialize scene on SaveScene
 - [ ] Working on tileset map editor
 
 ### Game

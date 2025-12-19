@@ -56,8 +56,9 @@ void EditorApp::Run() {
     }
 
     float dt = GetFrameTime();
-    HandleMouseSelection();
+    // HandleMouseSelection();
     HandleEntityDrag();
+    HandleScenePicking();
     HandleInput();
 
     Camera2D &cam = GetWorld().maincamera;
@@ -120,12 +121,9 @@ void EditorApp::DrawWorldView() {
   // Update camera offset to the center of the World view (important!)
   GetWorld().AttachCamera2D(cam);
 
-  // DrawRectangleRec(WorldRect, BLACK);
-
   // Let engine render inside
   BeginScissorMode(leftPanelWidth, 0, WorldRect.width, WorldRect.height);
-  // Debug: draw grid and origin so you can see things are visible
-  GetWorld().Render(GetRenderer()); // expose renderer getter
+
   // highlight selected entity
   if (selectedEntityId.has_value()) {
     auto &transform =
@@ -146,6 +144,10 @@ void EditorApp::DrawWorldView() {
 
     DrawRectangleLines(word_position.x, word_position.y, widht, height, YELLOW);
   }
+
+  // Debug: draw grid and origin so you can see things are visible
+  GetWorld().Render(GetRenderer()); // expose renderer getter
+
   EndScissorMode();
 }
 
@@ -176,48 +178,43 @@ void EditorApp::DrawHierarchyPanel() {
   if (ImGui::Begin("Inspector")) {
   }
   ImGui::End();
-
   if (ImGui::Begin("Viewport")) {
-    static ImVec2 lastSize = {0, 0};
+
     ImVec2 avail = ImGui::GetContentRegionAvail();
 
+    // Resize render texture if needed
+    static ImVec2 lastSize = {0, 0};
     if ((int)avail.x != (int)lastSize.x || (int)avail.y != (int)lastSize.y) {
       if (sceneRT.id != 0)
         UnloadRenderTexture(sceneRT);
 
-      sceneRT = LoadRenderTexture((int)avail.x, (int)avail.y);
+      if (avail.x > 0 && avail.y > 0)
+        sceneRT = LoadRenderTexture((int)avail.x, (int)avail.y);
+
       lastSize = avail;
     }
 
-    if (avail.x > 0 && avail.y > 0) {
-      ImGui::Image((ImTextureID)(intptr_t)sceneRT.texture.id, avail,
+    // ---- Compute viewport rect ----
+    ImVec2 vMin = ImGui::GetWindowContentRegionMin();
+    ImVec2 vMax = ImGui::GetWindowContentRegionMax();
+    ImVec2 wPos = ImGui::GetWindowPos();
+
+    viewportPos = {wPos.x + vMin.x, wPos.y + vMin.y};
+    viewportSize = {vMax.x - vMin.x, vMax.y - vMin.y};
+    viewportHovered =
+        ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+
+    // ---- Draw texture ONCE ----
+    if (sceneRT.id != 0 && viewportSize.x > 0 && viewportSize.y > 0) {
+      ImGui::Image((ImTextureID)(intptr_t)sceneRT.texture.id, viewportSize,
                    ImVec2(0, 1), ImVec2(1, 0));
     }
 
-    ImVec2 viewportPos = ImGui::GetWindowPos();
-    ImVec2 cursorPos = ImGui::GetCursorPos();
-    ImVec2 size = ImGui::GetContentRegionAvail();
-
-    Vector2 mouse = GetMousePosition();
-
-    bool hovered = mouse.x > viewportPos.x && mouse.y > viewportPos.y &&
-                   mouse.x < viewportPos.x + size.x &&
-                   mouse.y < viewportPos.y + size.y;
-
-    if (hovered) {
-      // Convert mouse to world using camera
-    }
-
+    // Context menu
     if (ImGui::BeginPopupContextWindow()) {
-
       if (ImGui::MenuItem("Create Empty")) {
         // CreateEmptyEntityAtMouse();
       }
-
-      if (ImGui::MenuItem("Create Sprite")) {
-        // CreateSpriteEntityAtMouse();
-      }
-
       ImGui::EndPopup();
     }
   }
@@ -641,6 +638,13 @@ void EditorApp::RenderSceneToTexture() {
   BeginTextureMode(sceneRT);
   ClearBackground(BLACK);
   BeginMode2D(GetWorld().maincamera);
+  if (selectedEntityId.has_value()) {
+
+    auto &t =
+        GetWorld().GetComponent<criogenio::Transform>(selectedEntityId.value());
+
+    DrawRectangleLines(t.x, t.y, 64, 64, YELLOW);
+  }
   GetWorld().Render(GetRenderer());
   EndMode2D();
   EndTextureMode();
@@ -787,7 +791,7 @@ void EditorApp::DrawToolbar() {
 
 void EditorApp::DrawEntityNode(int entity) {
 
-  auto &name = GetWorld().GetComponent<Name>(entity);
+  auto &name = GetWorld().GetComponent<criogenio::Name>(entity);
   // auto *hierarchy = GetWorld().TryGetComponent<Hierarchy>(entity);
 
   // bool hasChildren = hierarchy && !hierarchy->children.empty();
@@ -835,7 +839,7 @@ void EditorApp::DrawHierarchyNodes() {
   //   auto &h = GetWorld().GetComponent<Hierarchy>(entity);
   //   if (h.parent == -1) {
   //
-  for (int entity : GetWorld().GetEntitiesWith<Name>()) {
+  for (int entity : GetWorld().GetEntitiesWith<criogenio::Name>()) {
     DrawEntityNode(entity);
   }
 }
@@ -871,3 +875,59 @@ void EditorApp::DrawHierarchyNodes() {
     }
   }
 }*/
+
+void EditorApp::HandleScenePicking() {
+
+  if (!viewportHovered)
+    return;
+
+  if (!IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+    return;
+
+  Vector2 mouse = GetMousePosition();
+
+  float vx = viewportPos.x;
+  float vy = viewportPos.y;
+  float vw = viewportSize.x;
+  float vh = viewportSize.y;
+
+  if (mouse.x < vx || mouse.y < vy || mouse.x > vx + vw || mouse.y > vy + vh)
+    return;
+
+  // Convert to viewport-local
+  Vector2 local;
+  local.x = mouse.x - vx;
+  local.y = mouse.y - vy;
+
+  // Normalize to render texture space
+  Vector2 tex;
+  tex.x = local.x * ((float)sceneRT.texture.width / vw);
+  tex.y = local.y * ((float)sceneRT.texture.height / vh);
+
+  // Convert to world
+  Vector2 world = GetScreenToWorld2D(tex, GetWorld().maincamera);
+  PickEntityAt(world);
+}
+
+void EditorApp::PickEntityAt(Vector2 worldPos) {
+
+  selectedEntityId.reset();
+
+  for (int entity : GetWorld().GetEntitiesWith<criogenio::Transform>()) {
+
+    auto &t = GetWorld().GetComponent<criogenio::Transform>(entity);
+
+    Rectangle bounds = {
+        t.x, t.y, 64, 128 // TODO: use sprite size
+    };
+
+    if (CheckCollisionPointRec(worldPos, bounds)) {
+      selectedEntityId = entity;
+      return;
+    }
+  }
+}
+bool EditorApp::IsSceneInputAllowed() const {
+  return viewportHovered && !ImGui::IsAnyItemActive() &&
+         !ImGui::IsAnyItemHovered();
+}
