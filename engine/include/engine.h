@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "event.h"
+#include "raylib.h"
 #include "render.h"
 #include "world.h"
 
@@ -29,6 +30,7 @@ public:
   World &GetWorld();
   EventBus &GetEventBus();
   Renderer &GetRenderer();
+  Vector2 GetMouseWorld();
 
 protected:
   virtual void OnGUI() {} // Editor overrides this

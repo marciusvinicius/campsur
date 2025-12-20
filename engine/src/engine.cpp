@@ -35,4 +35,9 @@ void Engine::Run() {
     renderer->EndFrame();
   }
 }
+
+// #TODO:(maraujo) Move this to Engine
+Vector2 Engine::GetMouseWorld() {
+  return GetScreenToWorld2D(GetMousePosition(), GetWorld().maincamera);
+}
 } // namespace criogenio

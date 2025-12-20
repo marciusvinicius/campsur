@@ -29,19 +29,15 @@ private:
 
   std::optional<int> selectedEntityId;
 
-  Vector2 GetMouseWorld();
-
   void InitImGUI();
   void RenderSceneToTexture();
-  // Internal loops
+
   void DrawUI();
   void DrawDockSpace();
   void DrawHierarchyPanel();
-  void DrawInspectorPanel();
   void DrawWorldView();
   void DrawMainMenuBar();
   void DrawToolbar();
-  void HandleMouseSelection();
   void HandleEntityDrag();
   void HandleInput();
   void HandleScenePicking();

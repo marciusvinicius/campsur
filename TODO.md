@@ -1,6 +1,7 @@
 # TODO
 
 ### Editor
+- [x] Fix Camera controll
 - [x] Make editor integrate with ImGui
   - [x] Select entity
     - [ ] Make selected entity visual better
