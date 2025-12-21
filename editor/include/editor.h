@@ -6,9 +6,14 @@
 #include <optional>
 
 #include "imgui.h"
+
 struct Hierarchy {
   int parent = -1;
   std::vector<int> children;
+};
+
+struct EditorState {
+  int selectedEntityId;
 };
 
 class EditorApp : public criogenio::Engine {
@@ -18,6 +23,8 @@ public:
   void Run();
 
 private:
+  EditorState state;
+
   RenderTexture2D sceneRT;
   // Panels sizes
   int leftPanelWidth = 200;

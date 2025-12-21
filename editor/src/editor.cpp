@@ -125,7 +125,31 @@ void EditorApp::DrawWorldView() {
 
 void EditorApp::DrawHierarchyPanel() {
   if (ImGui::Begin("Hierarchy")) {
-    ImGui::Text("Scene entities here");
+    for (auto &[id, comps] : GetWorld().GetEntities()) {
+      bool selected =
+          (selectedEntityId.has_value() && selectedEntityId.value() == id);
+
+      char label[64];
+      auto entity_name = GetWorld().GetComponent<criogenio::Name>(id);
+      snprintf(label, sizeof(label), "%d", entity_name.name);
+
+      if (ImGui::Selectable(label, selected)) {
+        selectedEntityId = id;
+      }
+
+      // --- Right-click context menu ---
+      if (ImGui::BeginPopupContextItem()) {
+        if (ImGui::MenuItem("Delete")) {
+          // world.DeleteEntity(id);
+          if (selectedEntityId == id)
+            selectedEntityId = -1;
+          ImGui::EndPopup();
+          break;
+        }
+        ImGui::EndPopup();
+      }
+    }
+
     if (ImGui::BeginPopupContextWindow()) {
       if (ImGui::MenuItem("Create Empty")) {
         // CreateEmptyEntity();

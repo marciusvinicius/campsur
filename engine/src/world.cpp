@@ -25,6 +25,11 @@ int World::CreateEntity(const std::string &name) {
   return id;
 }
 
+const std::unordered_map<int, std::vector<std::unique_ptr<Component>>> &
+World::GetEntities() const {
+  return entities;
+}
+
 Terrain2D &World::CreateTerrain2D(const std::string &name,
                                   const std::string &texture_path) {
   auto new_terrain = new Terrain2D();

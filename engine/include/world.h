@@ -112,6 +112,10 @@ public:
   }
 
   int CreateEntity(const std::string &name);
+
+  const std::unordered_map<int, std::vector<std::unique_ptr<Component>>> &
+  GetEntities() const;
+
   void DeleteEntity(int id);
   bool HasEntity(int id) const;
   Terrain2D &CreateTerrain2D(const std::string &name,
