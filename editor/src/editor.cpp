@@ -6,7 +6,6 @@
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "rlImGui.h"
-#include <cstdio>
 
 using namespace criogenio;
 
@@ -139,14 +138,24 @@ void EditorApp::DrawHierarchyPanel() {
       }
 
       ImGui::EndPopup();
-
-      DrawHierarchyNodes();
+      // DrawHierarchyNodes();
     }
   }
   ImGui::End();
 
   if (ImGui::Begin("Inspector")) {
+
+    if (selectedEntityId.has_value()) {
+
+      int entity = selectedEntityId.value();
+      DrawEntityHeader(entity);
+      ImGui::Separator();
+      DrawComponentInspectors(entity);
+      ImGui::Separator();
+      DrawAddComponentMenu(entity);
+    }
   }
+
   ImGui::End();
 
   if (ImGui::Begin("Viewport")) {
@@ -501,14 +510,8 @@ void EditorApp::DrawToolbar() {
 void EditorApp::DrawEntityNode(int entity) {
 
   auto &name = GetWorld().GetComponent<criogenio::Name>(entity);
-  // auto *hierarchy = GetWorld().TryGetComponent<Hierarchy>(entity);
-
-  // bool hasChildren = hierarchy && !hierarchy->children.empty();
 
   ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth;
-
-  // if (!hasChildren)
-  //   flags |= ImGuiTreeNodeFlags_Leaf;
 
   if (selectedEntityId == entity)
     flags |= ImGuiTreeNodeFlags_Selected;
@@ -640,4 +643,154 @@ void EditorApp::PickEntityAt(Vector2 worldPos) {
 bool EditorApp::IsSceneInputAllowed() const {
   return viewportHovered && !ImGui::IsAnyItemActive() &&
          !ImGui::IsAnyItemHovered();
+}
+
+void EditorApp::DrawEntityHeader(int entity) {
+  auto &name = GetWorld().GetComponent<criogenio::Name>(entity);
+
+  char buffer[256];
+  strncpy(buffer, name.name.c_str(), sizeof(buffer));
+
+  if (ImGui::InputText("Name", buffer, sizeof(buffer))) {
+    name.name = buffer;
+  }
+}
+
+void EditorApp::DrawComponentInspectors(int entity) {
+
+  if (GetWorld().HasComponent<criogenio::Transform>(entity))
+    DrawTransformInspector(entity);
+
+  if (GetWorld().HasComponent<criogenio::AnimatedSprite>(entity))
+    DrawAnimatedSpriteInspector(entity);
+
+  if (GetWorld().HasComponent<criogenio::Controller>(entity))
+    DrawControllerInspector(entity);
+
+  if (GetWorld().HasComponent<criogenio::AIController>(entity))
+    DrawAIControllerInspector(entity);
+
+  // Later:
+  // if (HasComponent<Collider>()) ...
+}
+
+void EditorApp::DrawTransformInspector(int entity) {
+
+  if (!ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))
+    return;
+
+  auto &t = GetWorld().GetComponent<criogenio::Transform>(entity);
+
+  ImGui::DragFloat2("Position", &t.x, 1.0f);
+  ImGui::DragFloat("Rotation", &t.rotation, 0.5f);
+  ImGui::DragFloat2("Scale", &t.scale_x, 0.01f, 0.01f, 100.0f);
+
+  // Context menu
+  if (ImGui::BeginPopupContextItem("TransformContext")) {
+    if (ImGui::MenuItem("Remove Component")) {
+      GetWorld().RemoveComponent<criogenio::Transform>(entity);
+    }
+    ImGui::EndPopup();
+  }
+}
+
+void EditorApp::DrawAnimatedSpriteInspector(int entity) {
+
+  if (!ImGui::CollapsingHeader("Animated Sprite"))
+    return;
+
+  auto &sprite = GetWorld().GetComponent<criogenio::AnimatedSprite>(entity);
+
+  ImGui::Text("Current Animation: %s", sprite.currentAnim.c_str());
+  // ImGui::DragFloat("Speed", &sprite.currentAnim.frameSpeed, 0.01f, 0.01f,
+  //                  10.0f);
+
+  ImGui::Separator();
+  ImGui::Text("Animations:");
+
+  for (auto &[name, anim] : sprite.animations) {
+    bool selected = (sprite.currentAnim == name);
+
+    if (ImGui::Selectable(name.c_str(), selected)) {
+      sprite.SetAnimation(name);
+    }
+  }
+
+  if (ImGui::BeginPopupContextItem("AnimSpriteContext")) {
+    if (ImGui::MenuItem("Remove Component")) {
+      GetWorld().RemoveComponent<criogenio::AnimatedSprite>(entity);
+    }
+    ImGui::EndPopup();
+  }
+}
+
+void EditorApp::DrawControllerInspector(int entity) {
+
+  if (!ImGui::CollapsingHeader("Player Controller"))
+    return;
+
+  auto &ctrl = GetWorld().GetComponent<criogenio::Controller>(entity);
+
+  ImGui::DragFloat("Speed", &ctrl.speed, 1.0f, 0.0f, 1000.0f);
+
+  if (ImGui::BeginPopupContextItem("ControllerContext")) {
+    if (ImGui::MenuItem("Remove Component")) {
+      GetWorld().RemoveComponent<criogenio::Controller>(entity);
+    }
+    ImGui::EndPopup();
+  }
+}
+
+void EditorApp::DrawAIControllerInspector(int entity) {
+
+  if (!ImGui::CollapsingHeader("Player Controller"))
+    return;
+
+  auto &ctrl = GetWorld().GetComponent<criogenio::Controller>(entity);
+
+  ImGui::DragFloat("Speed", &ctrl.speed, 1.0f, 0.0f, 1000.0f);
+
+  if (ImGui::BeginPopupContextItem("ControllerContext")) {
+    if (ImGui::MenuItem("Remove Component")) {
+      GetWorld().RemoveComponent<criogenio::Controller>(entity);
+    }
+    ImGui::EndPopup();
+  }
+}
+
+void EditorApp::DrawAddComponentMenu(int entity) {
+
+  if (ImGui::Button("Add Component")) {
+
+    ImGui::OpenPopup("AddComponentPopup");
+
+    if (ImGui::BeginPopup("AddComponentPopup")) {
+
+      if (!GetWorld().HasComponent<criogenio::Transform>(entity)) {
+        if (ImGui::MenuItem("Transform")) {
+          GetWorld().AddComponent<criogenio::Transform>(entity, 0, 0);
+        }
+      }
+
+      if (!GetWorld().HasComponent<criogenio::AnimatedSprite>(entity)) {
+        if (ImGui::MenuItem("Animated Sprite")) {
+          // You probably want a factory here
+        }
+      }
+
+      if (!GetWorld().HasComponent<criogenio::Controller>(entity)) {
+        if (ImGui::MenuItem("Player Controller")) {
+          GetWorld().AddComponent<criogenio::Controller>(entity, 200.0f);
+        }
+      }
+
+      if (!GetWorld().HasComponent<criogenio::AIController>(entity)) {
+        if (ImGui::MenuItem("AI Controller")) {
+          GetWorld().AddComponent<criogenio::AIController>(entity);
+        }
+      }
+
+      ImGui::EndPopup();
+    }
+  }
 }

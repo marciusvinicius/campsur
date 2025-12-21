@@ -99,6 +99,18 @@ public:
     return ptr;
   }
 
+  template <typename T> bool HasComponent(int entityId) const {
+    ComponentTypeId typeId = GetComponentTypeId<T>();
+
+    auto it = registry.find(typeId);
+    if (it == registry.end())
+      return false;
+
+    const auto &entitiesWithComponent = it->second;
+    return std::find(entitiesWithComponent.begin(), entitiesWithComponent.end(),
+                     entityId) != entitiesWithComponent.end();
+  }
+
   int CreateEntity(const std::string &name);
   void DeleteEntity(int id);
   bool HasEntity(int id) const;

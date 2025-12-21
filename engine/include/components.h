@@ -43,6 +43,9 @@ class Transform : public Component, public ISerializableComponent {
 public:
   float x = 0;
   float y = 0;
+  float rotation = 0;
+  float scale_x = 0;
+  float scale_y = 0;
 
   Transform() = default;
   Transform(float x, float y) : x(x), y(y) {}
@@ -66,6 +69,7 @@ public:
     // Add this on the constructor later
     texture = LoadTextureFromImage(GenImageColor(32, 32, WHITE));
   }
+
   Texture2D texture;
   bool loaded = false;
   std::string path;

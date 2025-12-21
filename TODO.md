@@ -4,9 +4,10 @@
 - [x] Fix Camera controll
 - [x] Make editor integrate with ImGui
   - [x] Select entity
-    - [ ] Make selected entity visual better
+    - [x] Make selected entity visual better
     - [x] Move entity
-    - [ ] Add component to selected entity
+    - [x] Add component to selected entity
+    - [ ] Add component on selected entity 
   - [ ] Make play on editor works
     - [ ] Play and Stop should go into scene in the MIDDLE
 - [ ] Making possible to serialize scene on SaveScene

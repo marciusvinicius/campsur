@@ -42,6 +42,16 @@ private:
   void HandleInput();
   void HandleScenePicking();
 
+  // Entity Inspector
+  void DrawEntityHeader(int entity);
+  void DrawComponentInspectors(int entity);
+
+  void DrawTransformInspector(int entity);
+  void DrawAnimatedSpriteInspector(int entity);
+  void DrawControllerInspector(int entity);
+  void DrawAIControllerInspector(int entity);
+  void DrawAddComponentMenu(int entity);
+
   void PickEntityAt(Vector2 worldPos);
 
   bool IsSceneInputAllowed() const;
