@@ -130,8 +130,12 @@ void EditorApp::DrawHierarchyPanel() {
           (selectedEntityId.has_value() && selectedEntityId.value() == id);
 
       char label[64];
-      auto entity_name = GetWorld().GetComponent<criogenio::Name>(id);
-      snprintf(label, sizeof(label), "%d", entity_name.name);
+      auto entity_name = GetWorld().GetComponent<criogenio::Name>(id).name;
+      if (entity_name.empty()) {
+        entity_name = "Test";
+      }
+
+      snprintf(label, sizeof(label), "Entity %s", entity_name.c_str());
 
       if (ImGui::Selectable(label, selected)) {
         selectedEntityId = id;
