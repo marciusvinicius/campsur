@@ -36,10 +36,13 @@ template <typename T> ComponentTypeId GetComponentTypeId() {
 
 class Component {
 public:
+  virtual std::string TypeName() const = 0;
   virtual ~Component() = default;
+  virtual SerializedComponent Serialize() const = 0;
+  virtual void Deserialize(const SerializedComponent &data) = 0;
 };
 
-class Transform : public Component, public ISerializableComponent {
+class Transform : public Component {
 public:
   float x = 0;
   float y = 0;
@@ -62,19 +65,6 @@ public:
   }
 };
 
-class Sprite : public Component {
-public:
-  Sprite() {
-    loaded = true;
-    // Add this on the constructor later
-    texture = LoadTextureFromImage(GenImageColor(32, 32, WHITE));
-  }
-
-  Texture2D texture;
-  bool loaded = false;
-  std::string path;
-};
-
 struct Animation {
   std::vector<Rectangle> frames;
   float frameTime = 0.1f;
@@ -93,14 +83,17 @@ public:
   int frameIndex = 0;
 
   Texture2D texture;
+  std::string texturePath;
 
   AnimatedSprite(const std::string &initialAnim,
                  const std::vector<Rectangle> &frames, float speed,
                  Texture2D tex)
       : texture(tex) {
+
     AddAnimation(initialAnim, frames, speed);
     SetAnimation(initialAnim);
   }
+  AnimatedSprite() = default;
 
   void AddAnimation(const std::string &name,
                     const std::vector<Rectangle> &frames, float speed) {
@@ -144,6 +137,20 @@ public:
     }
     return anim.frames[frameIndex];
   }
+  std::string TypeName() const override { return "AnimatedSprite"; }
+
+  SerializedComponent Serialize() const override {
+    return {"AnimatedSprite",
+            {
+                {"texturePath", texturePath},
+                {"currentAnim", currentAnim},
+            }};
+  }
+
+  void Deserialize(const SerializedComponent &data) override {
+    texturePath = std::get<std::string>(data.fields.at("texturePath"));
+    currentAnim = std::get<std::string>(data.fields.at("currentAnim"));
+  }
 };
 
 class Collider : public Component {
@@ -151,6 +158,23 @@ public:
   float width = 20;
   float height = 20;
   bool isTrigger = false;
+
+  std::string TypeName() const override { return "Collider"; }
+
+  SerializedComponent Serialize() const override {
+    return {"Collider",
+            {
+                {"width", width},
+                {"height", height},
+                {"isTrigger", isTrigger},
+            }};
+  }
+
+  void Deserialize(const SerializedComponent &data) override {
+    width = std::get<float>(data.fields.at("width"));
+    height = std::get<float>(data.fields.at("height"));
+    isTrigger = std::get<bool>(data.fields.at("isTrigger"));
+  }
 };
 
 class CameraComponent : public Component {
@@ -158,6 +182,24 @@ class CameraComponent : public Component {
 public:
   Camera2D cam;
   bool active = false;
+  std::string TypeName() const override { return "CameraComponent"; }
+
+  SerializedComponent Serialize() const override {
+    return {"CameraComponent",
+            {
+                {"active", active},
+                {"zoom", cam.zoom},
+                {"offset_x", cam.offset.x},
+                {"offset_y", cam.offset.y},
+            }};
+  }
+
+  void Deserialize(const SerializedComponent &data) override {
+    active = std::get<bool>(data.fields.at("active"));
+    cam.zoom = std::get<float>(data.fields.at("zoom"));
+    cam.offset.x = std::get<float>(data.fields.at("offset_x"));
+    cam.offset.y = std::get<float>(data.fields.at("offset_y"));
+  }
 };
 
 class Controller : public Component {
@@ -165,6 +207,23 @@ public:
   float speed = 200.0f;
   Direction direction = UP;
   Controller(float speed) : speed(speed) {}
+  Controller() = default;
+
+  std::string TypeName() const override { return "Controller"; }
+
+  SerializedComponent Serialize() const override {
+    return {"Controller",
+            {
+                {"speed", speed},
+                {"direction", static_cast<int>(direction)},
+            }};
+  }
+
+  void Deserialize(const SerializedComponent &data) override {
+    speed = std::get<float>(data.fields.at("speed"));
+    direction =
+        static_cast<Direction>(std::get<int>(data.fields.at("direction")));
+  }
 };
 
 class AIController : public Component {
@@ -172,17 +231,55 @@ public:
   float speed = 200.0f;
   Direction direction = UP;
   AIBrainState brainState = FRIENDLY;
-  int entityTarget;
+  int entityTarget = -1;
+  std::string TypeName() const override { return "AIController"; }
+
+  SerializedComponent Serialize() const override {
+    return {"AIController",
+            {
+                {"speed", speed},
+                {"direction", static_cast<int>(direction)},
+                {"brainState", static_cast<int>(brainState)},
+                {"entityTarget", entityTarget},
+            }};
+  }
+
+  void Deserialize(const SerializedComponent &data) override {
+    speed = std::get<float>(data.fields.at("speed"));
+    direction =
+        static_cast<Direction>(std::get<int>(data.fields.at("direction")));
+    brainState =
+        static_cast<AIBrainState>(std::get<int>(data.fields.at("brainState")));
+    entityTarget = std::get<int>(data.fields.at("entityTarget"));
+  }
 };
 
 class InteractableComponent : public Component {
 public:
+  std::string TypeName() const override { return "InteractableComponent"; }
+
+  SerializedComponent Serialize() const override {
+    return {"InteractableComponent", {}};
+  }
+
+  void Deserialize(const SerializedComponent &) override {}
 };
 
 class Name : public Component {
 public:
   std::string name;
   Name(const std::string &name) : name(name) {}
+  Name() = default;
+
+  std::string TypeName() const override { return "Name"; }
+
+  SerializedComponent Serialize() const override {
+    return {"Name", {{"name", name}}};
+  }
+
+  void Deserialize(const SerializedComponent &data) override {
+    name = std::get<std::string>(data.fields.at("name"));
+  }
 };
 
 class AnimationState : public Component {
@@ -190,6 +287,23 @@ public:
   AnimState current = AnimState::IDLE;
   AnimState previous = AnimState::IDLE;
   Direction facing = DOWN;
+  std::string TypeName() const override { return "AnimationState"; }
+
+  SerializedComponent Serialize() const override {
+    return {"AnimationState",
+            {
+                {"current", static_cast<int>(current)},
+                {"previous", static_cast<int>(previous)},
+                {"facing", static_cast<int>(facing)},
+            }};
+  }
+
+  void Deserialize(const SerializedComponent &data) override {
+    current = static_cast<AnimState>(std::get<int>(data.fields.at("current")));
+    previous =
+        static_cast<AnimState>(std::get<int>(data.fields.at("previous")));
+    facing = static_cast<Direction>(std::get<int>(data.fields.at("facing")));
+  }
 };
 
 } // namespace criogenio

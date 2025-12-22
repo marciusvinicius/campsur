@@ -3,13 +3,35 @@
 #include "raymath.h"
 
 namespace criogenio {
+
 Texture2D CriogenioLoadTexture(const char *file_name) {
   return LoadTexture(file_name);
+}
+
+std::unordered_map<std::string, ComponentFactoryFn> &
+ComponentFactory::Registry() {
+  static std::unordered_map<std::string, ComponentFactoryFn> registry;
+  return registry;
+}
+
+void ComponentFactory::Register(const std::string &type,
+                                ComponentFactoryFn fn) {
+  Registry()[type] = std::move(fn);
+}
+
+Component *ComponentFactory::Create(const std::string &type, World &world,
+                                    int entity) {
+  auto it = Registry().find(type);
+  if (it == Registry().end())
+    return nullptr;
+
+  return it->second(world, entity);
 }
 
 Engine::Engine(int width, int height, const char *title) : width(width) {
   renderer = new Renderer(width, height, title);
   world = new World();
+  RegisterCoreComponents();
 }
 
 Engine::~Engine() {
@@ -39,5 +61,20 @@ void Engine::Run() {
 // #TODO:(maraujo) Move this to Engine
 Vector2 Engine::GetMouseWorld() {
   return GetScreenToWorld2D(GetMousePosition(), GetWorld().maincamera);
+}
+
+void Engine::RegisterCoreComponents() {
+
+  ComponentFactory::Register("Transform", [](World &w, int e) {
+    return w.AddComponent<Transform>(e);
+  });
+
+  ComponentFactory::Register("AnimatedSprite", [](World &w, int e) {
+    return w.AddComponent<AnimatedSprite>(e);
+  });
+
+  ComponentFactory::Register("Controller", [](World &w, int e) {
+    return w.AddComponent<Controller>(e);
+  });
 }
 } // namespace criogenio

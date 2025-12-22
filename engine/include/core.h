@@ -37,6 +37,7 @@ public:
   std::string BuildClipKey(const AnimationState &st);
   void Update(float dt) override;
   void Render(Renderer &) override;
+  void OnWorldLoaded(World &world);
 };
 
 class RenderSystem : public ISystem {

@@ -89,4 +89,48 @@ void World::AttachCamera2D(Camera2D cam) {
   maincamera = cam;
 }
 
+SerializedWorld World::Serialize() const {
+  SerializedWorld worldData;
+
+  for (const auto &[entityId, components] : entities) {
+    SerializedEntity ent;
+    ent.id = entityId;
+
+    for (const auto &comp : components) {
+      ent.components.push_back(comp->Serialize());
+    }
+
+    worldData.entities.push_back(std::move(ent));
+  }
+
+  return worldData;
+}
+
+int World::CreateEntityWithId(int forcedId) {
+  entities.emplace(forcedId, std::vector<std::unique_ptr<Component>>{});
+  nextId = std::max(nextId, forcedId + 1);
+  return forcedId;
+}
+
+void World::Deserialize(const SerializedWorld &data) {
+  // entities.clear();
+  registry.clear();
+  nextId = 1;
+
+  // 1️⃣ Create entities with correct IDs
+  for (const auto &ent : data.entities) {
+    CreateEntityWithId(ent.id);
+  }
+
+  // 2️⃣ Create and deserialize components
+  for (const auto &ent : data.entities) {
+    int id = ent.id;
+
+    for (const auto &compData : ent.components) {
+      Component *comp = ComponentFactory::Create(compData.type, *this, id);
+      comp->Deserialize(compData);
+    }
+  }
+}
+
 } // namespace criogenio

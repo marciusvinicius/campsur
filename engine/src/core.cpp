@@ -149,4 +149,16 @@ void RenderSystem::Render(Renderer &renderer) {
     renderer.DrawTexturePro(animSprite.texture, src, dest, {0, 0}, 0.0f, WHITE);
   }
 }
+
+void AnimationSystem::OnWorldLoaded(World &world) {
+  for (int e : world.GetEntitiesWith<AnimatedSprite>()) {
+    auto &sprite = world.GetComponent<AnimatedSprite>(e);
+
+    sprite.texture = LoadTexture(sprite.texturePath.c_str());
+
+    // Load animations from asset database
+    // AnimationDatabase::Apply(sprite);
+    sprite.SetAnimation(sprite.currentAnim);
+  }
+}
 } // namespace criogenio

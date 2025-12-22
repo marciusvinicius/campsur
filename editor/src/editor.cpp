@@ -7,6 +7,8 @@
 #include "imgui_internal.h"
 #include "rlImGui.h"
 
+#include "criogenio_io.h"
+
 using namespace criogenio;
 
 EditorApp::EditorApp(int width, int height) : Engine(width, height, "Editor") {
@@ -404,10 +406,10 @@ void EditorApp::DrawMainMenuBar() {
         // NewScene();
       }
       if (ImGui::MenuItem("Open Scene")) {
-        // OpenScene();
+        criogenio::LoadWorldFromFile(GetWorld(), "world.test");
       }
       if (ImGui::MenuItem("Save Scene", "Ctrl+S")) {
-        // SaveScene();
+        criogenio::SaveWorldToFile(GetWorld(), "world.test");
       }
       ImGui::EndMenu();
     }
@@ -697,9 +699,6 @@ void EditorApp::DrawComponentInspectors(int entity) {
 
   if (GetWorld().HasComponent<criogenio::AIController>(entity))
     DrawAIControllerInspector(entity);
-
-  // Later:
-  // if (HasComponent<Collider>()) ...
 }
 
 void EditorApp::DrawTransformInspector(int entity) {
@@ -791,34 +790,34 @@ void EditorApp::DrawAddComponentMenu(int entity) {
   if (ImGui::Button("Add Component")) {
 
     ImGui::OpenPopup("AddComponentPopup");
+  }
 
-    if (ImGui::BeginPopup("AddComponentPopup")) {
+  if (ImGui::BeginPopup("AddComponentPopup")) {
 
-      if (!GetWorld().HasComponent<criogenio::Transform>(entity)) {
-        if (ImGui::MenuItem("Transform")) {
-          GetWorld().AddComponent<criogenio::Transform>(entity, 0, 0);
-        }
+    if (!GetWorld().HasComponent<criogenio::Transform>(entity)) {
+      if (ImGui::MenuItem("Transform")) {
+        GetWorld().AddComponent<criogenio::Transform>(entity, 0, 0);
       }
-
-      if (!GetWorld().HasComponent<criogenio::AnimatedSprite>(entity)) {
-        if (ImGui::MenuItem("Animated Sprite")) {
-          // You probably want a factory here
-        }
-      }
-
-      if (!GetWorld().HasComponent<criogenio::Controller>(entity)) {
-        if (ImGui::MenuItem("Player Controller")) {
-          GetWorld().AddComponent<criogenio::Controller>(entity, 200.0f);
-        }
-      }
-
-      if (!GetWorld().HasComponent<criogenio::AIController>(entity)) {
-        if (ImGui::MenuItem("AI Controller")) {
-          GetWorld().AddComponent<criogenio::AIController>(entity);
-        }
-      }
-
-      ImGui::EndPopup();
     }
+
+    if (!GetWorld().HasComponent<criogenio::AnimatedSprite>(entity)) {
+      if (ImGui::MenuItem("Animated Sprite")) {
+        // You probably want a factory here
+        // GetWorld().AddComponent<criogenio::AnimatedSprite>(entity);
+      }
+    }
+
+    if (!GetWorld().HasComponent<criogenio::Controller>(entity)) {
+      if (ImGui::MenuItem("Player Controller")) {
+        GetWorld().AddComponent<criogenio::Controller>(entity, 200.0f);
+      }
+    }
+
+    if (!GetWorld().HasComponent<criogenio::AIController>(entity)) {
+      if (ImGui::MenuItem("AI Controller")) {
+        GetWorld().AddComponent<criogenio::AIController>(entity);
+      }
+    }
+    ImGui::EndPopup();
   }
 }

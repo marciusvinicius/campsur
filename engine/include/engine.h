@@ -10,13 +10,16 @@ namespace criogenio {
 
 Texture2D CriogenioLoadTexture(const char *file_name);
 
-/*
+using ComponentFactoryFn = std::function<Component *(World &, int)>;
 
-        Start to think about how to serialize the World, for now we dont have a
-   simple way to build the Worlds and then load it from a file that should
-   include entities and components
+class ComponentFactory {
+public:
+  static void Register(const std::string &type, ComponentFactoryFn fn);
+  static Component *Create(const std::string &type, World &world, int entity);
 
-*/
+private:
+  static std::unordered_map<std::string, ComponentFactoryFn> &Registry();
+};
 
 class Engine {
 public:
@@ -31,6 +34,8 @@ public:
   EventBus &GetEventBus();
   Renderer &GetRenderer();
   Vector2 GetMouseWorld();
+
+  void RegisterCoreComponents();
 
 protected:
   virtual void OnGUI() {} // Editor overrides this

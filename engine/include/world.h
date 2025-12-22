@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "components.h"
+#include "serialization.h"
 #include "systems.h"
 #include "terrain.h"
 
@@ -26,6 +27,9 @@ public:
   void OnUpdate(std::function<void(float)> fn);
   void Update(float dt);
   void Render(Renderer &renderer);
+
+  SerializedWorld Serialize() const;
+  void Deserialize(const SerializedWorld &data);
 
 public:
   // Templates
@@ -131,5 +135,6 @@ private:
   std::unordered_map<ComponentTypeId, std::vector<int>> registry;
   std::unique_ptr<Terrain2D> terrain;
   std::function<void(float)> userUpdate = nullptr;
+  int CreateEntityWithId(int forcedId);
 };
 } // namespace criogenio

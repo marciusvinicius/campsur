@@ -49,7 +49,7 @@ private:
   void HandleInput();
   void HandleScenePicking();
 
-  // Entity Inspector
+  // Entity Inspector TODO:(maraujo) Move this to UI file
   void DrawEntityHeader(int entity);
   void DrawComponentInspectors(int entity);
 
