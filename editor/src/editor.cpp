@@ -16,6 +16,8 @@ EditorApp::EditorApp(int width, int height) : Engine(width, height, "Editor") {
   GetWorld().AddSystem<AnimationSystem>(GetWorld());
   GetWorld().AddSystem<RenderSystem>(GetWorld());
   GetWorld().AddSystem<AIMovementSystem>(GetWorld());
+
+  RegisterCoreComponents();
 }
 
 void EditorApp::InitImGUI() {
@@ -465,6 +467,8 @@ void EditorApp::DrawMainMenuBar() {
             idleDown,    // frames
             0.10f,       // speed
             texture);
+
+        anim->texturePath = "editor/assets/Woman/woman.png";
 
         anim->AddAnimation("idle_up", idleUp, 0.10f);
         anim->AddAnimation("idle_left", idleLeft, 0.10f);

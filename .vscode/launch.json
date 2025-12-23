@@ -25,8 +25,7 @@
       "stopAtEntry": false,
       "externalConsole": false,
       "cwd": "/home/marcius/Workspace/criogenio/camp_sur_cpp/editor/src",
-      "program": "/home/marcius/Workspace/criogenio/camp_sur_cpp/bin/Debug/campsur_cpp_editor",
-      "preLaunchTask": "Build",
+      "program": "/home/marcius/Workspace/criogenio/camp_sur_cpp/editor/src/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [

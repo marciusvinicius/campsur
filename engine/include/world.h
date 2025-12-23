@@ -6,6 +6,7 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -135,6 +136,6 @@ private:
   std::unordered_map<ComponentTypeId, std::vector<int>> registry;
   std::unique_ptr<Terrain2D> terrain;
   std::function<void(float)> userUpdate = nullptr;
-  int CreateEntityWithId(int forcedId);
+  int CreateEntityWithId(int forcedId, const std::string &name);
 };
 } // namespace criogenio

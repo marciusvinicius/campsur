@@ -1,9 +1,11 @@
 #include "world.h"
+#include "component_factory.h"
 #include "components.h"
 #include "core.h"
 #include "engine.h"
 #include "raylib.h"
 #include "raymath.h"
+#include <cassert>
 
 namespace criogenio {
 
@@ -106,29 +108,40 @@ SerializedWorld World::Serialize() const {
   return worldData;
 }
 
-int World::CreateEntityWithId(int forcedId) {
-  entities.emplace(forcedId, std::vector<std::unique_ptr<Component>>{});
+int World::CreateEntityWithId(int forcedId, const std::string &name) {
   nextId = std::max(nextId, forcedId + 1);
+  entities.try_emplace(forcedId);
+  AddComponent<Name>(forcedId, name);
   return forcedId;
 }
 
 void World::Deserialize(const SerializedWorld &data) {
-  // entities.clear();
+  // 1. Reset world state
+  entities.clear();
   registry.clear();
   nextId = 1;
 
-  // 1️⃣ Create entities with correct IDs
+  // 2. Recreate entities + components
   for (const auto &ent : data.entities) {
-    CreateEntityWithId(ent.id);
-  }
-
-  // 2️⃣ Create and deserialize components
-  for (const auto &ent : data.entities) {
-    int id = ent.id;
+    int id = CreateEntityWithId(ent.id, ent.name);
 
     for (const auto &compData : ent.components) {
       Component *comp = ComponentFactory::Create(compData.type, *this, id);
+
+      if (!comp) {
+        std::cerr << "Unknown component type: " << compData.type << "\n";
+        continue;
+      }
+
       comp->Deserialize(compData);
+    }
+  }
+
+  // 3. 🔴 REBUILD REGISTRY (this must be last)
+  registry.clear();
+  for (const auto &[entityId, comps] : entities) {
+    for (const auto &c : comps) {
+      registry[c->GetTypeId()].push_back(entityId);
     }
   }
 }

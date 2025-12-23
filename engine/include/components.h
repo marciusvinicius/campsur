@@ -36,10 +36,19 @@ template <typename T> ComponentTypeId GetComponentTypeId() {
 
 class Component {
 public:
-  virtual std::string TypeName() const = 0;
   virtual ~Component() = default;
+
+  virtual std::string TypeName() const = 0;
   virtual SerializedComponent Serialize() const = 0;
   virtual void Deserialize(const SerializedComponent &data) = 0;
+
+  ComponentTypeId GetTypeId() const { return typeId; }
+
+protected:
+  explicit Component(ComponentTypeId id) : typeId(id) {}
+
+private:
+  ComponentTypeId typeId;
 };
 
 class Transform : public Component {
@@ -50,8 +59,10 @@ public:
   float scale_x = 0;
   float scale_y = 0;
 
-  Transform() = default;
-  Transform(float x, float y) : x(x), y(y) {}
+  Transform() : Component(GetComponentTypeId<Transform>()) {}
+
+  Transform(float x, float y)
+      : Component(GetComponentTypeId<Transform>()), x(x), y(y) {}
 
   std::string TypeName() const override { return "Transform"; }
 
@@ -60,8 +71,20 @@ public:
   }
 
   void Deserialize(const SerializedComponent &data) override {
-    x = std::get<float>(data.fields.at("x"));
-    y = std::get<float>(data.fields.at("y"));
+    if (auto it = data.fields.find("x"); it != data.fields.end())
+      x = std::get<float>(it->second);
+
+    if (auto it = data.fields.find("y"); it != data.fields.end())
+      y = std::get<float>(it->second);
+
+    if (auto it = data.fields.find("rotation"); it != data.fields.end())
+      rotation = std::get<float>(it->second);
+
+    if (auto it = data.fields.find("scale_x"); it != data.fields.end())
+      scale_x = std::get<float>(it->second);
+
+    if (auto it = data.fields.find("scale_y"); it != data.fields.end())
+      scale_y = std::get<float>(it->second);
   }
 };
 
@@ -85,15 +108,15 @@ public:
   Texture2D texture;
   std::string texturePath;
 
+  AnimatedSprite() : Component(GetComponentTypeId<AnimatedSprite>()) {}
+
   AnimatedSprite(const std::string &initialAnim,
                  const std::vector<Rectangle> &frames, float speed,
                  Texture2D tex)
-      : texture(tex) {
-
+      : Component(GetComponentTypeId<AnimatedSprite>()), texture(tex) {
     AddAnimation(initialAnim, frames, speed);
     SetAnimation(initialAnim);
   }
-  AnimatedSprite() = default;
 
   void AddAnimation(const std::string &name,
                     const std::vector<Rectangle> &frames, float speed) {
@@ -150,55 +173,9 @@ public:
   void Deserialize(const SerializedComponent &data) override {
     texturePath = std::get<std::string>(data.fields.at("texturePath"));
     currentAnim = std::get<std::string>(data.fields.at("currentAnim"));
-  }
-};
-
-class Collider : public Component {
-public:
-  float width = 20;
-  float height = 20;
-  bool isTrigger = false;
-
-  std::string TypeName() const override { return "Collider"; }
-
-  SerializedComponent Serialize() const override {
-    return {"Collider",
-            {
-                {"width", width},
-                {"height", height},
-                {"isTrigger", isTrigger},
-            }};
-  }
-
-  void Deserialize(const SerializedComponent &data) override {
-    width = std::get<float>(data.fields.at("width"));
-    height = std::get<float>(data.fields.at("height"));
-    isTrigger = std::get<bool>(data.fields.at("isTrigger"));
-  }
-};
-
-class CameraComponent : public Component {
-
-public:
-  Camera2D cam;
-  bool active = false;
-  std::string TypeName() const override { return "CameraComponent"; }
-
-  SerializedComponent Serialize() const override {
-    return {"CameraComponent",
-            {
-                {"active", active},
-                {"zoom", cam.zoom},
-                {"offset_x", cam.offset.x},
-                {"offset_y", cam.offset.y},
-            }};
-  }
-
-  void Deserialize(const SerializedComponent &data) override {
-    active = std::get<bool>(data.fields.at("active"));
-    cam.zoom = std::get<float>(data.fields.at("zoom"));
-    cam.offset.x = std::get<float>(data.fields.at("offset_x"));
-    cam.offset.y = std::get<float>(data.fields.at("offset_y"));
+    if (!texturePath.empty()) {
+      texture = LoadTexture(texturePath.c_str());
+    }
   }
 };
 
@@ -206,8 +183,10 @@ class Controller : public Component {
 public:
   float speed = 200.0f;
   Direction direction = UP;
-  Controller(float speed) : speed(speed) {}
-  Controller() = default;
+  Controller() : Component(GetComponentTypeId<Controller>()) {}
+
+  Controller(float speed)
+      : Component(GetComponentTypeId<Controller>()), speed(speed) {}
 
   std::string TypeName() const override { return "Controller"; }
 
@@ -232,6 +211,11 @@ public:
   Direction direction = UP;
   AIBrainState brainState = FRIENDLY;
   int entityTarget = -1;
+
+  AIController() : Component(GetComponentTypeId<AIController>()) {}
+
+  AIController(float speed)
+      : Component(GetComponentTypeId<AIController>()), speed(speed) {}
   std::string TypeName() const override { return "AIController"; }
 
   SerializedComponent Serialize() const override {
@@ -254,22 +238,14 @@ public:
   }
 };
 
-class InteractableComponent : public Component {
-public:
-  std::string TypeName() const override { return "InteractableComponent"; }
-
-  SerializedComponent Serialize() const override {
-    return {"InteractableComponent", {}};
-  }
-
-  void Deserialize(const SerializedComponent &) override {}
-};
-
 class Name : public Component {
 public:
   std::string name;
-  Name(const std::string &name) : name(name) {}
-  Name() = default;
+
+  Name() : Component(GetComponentTypeId<Name>()) {}
+
+  Name(const std::string &name)
+      : Component(GetComponentTypeId<Name>()), name(name) {}
 
   std::string TypeName() const override { return "Name"; }
 
@@ -284,6 +260,7 @@ public:
 
 class AnimationState : public Component {
 public:
+  AnimationState() : Component(GetComponentTypeId<AnimationState>()) {}
   AnimState current = AnimState::IDLE;
   AnimState previous = AnimState::IDLE;
   Direction facing = DOWN;
