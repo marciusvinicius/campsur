@@ -1,0 +1,38 @@
+{
+  "entities": [
+    {
+      "components": [
+        {
+          "fields": {
+            "name": "New Entity"
+          },
+          "type": "Name"
+        },
+        {
+          "fields": {
+            "x": 5.0,
+            "y": -104.0
+          },
+          "type": "Transform"
+        },
+        {
+          "fields": {
+            "animations": "[{\"frameSpeed\":0.10000000149011612,\"frames\":[0,2,4,6,8,10,12,14,16],\"name\":\"walk_up\"},{\"frameSpeed\":0.10000000149011612,\"frames\":[0,2,4,6,8,10,12,14,16],\"name\":\"walk_right\"},{\"frameSpeed\":0.10000000149011612,\"frames\":[0,2,4,6,8,10,12,14,16],\"name\":\"walk_left\"},{\"frameSpeed\":0.10000000149011612,\"frames\":[0,2,4,6,8,10,12,14,16],\"name\":\"idle_right\"},{\"frameSpeed\":0.10000000149011612,\"frames\":[0,2,4,6,8,10,12,14,16],\"name\":\"idle_left\"},{\"frameSpeed\":0.10000000149011612,\"frames\":[0,2,4,6,8,10,12,14,16],\"name\":\"walk_down\"},{\"frameSpeed\":0.10000000149011612,\"frames\":[0,2,4,6,8,10,12,14,16],\"name\":\"idle_up\"},{\"frameSpeed\":0.10000000149011612,\"frames\":[0,2,4,6,8,10,12,14,16],\"name\":\"idle_down\"}]",
+            "currentAnim": "idle_down",
+            "texturePath": "editor/assets/Woman/woman.png"
+          },
+          "type": "AnimatedSprite"
+        },
+        {
+          "fields": {
+            "current": 0,
+            "facing": 1,
+            "previous": 0
+          },
+          "type": "AnimationState"
+        }
+      ],
+      "id": 1
+    }
+  ]
+}

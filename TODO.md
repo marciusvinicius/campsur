@@ -3,6 +3,10 @@
 ## Editor
 
 [ ] Making possible to serialize scene on SaveScene
+  [ ] Serialize world
+      [√] serialize normal components
+      [√] serialize animations state
+      [ ] serialize terrain
 [√] Fix Camera controll
 [√] Make editor integrate with ImGui
   [√] Select entity

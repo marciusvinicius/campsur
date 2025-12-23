@@ -1,5 +1,6 @@
 #pragma once
 
+#include "animated_component.h"
 #include "systems.h"
 #include "world.h"
 #include <algorithm>

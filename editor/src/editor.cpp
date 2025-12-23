@@ -389,7 +389,6 @@ void EditorApp::RenderSceneToTexture() {
   ClearBackground(BLACK);
   BeginMode2D(GetWorld().maincamera);
   if (selectedEntityId.has_value()) {
-
     auto &t =
         GetWorld().GetComponent<criogenio::Transform>(selectedEntityId.value());
 
@@ -408,10 +407,10 @@ void EditorApp::DrawMainMenuBar() {
         // NewScene();
       }
       if (ImGui::MenuItem("Open Scene")) {
-        criogenio::LoadWorldFromFile(GetWorld(), "world.test");
+        criogenio::LoadWorldFromFile(GetWorld(), "world.json");
       }
       if (ImGui::MenuItem("Save Scene", "Ctrl+S")) {
-        criogenio::SaveWorldToFile(GetWorld(), "world.test");
+        criogenio::SaveWorldToFile(GetWorld(), "world.json");
       }
       ImGui::EndMenu();
     }
@@ -429,7 +428,9 @@ void EditorApp::DrawMainMenuBar() {
         // CreateEmptyEntity();
         int id = GetWorld().CreateEntity("New Entity");
         GetWorld().AddComponent<criogenio::Transform>(id, 0.0f, 0.0f);
-        auto texture = LoadTexture("editor/assets/Woman/woman.png");
+
+        auto path = "editor/assets/Woman/woman.png";
+        auto texture = LoadTexture(path);
         if (!texture.id) {
           printf("Failed to load texture for animated sprite\n");
           return;
@@ -466,7 +467,7 @@ void EditorApp::DrawMainMenuBar() {
             "idle_down", // initial animation
             idleDown,    // frames
             0.10f,       // speed
-            texture);
+            texture, path);
 
         anim->texturePath = "editor/assets/Woman/woman.png";
 

@@ -63,7 +63,7 @@ int main() {
       "idle_down", // initial animation
       idleDown,    // frames
       0.10f,       // speed
-      texture);
+      texture, path);
 
   anim->AddAnimation("idle_up", idleUp, 0.10f);
   anim->AddAnimation("idle_left", idleLeft, 0.10f);

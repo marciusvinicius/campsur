@@ -1,4 +1,5 @@
 #include "core.h"
+#include "animated_component.h"
 #include "components.h"
 #include "math.h"
 

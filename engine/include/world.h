@@ -136,6 +136,5 @@ private:
   std::unordered_map<ComponentTypeId, std::vector<int>> registry;
   std::unique_ptr<Terrain2D> terrain;
   std::function<void(float)> userUpdate = nullptr;
-  int CreateEntityWithId(int forcedId, const std::string &name);
 };
 } // namespace criogenio
