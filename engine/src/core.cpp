@@ -17,19 +17,19 @@ void MovementSystem::Update(float dt) {
 
     if (IsKeyDown(KEY_RIGHT)) {
       dx += 1;
-      anim.facing = RIGHT;
+      anim.facing = Direction::RIGHT;
     }
     if (IsKeyDown(KEY_LEFT)) {
       dx -= 1;
-      anim.facing = LEFT;
+      anim.facing = Direction::LEFT;
     }
     if (IsKeyDown(KEY_UP)) {
       dy -= 1;
-      anim.facing = UP;
+      anim.facing = Direction::UP;
     }
     if (IsKeyDown(KEY_DOWN)) {
       dy += 1;
-      anim.facing = DOWN;
+      anim.facing = Direction::DOWN;
     }
 
     if (dx != 0 || dy != 0) {
@@ -99,13 +99,13 @@ void AIMovementSystem::Render(Renderer &renderer) {};
 
 std::string AnimationSystem::FacingToString(Direction d) const {
   switch (d) {
-  case UP:
+  case Direction::UP:
     return "up";
-  case DOWN:
+  case Direction::DOWN:
     return "down";
-  case LEFT:
+  case Direction::LEFT:
     return "left";
-  case RIGHT:
+  case Direction::RIGHT:
     return "right";
   }
   return "down";

@@ -1,4 +1,5 @@
 #include "editor.h"
+#include "animation_state.h"
 #include "input.h"
 #include "raymath.h"
 #include "terrain.h"
@@ -12,12 +13,16 @@
 using namespace criogenio;
 
 EditorApp::EditorApp(int width, int height) : Engine(width, height, "Editor") {
+  // LoadWorldFromFile(GetWorld(), "assets/worlds/test_world.json");
+  EditorAppReset();
+}
+
+void EditorApp::EditorAppReset() {
+  RegisterCoreComponents();
   GetWorld().AddSystem<MovementSystem>(GetWorld());
   GetWorld().AddSystem<AnimationSystem>(GetWorld());
   GetWorld().AddSystem<RenderSystem>(GetWorld());
   GetWorld().AddSystem<AIMovementSystem>(GetWorld());
-
-  RegisterCoreComponents();
 }
 
 void EditorApp::InitImGUI() {
@@ -408,6 +413,7 @@ void EditorApp::DrawMainMenuBar() {
       }
       if (ImGui::MenuItem("Open Scene")) {
         criogenio::LoadWorldFromFile(GetWorld(), "world.json");
+        EditorAppReset();
       }
       if (ImGui::MenuItem("Save Scene", "Ctrl+S")) {
         criogenio::SaveWorldToFile(GetWorld(), "world.json");
@@ -696,6 +702,9 @@ void EditorApp::DrawComponentInspectors(int entity) {
   if (GetWorld().HasComponent<criogenio::Transform>(entity))
     DrawTransformInspector(entity);
 
+  if (GetWorld().HasComponent<criogenio::AnimationState>(entity))
+    DrawAnimationStateInspector(entity);
+
   if (GetWorld().HasComponent<criogenio::AnimatedSprite>(entity))
     DrawAnimatedSpriteInspector(entity);
 
@@ -704,6 +713,60 @@ void EditorApp::DrawComponentInspectors(int entity) {
 
   if (GetWorld().HasComponent<criogenio::AIController>(entity))
     DrawAIControllerInspector(entity);
+}
+
+void EditorApp::DrawAnimationStateInspector(int entity) {
+
+  if (!ImGui::CollapsingHeader("Animation State"))
+    return;
+
+  auto &animState = GetWorld().GetComponent<criogenio::AnimationState>(entity);
+
+  ImGui::Text("Current State: %s",
+              criogenio::anim_state_to_string(animState.current).c_str());
+
+  ImGui::Separator();
+  ImGui::Text("Previous State:");
+  ImGui::Text("%s",
+              criogenio::anim_state_to_string(animState.previous).c_str());
+
+  ImGui::Separator();
+  ImGui::Text("Current State:");
+  for (int i = 0; i < static_cast<int>(criogenio::AnimState::Count); ++i) {
+    criogenio::AnimState state = static_cast<criogenio::AnimState>(i);
+    bool selected = (animState.current == state);
+    if (ImGui::Selectable(criogenio::anim_state_to_string(state).c_str(),
+                          selected)) {
+      animState.SetState(state);
+    }
+    if (selected) {
+      ImGui::SetItemDefaultFocus();
+    }
+  }
+
+  ImGui::Text("Current Direction: %s",
+              criogenio::direction_to_string(animState.facing).c_str());
+
+  ImGui::Separator();
+  ImGui::Text("States:");
+  for (int i = 0; i < static_cast<int>(criogenio::Direction::Count); ++i) {
+    criogenio::Direction direction = static_cast<criogenio::Direction>(i);
+    bool selected = (animState.facing == direction);
+    if (ImGui::Selectable(criogenio::direction_to_string(direction).c_str(),
+                          selected)) {
+      animState.SetDirection(direction);
+    }
+    if (selected) {
+      ImGui::SetItemDefaultFocus();
+    }
+  }
+
+  if (ImGui::BeginPopupContextItem("AnimStateContext")) {
+    if (ImGui::MenuItem("Remove Component")) {
+      GetWorld().RemoveComponent<criogenio::AnimationState>(entity);
+    }
+    ImGui::EndPopup();
+  }
 }
 
 void EditorApp::DrawTransformInspector(int entity) {
@@ -742,9 +805,15 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
 
   for (auto &[name, anim] : sprite.animations) {
     bool selected = (sprite.currentAnim == name);
-
     if (ImGui::Selectable(name.c_str(), selected)) {
       sprite.SetAnimation(name);
+    }
+    if (ImGui::IsItemHovered()) {
+      ImGui::SetTooltip("Frames: %d, Speed: %.2f", (int)anim.frames.size(),
+                        anim.frameSpeed);
+    }
+    if (selected) {
+      ImGui::SetItemDefaultFocus();
     }
   }
 
@@ -753,6 +822,10 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
       GetWorld().RemoveComponent<criogenio::AnimatedSprite>(entity);
     }
     ImGui::EndPopup();
+  }
+
+  if (ImGui::Button("Reload Texture")) {
+    // sprite.ReloadTexture();
   }
 }
 
@@ -821,6 +894,11 @@ void EditorApp::DrawAddComponentMenu(int entity) {
     if (!GetWorld().HasComponent<criogenio::AIController>(entity)) {
       if (ImGui::MenuItem("AI Controller")) {
         GetWorld().AddComponent<criogenio::AIController>(entity);
+      }
+    }
+    if (!GetWorld().HasComponent<criogenio::AnimationState>(entity)) {
+      if (ImGui::MenuItem("Animation State")) {
+        GetWorld().AddComponent<criogenio::AnimationState>(entity);
       }
     }
     ImGui::EndPopup();

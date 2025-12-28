@@ -11,8 +11,6 @@ using ComponentTypeId = std::size_t;
 
 namespace criogenio {
 
-enum Direction { UP, DOWN, LEFT, RIGHT };
-
 struct ISerializableComponent {
   virtual ~ISerializableComponent() = default;
 
@@ -90,7 +88,7 @@ struct Animation {
 class Controller : public Component {
 public:
   float speed = 200.0f;
-  Direction direction = UP;
+  Direction direction = Direction::UP;
   Controller() = default;
   Controller(float speed) : speed(speed) {}
 
@@ -114,7 +112,7 @@ public:
 class AIController : public Component {
 public:
   float speed = 200.0f;
-  Direction direction = UP;
+  Direction direction = Direction::UP;
   AIBrainState brainState = FRIENDLY;
   int entityTarget = -1;
 

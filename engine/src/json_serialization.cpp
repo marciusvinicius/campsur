@@ -39,6 +39,19 @@ json ToJson(const SerializedWorld &world) {
     j["entities"].push_back(je);
   }
 
+  // Terrain serialization can be added here if needed
+  if (world.terrain.layers.size() > 0) {
+    j["terrain"]["tileSize"] = world.terrain.tileSize;
+    j["terrain"]["tilesetPath"] = world.terrain.tilesetPath;
+    for (const auto &layer : world.terrain.layers) {
+      json jl;
+      jl["width"] = layer.width;
+      jl["height"] = layer.height;
+      jl["tiles"] = layer.tiles;
+      j["terrain"]["layers"].push_back(jl);
+    }
+  }
+
   return j;
 }
 

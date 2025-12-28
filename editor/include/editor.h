@@ -19,6 +19,7 @@ struct EditorState {
 class EditorApp : public criogenio::Engine {
 public:
   EditorApp(int width, int height);
+  void EditorAppReset();
   //~EditorApp();
   void Run();
 
@@ -52,8 +53,8 @@ private:
   // Entity Inspector TODO:(maraujo) Move this to UI file
   void DrawEntityHeader(int entity);
   void DrawComponentInspectors(int entity);
-
   void DrawTransformInspector(int entity);
+  void DrawAnimationStateInspector(int entity);
   void DrawAnimatedSpriteInspector(int entity);
   void DrawControllerInspector(int entity);
   void DrawAIControllerInspector(int entity);

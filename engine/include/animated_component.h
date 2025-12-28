@@ -9,10 +9,11 @@ namespace criogenio {
 
 class AnimationState : public Component {
 public:
-  AnimationState() {};
+  AnimationState() = default;
   AnimState current = AnimState::IDLE;
   AnimState previous = AnimState::IDLE;
   Direction facing = Direction::DOWN;
+
   std::string TypeName() const override { return "AnimationState"; }
 
   SerializedComponent Serialize() const override {
@@ -30,6 +31,13 @@ public:
         static_cast<AnimState>(std::get<int>(data.fields.at("previous")));
     facing = static_cast<Direction>(std::get<int>(data.fields.at("facing")));
   }
+  void SetState(AnimState newState) {
+    if (current != newState) {
+      previous = current;
+      current = newState;
+    }
+  }
+  void SetDirection(Direction newDirection) { facing = newDirection; }
 };
 
 class AnimatedSprite : public Component {
@@ -49,7 +57,6 @@ public:
 
   AnimatedSprite() = default;
   AnimatedSprite(const std::string &path) : texturePath(path) {}
-
   AnimatedSprite(const std::string &initialAnim,
                  const std::vector<Rectangle> &frames, float speed,
                  Texture2D tex, const std::string &path)
@@ -66,7 +73,6 @@ public:
   void SetAnimation(const std::string &name) {
     if (currentAnim == name)
       return;
-
     currentAnim = name;
     frameIndex = 0;
     timer = 0.0f;
@@ -111,17 +117,19 @@ public:
 
     // Serialize animations into JSON string
     nlohmann::json animJson = nlohmann::json::array();
-
-    constexpr int FRAME_WIDTH = 32; // or store per-sprite
-
     for (const auto &[name, anim] : animations) {
       nlohmann::json a;
       a["name"] = name;
       a["frameSpeed"] = anim.frameSpeed;
 
-      std::vector<int> frames;
+      a["frameWidth"] = anim.frames[0].width;
+      a["frameHeight"] = anim.frames[0].height;
+
+      std::vector<nlohmann::json> frames;
+
       for (const Rectangle &r : anim.frames) {
-        frames.push_back(static_cast<int>(r.x / FRAME_WIDTH));
+        frames.push_back(
+            {{"x", (int)(r.x / r.width)}, {"y", (int)(r.y / r.height)}});
       }
 
       a["frames"] = frames;
@@ -139,8 +147,8 @@ public:
 
     animations.clear();
 
-    constexpr int FRAME_WIDTH = 32;
-    constexpr int FRAME_HEIGHT = 32;
+    // constexpr int FRAME_WIDTH = 32;
+    // constexpr int FRAME_HEIGHT = 32;
 
     // Read animation JSON
     auto animStr = std::get<std::string>(data.fields.at("animations"));
@@ -150,17 +158,19 @@ public:
       Animation anim;
       anim.frameSpeed = a["frameSpeed"].get<float>();
 
-      for (int idx : a["frames"]) {
+      int fw = a["frameWidth"].get<int>();
+      int fh = a["frameHeight"].get<int>();
+
+      for (const auto &f : a["frames"]) {
         Rectangle r;
-        r.x = idx * FRAME_WIDTH;
-        r.y = 0;
-        r.width = FRAME_WIDTH;
-        r.height = FRAME_HEIGHT;
+        r.x = f["x"].get<int>() * fw;
+        r.y = f["y"].get<int>() * fh;
+        r.width = fw;
+        r.height = fh;
         anim.frames.push_back(r);
       }
 
-      std::string name = a["name"].get<std::string>();
-      animations[name] = anim;
+      animations[a["name"].get<std::string>()] = anim;
     }
     frameIndex = 0;
     timer = 0.0f;
@@ -172,6 +182,7 @@ public:
     SerializedAnimation out;
     out.name = name;
     out.frameSpeed = anim.frameSpeed;
+    out.frameIndices.clear();
 
     for (const Rectangle &r : anim.frames) {
       int index = (int)(r.x / frameWidth);
@@ -190,8 +201,8 @@ public:
       Rectangle r;
       r.x = index * frameWidth;
       r.y = 0;
-      r.width = (float)frameWidth;
-      r.height = (float)frameHeight;
+      r.width = frameWidth;
+      r.height = frameHeight;
       anim.frames.push_back(r);
     }
     return anim;

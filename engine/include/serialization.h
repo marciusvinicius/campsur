@@ -48,9 +48,22 @@ struct SerializedAnimation {
   float frameSpeed;
 };
 
+struct SerializedTileLayer {
+  int width;
+  int height;
+  std::vector<int> tiles;
+};
+
+struct SerializedTerrain2D {
+  std::string tilesetPath;
+  int tileSize;
+  std::vector<SerializedTileLayer> layers;
+};
+
 struct SerializedWorld {
   std::string name;
   std::vector<SerializedEntity> entities;
+  SerializedTerrain2D terrain;
 };
 
 } // namespace criogenio

@@ -5,6 +5,7 @@
 #include "engine.h"
 #include "raylib.h"
 #include "raymath.h"
+#include <algorithm>
 #include <cassert>
 
 namespace criogenio {
@@ -37,7 +38,7 @@ Terrain2D &World::CreateTerrain2D(const std::string &name,
   auto new_terrain = new Terrain2D();
   auto atlas = CriogenioLoadTexture(texture_path.c_str());
   // This should be created on editor or loaded from file
-  auto tileset = Tileset{atlas, 24, 10, 8};
+  auto tileset = Tileset{atlas, texture_path, 24, 10, 8};
   new_terrain->tileset = tileset;
   // Layers should be loaded from a file, but for now we create a simple one
   // Or Empty
@@ -100,20 +101,23 @@ SerializedWorld World::Serialize() const {
     for (const auto &comp : components) {
       ent.components.push_back(comp->Serialize());
     }
-
     worldData.entities.push_back(std::move(ent));
   }
+  // Serialize terrain too
+  if (terrain)
+    worldData.terrain = terrain->Serialize();
 
   return worldData;
 }
 
 void World::Deserialize(const SerializedWorld &data) {
   // Clear existing world
+  // Should recovery Systems and terrain too
   entities.clear();
   registry.clear();
   systems.clear();
   terrain.reset();
-  nextId = 1;
+  nextId = 0;
 
   for (const SerializedEntity &ent : data.entities) {
     int entityId = ent.id;
@@ -121,9 +125,8 @@ void World::Deserialize(const SerializedWorld &data) {
     entities[entityId] = std::vector<std::unique_ptr<Component>>();
 
     // Ensure entity container exists
-
     // Keep nextId valid
-    nextId = std::max(nextId, entityId + 1);
+    nextId += std::max(0, entityId - nextId + 1);
 
     for (const SerializedComponent &comp : ent.components) {
 
@@ -148,10 +151,26 @@ void World::Deserialize(const SerializedWorld &data) {
         state->Deserialize(comp);
       }
 
+      else if (comp.type == "Controller") {
+        auto *controller = AddComponent<Controller>(entityId);
+        controller->Deserialize(comp);
+      }
+
+      else if (comp.type == "AIController") {
+        auto *aiController = AddComponent<AIController>(entityId);
+        aiController->Deserialize(comp);
+      }
+
       else {
         std::cerr << "Unknown component type: " << comp.type << "\n";
       }
     }
   }
+  if (!data.terrain.layers.size())
+    return;
+
+  // Deserialize terrain too
+  terrain = std::make_unique<Terrain2D>();
+  terrain->Deserialize(data.terrain);
 }
 } // namespace criogenio

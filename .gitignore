@@ -19,4 +19,4 @@ imgui-master
 *.user
 .vscode/*.log
 
-*/assets/*.*
+*/assets/*
