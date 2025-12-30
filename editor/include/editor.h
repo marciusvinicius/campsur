@@ -96,4 +96,13 @@ private:
   // file browser preview
   std::string fileBrowserPreviewPath;
   std::shared_ptr<criogenio::TextureResource> fileBrowserPreviewTex;
+
+  // Terrain editor state
+  bool terrainEditMode = false;
+  int terrainSelectedTile = 0;
+  int terrainSelectedLayer = 0;
+  // Draw terrain editor panel
+  void DrawTerrainEditor();
+  // Draw grid overlay on terrain in viewport
+  void DrawTerrainGridOverlay();
 };

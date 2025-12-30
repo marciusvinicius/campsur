@@ -93,6 +93,8 @@ public:
   // Terrain
   Terrain2D &CreateTerrain2D(const std::string &name,
                              const std::string &texture_path);
+  // Access terrain (may be null)
+  Terrain2D *GetTerrain();
 
   // Camera
   void AttachCamera2D(Camera2D cam);

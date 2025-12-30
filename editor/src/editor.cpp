@@ -338,9 +338,13 @@ void EditorApp::OnGUI() {
   rlImGuiBegin(); // creates ImGui frame
 
   DrawDockSpace();
+  DrawTerrainEditor();
   // DrawToolbar();
   DrawMainMenuBar();
   rlImGuiEnd(); // renders ImGui
+
+  // Draw terrain grid overlay (on top of ImGui, on the viewport)
+  DrawTerrainGridOverlay();
 }
 
 void EditorApp::DrawDockSpace() {
@@ -409,6 +413,12 @@ void EditorApp::RenderSceneToTexture() {
     }
   }
   GetWorld().Render(GetRenderer());
+
+  // Draw terrain grid overlay (editor-only, in world space)
+  if (terrainEditMode) {
+    DrawTerrainGridOverlay();
+  }
+
   EndMode2D();
   EndTextureMode();
 }
@@ -557,6 +567,29 @@ void EditorApp::DrawMainMenuBar() {
 
     ImGui::EndMainMenuBar();
   }
+
+  // Terrain painting mode
+  if (terrainEditMode) {
+    // Check if mouse is within viewport
+    Vector2 mouseScreen = GetMousePosition();
+    if (mouseScreen.x >= viewportPos.x &&
+        mouseScreen.x <= viewportPos.x + viewportSize.x &&
+        mouseScreen.y >= viewportPos.y &&
+        mouseScreen.y <= viewportPos.y + viewportSize.y) {
+
+      if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
+        Vector2 worldPos =
+            GetScreenToWorld2D(mouseScreen, GetWorld().maincamera);
+        auto *terrain = GetWorld().GetTerrain();
+        if (terrain) {
+          int tileSize = terrain->tileset.tileSize;
+          int tx = static_cast<int>(floor(worldPos.x / (float)tileSize));
+          int ty = static_cast<int>(floor(worldPos.y / (float)tileSize));
+          terrain->SetTile(terrainSelectedLayer, tx, ty, terrainSelectedTile);
+        }
+      }
+    }
+  }
 }
 
 void EditorApp::CreateEmptyEntityAtMouse() {
@@ -589,6 +622,137 @@ void EditorApp::DrawToolbar() {
   }
 
   ImGui::End();
+}
+
+void EditorApp::DrawTerrainEditor() {
+  ImGui::Begin("Terrain Editor");
+
+  auto *terrain = GetWorld().GetTerrain();
+  if (!terrain) {
+    if (ImGui::Button("Create Terrain (default)")) {
+      GetWorld().CreateTerrain2D("MainTerrain", "editor/assets/terrain.jpg");
+    }
+    ImGui::End();
+    return;
+  }
+
+  // Toggle edit mode
+  ImGui::Checkbox("Terrain Edit Mode", &terrainEditMode);
+  ImGui::SameLine();
+  ImGui::Text("Layer:");
+  ImGui::SameLine();
+  ImGui::InputInt("##layer", &terrainSelectedLayer);
+
+  // Show selected tile info
+  ImGui::Separator();
+  ImGui::Text("Selected Tile: %d", terrainSelectedTile);
+  ImGui::Text("Tile Size: %d x %d", terrain->tileset.tileSize,
+              terrain->tileset.tileSize);
+  ImGui::Text("Instructions: Click tiles below to select, then paint on "
+              "terrain in viewport.");
+
+  // Show tileset as selectable grid
+  auto tex = terrain->tileset.atlas;
+  if (tex) {
+    int tileSize = terrain->tileset.tileSize;
+    int cols = terrain->tileset.columns;
+    int rows = terrain->tileset.rows;
+    int atlasW = tex->texture.width;
+    int atlasH = tex->texture.height;
+
+    ImGui::Text("Tileset: %s", terrain->tileset.tilesetPath.c_str());
+    ImGui::Separator();
+
+    for (int y = 0; y < rows; ++y) {
+      for (int x = 0; x < cols; ++x) {
+        int idx = y * cols + x;
+        float u0 = (x * tileSize) / (float)atlasW;
+        float v0 = (y * tileSize) / (float)atlasH;
+        float u1 = ((x + 1) * tileSize) / (float)atlasW;
+        float v1 = ((y + 1) * tileSize) / (float)atlasH;
+
+        ImGui::PushID(idx);
+        ImVec2 size(32, 32);
+        ImTextureID id = (ImTextureID)(intptr_t)tex->texture.id;
+        // ImGui 1.89+ requires an explicit string ID first; we use an empty
+        // label and rely on PushID/PopID for uniqueness.
+        bool selected = (terrainSelectedTile == idx);
+        if (selected) {
+          ImGui::PushStyleColor(ImGuiCol_Button,
+                                ImVec4(0.0f, 0.6f, 1.0f, 1.0f));
+        }
+        if (ImGui::ImageButton("", id, size, ImVec2(u0, v0), ImVec2(u1, v1))) {
+          terrainSelectedTile = idx;
+        }
+        if (selected) {
+          ImGui::PopStyleColor();
+        }
+        ImGui::SameLine();
+        ImGui::PopID();
+      }
+      ImGui::NewLine();
+    }
+  } else {
+    ImGui::TextDisabled("Tileset atlas not loaded");
+  }
+
+  ImGui::End();
+}
+
+void EditorApp::DrawTerrainGridOverlay() {
+  // Draw grid overlay directly in world space (called inside BeginMode2D)
+  auto *terrain = GetWorld().GetTerrain();
+  if (!terrain || terrain->layers.empty())
+    return;
+
+  int tileSize = terrain->tileset.tileSize;
+  int cols = 10; // default
+  int rows = 10;
+
+  // Get the layer bounds
+  int selectedLayer = terrainSelectedLayer;
+  if (selectedLayer < 0 ||
+      selectedLayer >= static_cast<int>(terrain->layers.size())) {
+    selectedLayer = 0;
+  }
+
+  if (selectedLayer < static_cast<int>(terrain->layers.size())) {
+    auto &layer = terrain->layers[selectedLayer];
+    cols = layer.width;
+    rows = layer.height;
+  }
+
+  // Draw vertical grid lines (world space, already inside BeginMode2D)
+  // Only draw lines within terrain bounds
+  for (int x = 0; x <= cols; ++x) {
+    Vector2 start = {(float)x * tileSize, 0.0f};
+    Vector2 end = {(float)x * tileSize, (float)rows * tileSize};
+    DrawLineEx(start, end, 2.0f, Color{100, 200, 255, 150});
+  }
+
+  // Draw horizontal grid lines (world space)
+  // Only draw lines within terrain bounds
+  for (int y = 0; y <= rows; ++y) {
+    Vector2 start = {0.0f, (float)y * tileSize};
+    Vector2 end = {(float)cols * tileSize, (float)y * tileSize};
+    DrawLineEx(start, end, 2.0f, Color{100, 200, 255, 150});
+  }
+
+  // Draw current tile preview at mouse cursor
+  Vector2 mouseScreen = GetMousePosition();
+  Vector2 worldPos = GetScreenToWorld2D(mouseScreen, GetWorld().maincamera);
+  int tx = static_cast<int>(floor(worldPos.x / (float)tileSize));
+  int ty = static_cast<int>(floor(worldPos.y / (float)tileSize));
+
+  if (tx >= 0 && tx < cols && ty >= 0 && ty < rows) {
+    Vector2 tilePos = {(float)tx * tileSize, (float)ty * tileSize};
+    Vector2 tileEnd = {tilePos.x + tileSize, tilePos.y + tileSize};
+
+    // Highlight the tile under cursor with a green border (world space)
+    DrawRectangleLinesEx(
+        {tilePos.x, tilePos.y, (float)tileSize, (float)tileSize}, 2.0f,
+        Color{0, 255, 0, 220});
+  }
 }
 
 void EditorApp::DrawEntityNode(int entity) {

@@ -160,4 +160,6 @@ Terrain2D &World2::CreateTerrain2D(const std::string &name,
 
 void World2::AttachCamera2D(Camera2D cam) { maincamera = cam; }
 
+Terrain2D *World2::GetTerrain() { return terrain.get(); }
+
 } // namespace criogenio
