@@ -4,7 +4,7 @@
 #include "event.h"
 #include "raylib.h"
 #include "render.h"
-#include "world.h"
+#include "world2.h"
 
 namespace criogenio {
 
@@ -19,7 +19,7 @@ public:
 
   void Run();
 
-  World &GetWorld();
+  World2 &GetWorld();
   EventBus &GetEventBus();
   Renderer &GetRenderer();
   Vector2 GetMouseWorld();
@@ -32,7 +32,7 @@ protected:
 private:
   // TODO:(maraujo) use smartpointer
   Renderer *renderer;
-  World *world;
+  World2 *world;
   EventBus eventBus;
   float previousTime = 0;
 };

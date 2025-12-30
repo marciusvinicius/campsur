@@ -1,7 +1,9 @@
 #include "engine.h"
+#include "asset_manager.h"
 #include "component_factory.h"
 #include "raylib.h"
 #include "raymath.h"
+#include "resources.h"
 
 namespace criogenio {
 
@@ -13,7 +15,20 @@ Engine::Engine(int width, int height, const char *title) : width(width) {
 
   RegisterCoreComponents();
   renderer = new Renderer(width, height, title);
-  world = new World();
+  world = new World2();
+
+  // Register a simple texture loader that wraps raylib's LoadTexture
+  AssetManager::instance().registerLoader<TextureResource>(
+      [](const std::string &p) -> std::shared_ptr<TextureResource> {
+        Texture2D t = CriogenioLoadTexture(p.c_str());
+        if (t.id == 0) {
+          // Failed to load texture, log error
+          TraceLog(LOG_WARNING, "AssetManager: Failed to load texture: %s",
+                   p.c_str());
+          return nullptr;
+        }
+        return std::make_shared<TextureResource>(p, t);
+      });
 }
 
 Engine::~Engine() {
@@ -21,7 +36,7 @@ Engine::~Engine() {
   delete renderer;
 }
 
-World &Engine::GetWorld() { return *world; }
+World2 &Engine::GetWorld() { return *world; }
 EventBus &Engine::GetEventBus() { return eventBus; }
 Renderer &Engine::GetRenderer() { return *renderer; }
 
@@ -42,27 +57,27 @@ void Engine::Run() {
 
 void Engine::RegisterCoreComponents() {
 
-  ComponentFactory::Register("Transform", [](World &w, int e) {
-    return w.AddComponent<Transform>(e);
+  ComponentFactory::Register("Transform", [](World2 &w, int e) {
+    return &w.AddComponent<Transform>(e);
   });
 
-  ComponentFactory::Register("AnimatedSprite", [](World &w, int e) {
-    return w.AddComponent<AnimatedSprite>(e);
+  ComponentFactory::Register("AnimatedSprite", [](World2 &w, int e) {
+    return &w.AddComponent<AnimatedSprite>(e);
   });
 
-  ComponentFactory::Register("Controller", [](World &w, int e) {
-    return w.AddComponent<Controller>(e);
+  ComponentFactory::Register("Controller", [](World2 &w, int e) {
+    return &w.AddComponent<Controller>(e);
   });
 
-  ComponentFactory::Register("AnimationState", [](World &w, int e) {
-    return w.AddComponent<AnimationState>(e);
+  ComponentFactory::Register("AnimationState", [](World2 &w, int e) {
+    return &w.AddComponent<AnimationState>(e);
   });
 
-  ComponentFactory::Register("AIController", [](World &w, int e) {
-    return w.AddComponent<AIController>(e);
+  ComponentFactory::Register("AIController", [](World2 &w, int e) {
+    return &w.AddComponent<AIController>(e);
   });
 
   ComponentFactory::Register(
-      "Name", [](World &w, int e) { return w.AddComponent<Name>(e, ""); });
+      "Name", [](World2 &w, int e) { return &w.AddComponent<Name>(e, ""); });
 }
 } // namespace criogenio

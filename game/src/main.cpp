@@ -1,7 +1,7 @@
+#include "animation_database.h"
 #include "components.h"
 #include "engine.h"
 #include "game.h"
-#include "world.h"
 
 // TODO:(maraujo) remove this and create this on engine
 #include "raylib.h"
@@ -55,22 +55,28 @@ int main() {
       {0, 384, 64, 128},   {64, 384, 64, 128},  {128, 384, 64, 128},
       {192, 384, 64, 128}, {256, 384, 64, 128}, {320, 384, 64, 128},
       {384, 384, 64, 128}, {448, 384, 64, 128}, {512, 384, 64, 128},
-
   };
 
-  auto *anim = World.AddComponent<criogenio::AnimatedSprite>(
-      entityId,
-      "idle_down", // initial animation
-      idleDown,    // frames
-      0.10f,       // speed
-      texture, path);
+  // Register animation definition in the database
+  auto &db = criogenio::AnimationDatabase::instance();
+  criogenio::AssetId animId = db.createAnimation(path);
 
-  anim->AddAnimation("idle_up", idleUp, 0.10f);
-  anim->AddAnimation("idle_left", idleLeft, 0.10f);
-  anim->AddAnimation("idle_right", idleRight, 0.10f);
+  // Helper: convert Rectangle vector to AnimationFrame vector
+  auto toFrames = [](const std::vector<Rectangle> &rects) {
+    std::vector<criogenio::AnimationFrame> frames;
+    for (const auto &r : rects)
+      frames.push_back({r});
+    return frames;
+  };
+
+  // Add all animation clips
+  db.addClip(animId, {"idle_down", toFrames(idleDown), 0.10f});
+  db.addClip(animId, {"idle_up", toFrames(idleUp), 0.10f});
+  db.addClip(animId, {"idle_left", toFrames(idleLeft), 0.10f});
+  db.addClip(animId, {"idle_right", toFrames(idleRight), 0.10f});
 
   // TODO:(maraujo)
-  //  That should come from a file, since I cahn edit it on editor
+  //  That should come from a file, since I can edit it on editor
 
   // Add walking animation, should start after 64 pixels in y axis
   std::vector<Rectangle> walkDown = {
@@ -78,26 +84,34 @@ int main() {
       {192, 512, 64, 128}, {256, 512, 64, 128}, {320, 512, 64, 128},
       {384, 512, 64, 128}, {448, 512, 64, 128}, {512, 512, 64, 128},
   };
-  anim->AddAnimation("walk_down", walkDown, 0.1f);
+  db.addClip(animId, {"walk_down", toFrames(walkDown), 0.1f});
+
   std::vector<Rectangle> walkLeft = {
       {0, 640, 64, 128},   {64, 640, 64, 128},  {128, 640, 64, 128},
       {192, 640, 64, 128}, {256, 640, 64, 128}, {320, 640, 64, 128},
       {384, 640, 64, 128}, {448, 640, 64, 128}, {512, 640, 64, 128},
   };
-  anim->AddAnimation("walk_left", walkLeft, 0.1f);
+  db.addClip(animId, {"walk_left", toFrames(walkLeft), 0.1f});
+
   std::vector<Rectangle> walkRight = {
       {0, 768, 64, 128},   {64, 768, 64, 128},  {128, 768, 64, 128},
       {192, 768, 64, 128}, {256, 768, 64, 128}, {320, 768, 64, 128},
       {384, 768, 64, 128}, {448, 768, 64, 128}, {512, 768, 64, 128},
   };
+  db.addClip(animId, {"walk_right", toFrames(walkRight), 0.1f});
 
-  anim->AddAnimation("walk_right", walkRight, 0.1f);
   std::vector<Rectangle> walkUp = {
       {0, 896, 64, 128},   {64, 896, 64, 128},  {128, 896, 64, 128},
       {192, 896, 64, 128}, {256, 896, 64, 128}, {320, 896, 64, 128},
       {384, 896, 64, 128}, {448, 896, 64, 128}, {512, 896, 64, 128},
   };
-  anim->AddAnimation("walk_up", walkUp, 0.1f);
+  db.addClip(animId, {"walk_up", toFrames(walkUp), 0.1f});
+
+  // Create the sprite component with the animation asset ID
+  auto &anim = World.AddComponent<criogenio::AnimatedSprite>(entityId, animId);
+  anim.SetClip("idle_down");
+  // track usage
+  criogenio::AnimationDatabase::instance().addReference(animId);
 
   // TODO:inter dependent of animatin sprited component
   World.AddComponent<criogenio::AnimationState>(entityId);

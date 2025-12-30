@@ -1,43 +1,48 @@
 #include "core.h"
 #include "animated_component.h"
+#include "animation_database.h"
+#include "asset_manager.h"
 #include "components.h"
 #include "math.h"
+#include "resources.h"
 
 namespace criogenio {
 
 void MovementSystem::Update(float dt) {
   auto ids = world.GetEntitiesWith<Controller>();
 
-  for (int id : ids) {
-    auto &ctrl = world.GetComponent<Controller>(id);
-    auto &tr = world.GetComponent<Transform>(id);
-    auto &anim = world.GetComponent<AnimationState>(id);
+  for (ecs::EntityId id : ids) {
+    auto *ctrl = world.GetComponent<Controller>(id);
+    auto *tr = world.GetComponent<Transform>(id);
+    auto *anim = world.GetComponent<AnimationState>(id);
+
+    if (!ctrl || !tr || !anim) continue;
 
     float dx = 0, dy = 0;
 
     if (IsKeyDown(KEY_RIGHT)) {
       dx += 1;
-      anim.facing = Direction::RIGHT;
+      anim->facing = Direction::RIGHT;
     }
     if (IsKeyDown(KEY_LEFT)) {
       dx -= 1;
-      anim.facing = Direction::LEFT;
+      anim->facing = Direction::LEFT;
     }
     if (IsKeyDown(KEY_UP)) {
       dy -= 1;
-      anim.facing = Direction::UP;
+      anim->facing = Direction::UP;
     }
     if (IsKeyDown(KEY_DOWN)) {
       dy += 1;
-      anim.facing = Direction::DOWN;
+      anim->facing = Direction::DOWN;
     }
 
     if (dx != 0 || dy != 0) {
-      tr.x += dx * ctrl.speed * dt;
-      tr.y += dy * ctrl.speed * dt;
-      anim.current = AnimState::WALKING;
+      tr->x += dx * ctrl->speed * dt;
+      tr->y += dy * ctrl->speed * dt;
+      anim->current = AnimState::WALKING;
     } else {
-      anim.current = AnimState::IDLE;
+      anim->current = AnimState::IDLE;
     }
   }
 }
@@ -47,20 +52,24 @@ void MovementSystem::Render(Renderer &renderer) {}
 void AIMovementSystem::Update(float dt) {
   auto ids = world.GetEntitiesWith<AIController>();
 
-  for (int id : ids) {
-    auto &ctrl = world.GetComponent<AIController>(id);
-    auto &tr = world.GetComponent<Transform>(id);
-    auto &anim = world.GetComponent<AnimationState>(id);
+  for (ecs::EntityId id : ids) {
+    auto *ctrl = world.GetComponent<AIController>(id);
+    auto *tr = world.GetComponent<Transform>(id);
+    auto *anim = world.GetComponent<AnimationState>(id);
 
-    if (ctrl.entityTarget == 0 and ctrl.entityTarget != id) {
+    if (!ctrl || !tr || !anim) continue;
+
+    if (ctrl->entityTarget <= 0 and ctrl->entityTarget != id) {
       return;
     }
 
     const float arriveRadius = 0.01f;
 
-    auto &targetTrasnform = world.GetComponent<Transform>(ctrl.entityTarget);
-    float dx = targetTrasnform.x - tr.x;
-    float dy = targetTrasnform.y - tr.y;
+    auto *targetTrasnform = world.GetComponent<Transform>(ctrl->entityTarget);
+    if (!targetTrasnform) continue;
+
+    float dx = targetTrasnform->x - tr->x;
+    float dy = targetTrasnform->y - tr->y;
 
     float distSq = dx * dx + dy * dy;
 
@@ -70,27 +79,27 @@ void AIMovementSystem::Update(float dt) {
       float dirX = dx / dist;
       float dirY = dy / dist;
 
-      float step = ctrl.speed * dt;
+      float step = ctrl->speed * dt;
 
       // Prevent overshoot
       if (step >= dist) {
-        tr.x = targetTrasnform.x;
-        tr.y = targetTrasnform.y;
+        tr->x = targetTrasnform->x;
+        tr->y = targetTrasnform->y;
       } else {
-        tr.x += dirX * step;
-        tr.y += dirY * step;
+        tr->x += dirX * step;
+        tr->y += dirY * step;
       }
       // --- Facing logic ---
       if (fabsf(dx) > fabsf(dy))
-        anim.facing = (dx > 0) ? Direction::RIGHT : Direction::LEFT;
+        anim->facing = (dx > 0) ? Direction::RIGHT : Direction::LEFT;
       else
-        anim.facing = (dy > 0) ? Direction::DOWN : Direction::UP;
+        anim->facing = (dy > 0) ? Direction::DOWN : Direction::UP;
 
-      anim.current = AnimState::WALKING;
+      anim->current = AnimState::WALKING;
     } else {
-      tr.x = targetTrasnform.x;
-      tr.y = targetTrasnform.y;
-      anim.current = AnimState::IDLE;
+      tr->x = targetTrasnform->x;
+      tr->y = targetTrasnform->y;
+      anim->current = AnimState::IDLE;
     }
   }
 }
@@ -125,12 +134,15 @@ std::string AnimationSystem::BuildClipKey(const AnimationState &st) {
 
 void AnimationSystem::Update(float dt) {
   auto ids = world.GetEntitiesWith<AnimatedSprite>();
-  for (int id : ids) {
-    auto &sprite = world.GetComponent<AnimatedSprite>(id);
-    auto &st = world.GetComponent<AnimationState>(id);
-    sprite.SetAnimation(BuildClipKey(st));
-    st.previous = st.current;
-    sprite.Update(dt);
+  for (ecs::EntityId id : ids) {
+    auto *sprite = world.GetComponent<AnimatedSprite>(id);
+    auto *st = world.GetComponent<AnimationState>(id);
+
+    if (!sprite || !st) continue;
+
+    sprite->SetClip(BuildClipKey(*st));
+    st->previous = st->current;
+    sprite->Update(dt);
   }
 }
 
@@ -140,26 +152,33 @@ void RenderSystem::Update(float) {}
 
 void RenderSystem::Render(Renderer &renderer) {
   auto ids = world.GetEntitiesWith<AnimatedSprite>();
-  for (int id : ids) {
-    auto &animSprite = world.GetComponent<AnimatedSprite>(id);
-    auto &tr = world.GetComponent<Transform>(id);
+  for (ecs::EntityId id : ids) {
+    auto *animSprite = world.GetComponent<AnimatedSprite>(id);
+    auto *tr = world.GetComponent<Transform>(id);
 
-    Rectangle src = animSprite.GetFrame();
-    Rectangle dest = {tr.x, tr.y, (float)src.width, (float)src.height};
+    if (!animSprite || !tr) continue;
 
-    renderer.DrawTexturePro(animSprite.texture, src, dest, {0, 0}, 0.0f, WHITE);
+    // Look up animation definition from database
+    const auto *animDef =
+        AnimationDatabase::instance().getAnimation(animSprite->animationId);
+    if (!animDef)
+      continue;
+
+    // Load texture from asset manager
+    auto texture =
+        AssetManager::instance().load<TextureResource>(animDef->texturePath);
+    if (!texture)
+      continue;
+
+    Rectangle src = animSprite->GetFrame();
+    Rectangle dest = {tr->x, tr->y, (float)src.width, (float)src.height};
+
+    renderer.DrawTexturePro(texture->texture, src, dest, {0, 0}, 0.0f, WHITE);
   }
 }
 
-void AnimationSystem::OnWorldLoaded(World &world) {
-  for (int e : world.GetEntitiesWith<AnimatedSprite>()) {
-    auto &sprite = world.GetComponent<AnimatedSprite>(e);
-
-    sprite.texture = LoadTexture(sprite.texturePath.c_str());
-
-    // Load animations from asset database
-    // AnimationDatabase::Apply(sprite);
-    sprite.SetAnimation(sprite.currentAnim);
-  }
+void AnimationSystem::OnWorldLoaded(World2 &world) {
+  // Animation database should be pre-populated by editor or game code
+  // Sprites just reference animations by ID at this point
 }
 } // namespace criogenio

@@ -12,6 +12,9 @@ void Terrain2D::Update(float dt) {
 
 void Terrain2D::Render(Renderer &renderer) {
   // Render the terrain lay
+  if (!tileset.atlas)
+    return; // Skip if tileset not loaded
+
   for (const auto &layer : layers) {
     for (int y = 0; y < layer.height; y++) {
       for (int x = 0; x < layer.width; x++) {
@@ -28,7 +31,8 @@ void Terrain2D::Render(Renderer &renderer) {
                                 static_cast<float>(tileset.tileSize)};
         Vector2 position = {static_cast<float>(x * tileset.tileSize),
                             static_cast<float>(y * tileset.tileSize)};
-        renderer.DrawTextureRec(tileset.atlas, sourceRect, position, WHITE);
+        renderer.DrawTextureRec(tileset.atlas->texture, sourceRect, position,
+                                WHITE);
       }
     }
   }
@@ -108,8 +112,10 @@ void Terrain2D::SetTileSize(int newTileSize) { tileset.tileSize = newTileSize; }
 
 SerializedTerrain2D Terrain2D::Serialize() const {
   SerializedTerrain2D out;
-  out.tileSize = tileset.tileSize;
-  out.tilesetPath = tileset.tilesetPath;
+  out.tileset.tileSize = tileset.tileSize;
+  out.tileset.tilesetPath = tileset.tilesetPath;
+  out.tileset.columns = tileset.columns;
+  out.tileset.rows = tileset.rows;
 
   auto layersData = std::vector<SerializedTileLayer>();
   for (const auto &layer : layers) {
@@ -125,10 +131,13 @@ SerializedTerrain2D Terrain2D::Serialize() const {
 }
 
 void Terrain2D::Deserialize(const SerializedTerrain2D &data) {
-  // Load tileset texture from path if needed
-  tileset.tileSize = data.tileSize;
-  tileset.tilesetPath = data.tilesetPath;
-  tileset.atlas = LoadTexture(tileset.tilesetPath.c_str());
+  tileset.tileSize = data.tileset.tileSize;
+  tileset.tilesetPath = data.tileset.tilesetPath;
+  tileset.atlas = criogenio::AssetManager::instance().load<TextureResource>(
+      tileset.tilesetPath);
+  tileset.columns = data.tileset.columns;
+  tileset.rows = data.tileset.rows;
+
   layers.clear();
   for (const auto &layerData : data.layers) {
     TileLayer layer;

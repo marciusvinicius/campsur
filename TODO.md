@@ -1,19 +1,27 @@
 # TODO
 
 ## Editor
-  [ ] Making possible to serialize scene on SaveScene
-    [ ] Serialize world
-        [ ] serialize terrain
+
+  [ ] Issue when selecting on editor a animation state that does not exist
+  [ ] New entities should have the id in the name
+  [ ] Entity selected drawing before tileset
+  [ ] Asset manager system
+    [ ] System diolog create new scene
+    [ ] System diolog save scene
+    [ ] System diolog load scene
+
+  [√] Making possible to serialize scene on SaveScene
+    [√] Serialize world
+        [√] Bug on entity ID after load
+        [√] serialize terrain
         [√] When load a map not updating the component id
         [√] serialize normal components
         [√] serialize animations state
         [√] serialize animation state
-
   [√] Making possible to load scene
     [√] Load world
-        [ ] Check if has entities or terrain to deserializer
+        [√] Check if has entities or terrain to deserializer
         [√] When loading world entity is not keeping information about size
-
   [√] Fix Camera controll
   [√] Make editor integrate with ImGui
     [√] Select entity
@@ -25,9 +33,10 @@
   [ ] Working on tileset map editor
   [ ] Working on animation tool
   [ ] Move all UI to a new file
-  [ ] Issue when selecting on editor a animation state that does not exist
 
 ## Engine
+
+  [ ] Camera component
   [ ] Add diolog component
   [ ] Move all raylib reference to engine
   [ ] Abstract raylib on engine (possibility to change the motor later)
@@ -39,6 +48,7 @@
   [ ] World hold the managers and system comunicate with then
 
 ## Game
+
   [ ] Start the scene on the cross of Jesus.
       [ ] Start to tell the history of the first Christians
 
@@ -49,3 +59,5 @@
     [ ] Events
     [ ] Collision
     [ ] Network
+
+

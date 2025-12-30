@@ -1,114 +1,38 @@
 {
-  "terrain": {
-    "layers": [
-      {
-        "height": 10,
-        "tiles": [
-          0,
-          0,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8,
-          8
-        ],
-        "width": 10
-      }
-    ],
-    "tileSize": 24,
-    "tilesetPath": "editor/assets/terrain.jpg"
-  }
+  "entities": [
+    {
+      "components": [
+        {
+          "fields": {
+            "x": 40.9744873046875,
+            "y": -28.206035614013672
+          },
+          "type": "Transform"
+        },
+        {
+          "fields": {
+            "current": 0,
+            "facing": 1,
+            "previous": 0
+          },
+          "type": "AnimationState"
+        },
+        {
+          "fields": {
+            "direction": 0,
+            "speed": 200.0
+          },
+          "type": "Controller"
+        },
+        {
+          "fields": {
+            "animationId": 1,
+            "currentClipName": "idle_down"
+          },
+          "type": "AnimatedSprite"
+        }
+      ],
+      "id": 1
+    }
+  ]
 }

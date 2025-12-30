@@ -1,12 +1,18 @@
 #include "editor.h"
+#include "animation_database.h"
 #include "animation_state.h"
+#include "asset_manager.h"
 #include "input.h"
 #include "raymath.h"
+#include "resources.h"
 #include "terrain.h"
 
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "rlImGui.h"
+
+#include <algorithm>
+#include <filesystem>
 
 #include "criogenio_io.h"
 
@@ -134,12 +140,15 @@ void EditorApp::DrawWorldView() {
 
 void EditorApp::DrawHierarchyPanel() {
   if (ImGui::Begin("Hierarchy")) {
-    for (auto &[id, comps] : GetWorld().GetEntities()) {
+    for (auto id : GetWorld().GetAllEntities()) {
       bool selected =
           (selectedEntityId.has_value() && selectedEntityId.value() == id);
 
       char label[64];
-      auto entity_name = GetWorld().GetComponent<criogenio::Name>(id).name;
+      std::string entity_name = "";
+      if (auto *nameComp = GetWorld().GetComponent<criogenio::Name>(id)) {
+        entity_name = nameComp->name;
+      }
       if (entity_name.empty()) {
         entity_name = "Test";
       }
@@ -203,10 +212,8 @@ void EditorApp::DrawHierarchyPanel() {
     if ((int)avail.x != (int)lastSize.x || (int)avail.y != (int)lastSize.y) {
       if (sceneRT.id != 0)
         UnloadRenderTexture(sceneRT);
-
       if (avail.x > 0 && avail.y > 0)
         sceneRT = LoadRenderTexture((int)avail.x, (int)avail.y);
-
       lastSize = avail;
     }
 
@@ -229,7 +236,7 @@ void EditorApp::DrawHierarchyPanel() {
     // Context menu
     if (ImGui::BeginPopupContextWindow()) {
       if (ImGui::MenuItem("Create Empty")) {
-        // CreateEmptyEntityAtMouse();
+        CreateEmptyEntityAtMouse();
       }
       ImGui::EndPopup();
     }
@@ -263,10 +270,12 @@ void EditorApp::HandleEntityDrag() {
 
     Vector2 drag = Vector2Subtract(currWorld, prevWorld);
 
-    auto &transform =
+    auto *transform =
         GetWorld().GetComponent<criogenio::Transform>(selectedEntityId.value());
-    transform.x += drag.x;
-    transform.y += drag.y;
+    if (transform) {
+      transform->x += drag.x;
+      transform->y += drag.y;
+    }
   }
 }
 
@@ -394,10 +403,10 @@ void EditorApp::RenderSceneToTexture() {
   ClearBackground(BLACK);
   BeginMode2D(GetWorld().maincamera);
   if (selectedEntityId.has_value()) {
-    auto &t =
-        GetWorld().GetComponent<criogenio::Transform>(selectedEntityId.value());
-
-    DrawRectangleLines(t.x, t.y, 64, 64, YELLOW);
+    if (auto *t = GetWorld().GetComponent<criogenio::Transform>(
+            selectedEntityId.value())) {
+      DrawRectangleLines(t->x, t->y, 64, 64, YELLOW);
+    }
   }
   GetWorld().Render(GetRenderer());
   EndMode2D();
@@ -435,7 +444,8 @@ void EditorApp::DrawMainMenuBar() {
         int id = GetWorld().CreateEntity("New Entity");
         GetWorld().AddComponent<criogenio::Transform>(id, 0.0f, 0.0f);
 
-        auto path = "editor/assets/Woman/woman.png";
+        auto path = "/home/marcius/Workspace/criogenio/camp_sur_cpp/editor/"
+                    "assets/raw/world.png";
         auto texture = LoadTexture(path);
         if (!texture.id) {
           printf("Failed to load texture for animated sprite\n");
@@ -468,18 +478,31 @@ void EditorApp::DrawMainMenuBar() {
 
         };
 
-        auto *anim = GetWorld().AddComponent<criogenio::AnimatedSprite>(
-            id,
-            "idle_down", // initial animation
-            idleDown,    // frames
-            0.10f,       // speed
-            texture, path);
+        // Build an animation definition in the central AnimationDatabase
+        auto animId = AnimationDatabase::instance().createAnimation(path);
 
-        anim->texturePath = "editor/assets/Woman/woman.png";
+        auto makeClip = [](const std::string &name,
+                           const std::vector<Rectangle> &rects, float speed) {
+          criogenio::AnimationClip clip;
+          clip.name = name;
+          clip.frameSpeed = speed;
+          clip.frames.reserve(rects.size());
+          for (const auto &r : rects) {
+            criogenio::AnimationFrame f;
+            f.rect = r;
+            clip.frames.push_back(f);
+          }
+          return clip;
+        };
 
-        anim->AddAnimation("idle_up", idleUp, 0.10f);
-        anim->AddAnimation("idle_left", idleLeft, 0.10f);
-        anim->AddAnimation("idle_right", idleRight, 0.10f);
+        AnimationDatabase::instance().addClip(
+            animId, makeClip("idle_down", idleDown, 0.10f));
+        AnimationDatabase::instance().addClip(
+            animId, makeClip("idle_up", idleUp, 0.10f));
+        AnimationDatabase::instance().addClip(
+            animId, makeClip("idle_left", idleLeft, 0.10f));
+        AnimationDatabase::instance().addClip(
+            animId, makeClip("idle_right", idleRight, 0.10f));
 
         // Add walking animation, should start after 64 pixels in y axis
         std::vector<Rectangle> walkDown = {
@@ -487,28 +510,39 @@ void EditorApp::DrawMainMenuBar() {
             {192, 512, 64, 128}, {256, 512, 64, 128}, {320, 512, 64, 128},
             {384, 512, 64, 128}, {448, 512, 64, 128}, {512, 512, 64, 128},
         };
-        anim->AddAnimation("walk_down", walkDown, 0.1f);
+
+        AnimationDatabase::instance().addClip(
+            animId, makeClip("walk_down", walkDown, 0.10f));
         std::vector<Rectangle> walkLeft = {
             {0, 640, 64, 128},   {64, 640, 64, 128},  {128, 640, 64, 128},
             {192, 640, 64, 128}, {256, 640, 64, 128}, {320, 640, 64, 128},
             {384, 640, 64, 128}, {448, 640, 64, 128}, {512, 640, 64, 128},
         };
-        anim->AddAnimation("walk_left", walkLeft, 0.1f);
+        AnimationDatabase::instance().addClip(
+            animId, makeClip("walk_left", walkLeft, 0.10f));
         std::vector<Rectangle> walkRight = {
             {0, 768, 64, 128},   {64, 768, 64, 128},  {128, 768, 64, 128},
             {192, 768, 64, 128}, {256, 768, 64, 128}, {320, 768, 64, 128},
             {384, 768, 64, 128}, {448, 768, 64, 128}, {512, 768, 64, 128},
         };
-        anim->AddAnimation("walk_right", walkRight, 0.1f);
+        AnimationDatabase::instance().addClip(
+            animId, makeClip("walk_right", walkRight, 0.10f));
         std::vector<Rectangle> walkUp = {
             {0, 896, 64, 128},   {64, 896, 64, 128},  {128, 896, 64, 128},
             {192, 896, 64, 128}, {256, 896, 64, 128}, {320, 896, 64, 128},
             {384, 896, 64, 128}, {448, 896, 64, 128}, {512, 896, 64, 128},
         };
-        anim->AddAnimation("walk_up", walkUp, 0.1f);
+        AnimationDatabase::instance().addClip(
+            animId, makeClip("walk_up", walkUp, 0.10f));
 
-        // TODO:inter dependent of animatin sprited component
-        GetWorld().AddComponent<AnimationState>(id);
+        // Create runtime AnimatedSprite referencing the animation asset
+        auto &anim =
+            GetWorld().AddComponent<criogenio::AnimatedSprite>(id, animId);
+        anim.SetClip("idle_down");
+        // track usage
+        AnimationDatabase::instance().addReference(animId);
+
+        GetWorld().AddComponent<criogenio::AnimationState>(id);
       }
       if (ImGui::MenuItem("Sprite")) {
         // CreateSpriteEntity();
@@ -524,6 +558,15 @@ void EditorApp::DrawMainMenuBar() {
     ImGui::EndMainMenuBar();
   }
 }
+
+void EditorApp::CreateEmptyEntityAtMouse() {
+  Vector2 mouseScreen = GetMousePosition();
+  Vector2 worldPos = GetScreenToWorld2D(mouseScreen, GetWorld().maincamera);
+
+  int id = GetWorld().CreateEntity("New Entity");
+  GetWorld().AddComponent<criogenio::Transform>(id, worldPos.x, worldPos.y);
+}
+
 void EditorApp::DrawToolbar() {
   ImGui::Begin("##Toolbar", nullptr,
                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoScrollbar |
@@ -550,7 +593,9 @@ void EditorApp::DrawToolbar() {
 
 void EditorApp::DrawEntityNode(int entity) {
 
-  auto &name = GetWorld().GetComponent<criogenio::Name>(entity);
+  auto *name = GetWorld().GetComponent<criogenio::Name>(entity);
+  if (!name)
+    return;
 
   ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth;
 
@@ -558,7 +603,7 @@ void EditorApp::DrawEntityNode(int entity) {
     flags |= ImGuiTreeNodeFlags_Selected;
 
   bool open = ImGui::TreeNodeEx((void *)(intptr_t)entity, flags, "%s",
-                                name.name.c_str());
+                                name->name.c_str());
 
   if (ImGui::IsItemClicked()) {
     selectedEntityId = entity;
@@ -601,7 +646,8 @@ void EditorApp::DrawHierarchyNodes() {
 
   for (int entity : GetWorld().GetEntitiesWith<Name>()) {
 
-    auto &name = GetWorld().GetComponent<Name>(entity);
+    auto *name = GetWorld().GetComponent<Name>(entity);
+    if (!name) continue;
 
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf |
                                ImGuiTreeNodeFlags_NoTreePushOnOpen |
@@ -669,10 +715,12 @@ void EditorApp::PickEntityAt(Vector2 worldPos) {
 
   for (int entity : GetWorld().GetEntitiesWith<criogenio::Transform>()) {
 
-    auto &t = GetWorld().GetComponent<criogenio::Transform>(entity);
+    auto *t = GetWorld().GetComponent<criogenio::Transform>(entity);
+    if (!t)
+      continue;
 
     Rectangle bounds = {
-        t.x, t.y, 64, 128 // TODO: use sprite size
+        t->x, t->y, 64, 128 // TODO: use sprite size
     };
 
     if (CheckCollisionPointRec(worldPos, bounds)) {
@@ -687,13 +735,26 @@ bool EditorApp::IsSceneInputAllowed() const {
 }
 
 void EditorApp::DrawEntityHeader(int entity) {
-  auto &name = GetWorld().GetComponent<criogenio::Name>(entity);
+  auto *name = GetWorld().GetComponent<criogenio::Name>(entity);
+  if (!name)
+    return;
 
   char buffer[256];
-  strncpy(buffer, name.name.c_str(), sizeof(buffer));
+  strncpy(buffer, name->name.c_str(), sizeof(buffer));
 
   if (ImGui::InputText("Name", buffer, sizeof(buffer))) {
-    name.name = buffer;
+    name->name = buffer;
+  }
+
+  // show entity ID
+  ImGui::Text("Entity ID: %d", entity);
+
+  if (ImGui::BeginPopupContextItem("EntityHeaderContext")) {
+    if (ImGui::MenuItem("Delete Entity")) {
+      // DeleteEntity(entity);
+      selectedEntityId.reset();
+    }
+    ImGui::EndPopup();
   }
 }
 
@@ -720,24 +781,26 @@ void EditorApp::DrawAnimationStateInspector(int entity) {
   if (!ImGui::CollapsingHeader("Animation State"))
     return;
 
-  auto &animState = GetWorld().GetComponent<criogenio::AnimationState>(entity);
+  auto *animState = GetWorld().GetComponent<criogenio::AnimationState>(entity);
+  if (!animState)
+    return;
 
   ImGui::Text("Current State: %s",
-              criogenio::anim_state_to_string(animState.current).c_str());
+              criogenio::anim_state_to_string(animState->current).c_str());
 
   ImGui::Separator();
   ImGui::Text("Previous State:");
   ImGui::Text("%s",
-              criogenio::anim_state_to_string(animState.previous).c_str());
+              criogenio::anim_state_to_string(animState->previous).c_str());
 
   ImGui::Separator();
   ImGui::Text("Current State:");
   for (int i = 0; i < static_cast<int>(criogenio::AnimState::Count); ++i) {
     criogenio::AnimState state = static_cast<criogenio::AnimState>(i);
-    bool selected = (animState.current == state);
+    bool selected = (animState->current == state);
     if (ImGui::Selectable(criogenio::anim_state_to_string(state).c_str(),
                           selected)) {
-      animState.SetState(state);
+      animState->SetState(state);
     }
     if (selected) {
       ImGui::SetItemDefaultFocus();
@@ -745,16 +808,16 @@ void EditorApp::DrawAnimationStateInspector(int entity) {
   }
 
   ImGui::Text("Current Direction: %s",
-              criogenio::direction_to_string(animState.facing).c_str());
+              criogenio::direction_to_string(animState->facing).c_str());
 
   ImGui::Separator();
   ImGui::Text("States:");
   for (int i = 0; i < static_cast<int>(criogenio::Direction::Count); ++i) {
     criogenio::Direction direction = static_cast<criogenio::Direction>(i);
-    bool selected = (animState.facing == direction);
+    bool selected = (animState->facing == direction);
     if (ImGui::Selectable(criogenio::direction_to_string(direction).c_str(),
                           selected)) {
-      animState.SetDirection(direction);
+      animState->SetDirection(direction);
     }
     if (selected) {
       ImGui::SetItemDefaultFocus();
@@ -774,11 +837,13 @@ void EditorApp::DrawTransformInspector(int entity) {
   if (!ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))
     return;
 
-  auto &t = GetWorld().GetComponent<criogenio::Transform>(entity);
+  auto *t = GetWorld().GetComponent<criogenio::Transform>(entity);
+  if (!t)
+    return;
 
-  ImGui::DragFloat2("Position", &t.x, 1.0f);
-  ImGui::DragFloat("Rotation", &t.rotation, 0.5f);
-  ImGui::DragFloat2("Scale", &t.scale_x, 0.01f, 0.01f, 100.0f);
+  ImGui::DragFloat2("Position", &t->x, 1.0f);
+  ImGui::DragFloat("Rotation", &t->rotation, 0.5f);
+  ImGui::DragFloat2("Scale", &t->scale_x, 0.01f, 0.01f, 100.0f);
 
   // Context menu
   if (ImGui::BeginPopupContextItem("TransformContext")) {
@@ -794,38 +859,268 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
   if (!ImGui::CollapsingHeader("Animated Sprite"))
     return;
 
-  auto &sprite = GetWorld().GetComponent<criogenio::AnimatedSprite>(entity);
+  auto *sprite = GetWorld().GetComponent<criogenio::AnimatedSprite>(entity);
+  if (!sprite)
+    return;
 
-  ImGui::Text("Current Animation: %s", sprite.currentAnim.c_str());
-  // ImGui::DragFloat("Speed", &sprite.currentAnim.frameSpeed, 0.01f, 0.01f,
-  //                  10.0f);
+  ImGui::Text("Current Animation: %s", sprite->currentClipName.empty()
+                                           ? "(none)"
+                                           : sprite->currentClipName.c_str());
 
   ImGui::Separator();
   ImGui::Text("Animations:");
 
-  for (auto &[name, anim] : sprite.animations) {
-    bool selected = (sprite.currentAnim == name);
-    if (ImGui::Selectable(name.c_str(), selected)) {
-      sprite.SetAnimation(name);
-    }
-    if (ImGui::IsItemHovered()) {
-      ImGui::SetTooltip("Frames: %d, Speed: %.2f", (int)anim.frames.size(),
-                        anim.frameSpeed);
-    }
-    if (selected) {
-      ImGui::SetItemDefaultFocus();
+  const auto *def =
+      AnimationDatabase::instance().getAnimation(sprite->animationId);
+  if (!def) {
+    ImGui::TextDisabled("No animation data");
+  } else {
+    for (const auto &clip : def->clips) {
+      bool selected = (sprite->currentClipName == clip.name);
+      if (ImGui::Selectable(clip.name.c_str(), selected)) {
+        sprite->SetClip(clip.name);
+      }
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Frames: %d, Speed: %.2f", (int)clip.frames.size(),
+                          clip.frameSpeed);
+      }
+      if (selected) {
+        ImGui::SetItemDefaultFocus();
+      }
     }
   }
 
   if (ImGui::BeginPopupContextItem("AnimSpriteContext")) {
     if (ImGui::MenuItem("Remove Component")) {
+      // decrement usage if this component owned an animation asset
+      auto *sp = GetWorld().GetComponent<criogenio::AnimatedSprite>(entity);
+      if (sp && sp->animationId != INVALID_ASSET_ID) {
+        AnimationDatabase::instance().removeReference(sp->animationId);
+      }
       GetWorld().RemoveComponent<criogenio::AnimatedSprite>(entity);
     }
     ImGui::EndPopup();
   }
 
-  if (ImGui::Button("Reload Texture")) {
-    // sprite.ReloadTexture();
+  // Texture path editor + reload/apply controls
+  const auto *def2 =
+      AnimationDatabase::instance().getAnimation(sprite->animationId);
+  if (def2) {
+    ImGui::Separator();
+    ImGui::Text("Texture:");
+    char buf[512] = {0};
+    auto &tmp = texturePathEdits[entity];
+    if (tmp.empty())
+      tmp = def2->texturePath;
+    strncpy(buf, tmp.c_str(), sizeof(buf) - 1);
+    if (ImGui::InputText("Texture Path", buf, sizeof(buf))) {
+      tmp = std::string(buf);
+    }
+
+    // edit-in-place toggle
+    bool inplaceDefault = false;
+    if (editInPlace.find(entity) == editInPlace.end())
+      editInPlace[entity] = false;
+    ImGui::Checkbox("Edit In-Place (affect all instances)",
+                    &editInPlace[entity]);
+
+    ImGui::SameLine();
+    if (ImGui::Button("Apply")) {
+      bool inplace = false;
+      auto itEdit = editInPlace.find(entity);
+      if (itEdit != editInPlace.end())
+        inplace = itEdit->second;
+
+      AssetId oldId = sprite->animationId;
+      int refs = AnimationDatabase::instance().getRefCount(oldId);
+
+      if (inplace || refs <= 1) {
+        // safe to edit in-place
+        std::string oldPath =
+            AnimationDatabase::instance().setTexturePath(oldId, tmp);
+        if (!oldPath.empty())
+          AssetManager::instance().unload(oldPath);
+        AssetManager::instance().load<criogenio::TextureResource>(tmp);
+      } else {
+        // clone and assign to this entity
+        AssetId newId = AnimationDatabase::instance().cloneAnimation(oldId);
+        if (newId == INVALID_ASSET_ID) {
+          newId = AnimationDatabase::instance().createAnimation(tmp);
+        } else {
+          AnimationDatabase::instance().setTexturePath(newId, tmp);
+        }
+        // update refcounts
+        AnimationDatabase::instance().removeReference(oldId);
+        AnimationDatabase::instance().addReference(newId);
+        sprite->animationId = newId;
+        AssetManager::instance().load<criogenio::TextureResource>(tmp);
+      }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Browse")) {
+      namespace fs = std::filesystem;
+      auto root = fs::path("editor") / "assets";
+      fileBrowserEntries.clear();
+      try {
+        if (fs::exists(root)) {
+          for (auto &p : fs::recursive_directory_iterator(root)) {
+            if (p.is_regular_file())
+              fileBrowserEntries.push_back(p.path().string());
+          }
+          std::sort(fileBrowserEntries.begin(), fileBrowserEntries.end());
+        }
+      } catch (...) {
+      }
+      fileBrowserFilter.clear();
+      fileBrowserTargetEntity = entity;
+      fileBrowserVisible = true;
+      ImGui::OpenPopup("File Browser");
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Reload")) {
+      if (!def2->texturePath.empty()) {
+        AssetManager::instance().unload(def2->texturePath);
+        auto res = AssetManager::instance().load<criogenio::TextureResource>(
+            def2->texturePath);
+        if (!res)
+          TraceLog(LOG_WARNING, "Editor: failed to reload texture %s",
+                   def2->texturePath.c_str());
+      }
+    }
+  } else {
+    if (ImGui::Button("Reload Texture")) {
+      // nothing to do
+    }
+  }
+
+  // Simple file browser popup
+  if (fileBrowserVisible) {
+    if (ImGui::BeginPopupModal("File Browser", NULL,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
+      ImGui::Text("Select texture file (root: editor/assets)");
+      char filterBuf[256] = {0};
+      strncpy(filterBuf, fileBrowserFilter.c_str(), sizeof(filterBuf) - 1);
+      if (ImGui::InputText("Filter", filterBuf, sizeof(filterBuf))) {
+        fileBrowserFilter = std::string(filterBuf);
+      }
+      ImGui::Separator();
+      ImGui::BeginChild("file_list", ImVec2(700, 300), true);
+      for (const auto &entry : fileBrowserEntries) {
+        if (!fileBrowserFilter.empty()) {
+          if (entry.find(fileBrowserFilter) == std::string::npos)
+            continue;
+        }
+        if (ImGui::Selectable(entry.c_str())) {
+          texturePathEdits[fileBrowserTargetEntity] = entry;
+        }
+        if (ImGui::IsItemHovered()) {
+          // update preview when hovered
+          if (fileBrowserPreviewPath != entry) {
+            fileBrowserPreviewPath = entry;
+            fileBrowserPreviewTex =
+                AssetManager::instance().load<criogenio::TextureResource>(
+                    entry);
+          }
+        }
+        if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
+          texturePathEdits[fileBrowserTargetEntity] = entry;
+          // apply selection by cloning or editing in-place depending on user's
+          // choice
+          auto *spr = GetWorld().GetComponent<criogenio::AnimatedSprite>(
+              fileBrowserTargetEntity);
+          bool inplace = false;
+          auto itEdit = editInPlace.find(fileBrowserTargetEntity);
+          if (itEdit != editInPlace.end())
+            inplace = itEdit->second;
+
+          AssetId oldId = spr->animationId;
+          int refs = AnimationDatabase::instance().getRefCount(oldId);
+
+          if (inplace || refs <= 1) {
+            std::string oldPath =
+                AnimationDatabase::instance().setTexturePath(oldId, entry);
+            if (!oldPath.empty())
+              AssetManager::instance().unload(oldPath);
+            AssetManager::instance().load<criogenio::TextureResource>(entry);
+          } else {
+            AssetId newId = AnimationDatabase::instance().cloneAnimation(oldId);
+            if (newId == INVALID_ASSET_ID) {
+              newId = AnimationDatabase::instance().createAnimation(entry);
+            } else {
+              AnimationDatabase::instance().setTexturePath(newId, entry);
+            }
+            AnimationDatabase::instance().removeReference(oldId);
+            AnimationDatabase::instance().addReference(newId);
+            spr->animationId = newId;
+            AssetManager::instance().load<criogenio::TextureResource>(entry);
+          }
+
+          fileBrowserVisible = false;
+          ImGui::CloseCurrentPopup();
+          break;
+        }
+      }
+      ImGui::EndChild();
+
+      // preview pane
+      ImGui::SameLine();
+      ImGui::BeginChild("preview", ImVec2(260, 300), true);
+      ImGui::Text("Preview:");
+      if (!fileBrowserPreviewPath.empty() && fileBrowserPreviewTex) {
+        // scale to fit into preview area while keeping aspect
+        int tw = fileBrowserPreviewTex->texture.width;
+        int th = fileBrowserPreviewTex->texture.height;
+        float maxW = 240.0f, maxH = 240.0f;
+        float scale = std::min(maxW / tw, maxH / th);
+        ImGui::Image((ImTextureID)(intptr_t)fileBrowserPreviewTex->texture.id,
+                     ImVec2(tw * scale, th * scale));
+      } else {
+        ImGui::TextDisabled("No preview");
+      }
+      ImGui::EndChild();
+
+      if (ImGui::Button("OK")) {
+        auto sel = texturePathEdits[fileBrowserTargetEntity];
+        auto *spr = GetWorld().GetComponent<criogenio::AnimatedSprite>(
+            fileBrowserTargetEntity);
+        bool inplace = false;
+        auto itEdit = editInPlace.find(fileBrowserTargetEntity);
+        if (itEdit != editInPlace.end())
+          inplace = itEdit->second;
+
+        AssetId oldId = spr->animationId;
+        int refs = AnimationDatabase::instance().getRefCount(oldId);
+
+        if (inplace || refs <= 1) {
+          std::string oldPath =
+              AnimationDatabase::instance().setTexturePath(oldId, sel);
+          if (!oldPath.empty())
+            AssetManager::instance().unload(oldPath);
+          AssetManager::instance().load<criogenio::TextureResource>(sel);
+        } else {
+          AssetId newId = AnimationDatabase::instance().cloneAnimation(oldId);
+          if (newId == INVALID_ASSET_ID) {
+            newId = AnimationDatabase::instance().createAnimation(sel);
+          } else {
+            AnimationDatabase::instance().setTexturePath(newId, sel);
+          }
+          AnimationDatabase::instance().removeReference(oldId);
+          AnimationDatabase::instance().addReference(newId);
+          spr->animationId = newId;
+          AssetManager::instance().load<criogenio::TextureResource>(sel);
+        }
+
+        fileBrowserVisible = false;
+        ImGui::CloseCurrentPopup();
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("Cancel")) {
+        fileBrowserVisible = false;
+        ImGui::CloseCurrentPopup();
+      }
+
+      ImGui::EndPopup();
+    }
   }
 }
 
@@ -834,9 +1129,11 @@ void EditorApp::DrawControllerInspector(int entity) {
   if (!ImGui::CollapsingHeader("Player Controller"))
     return;
 
-  auto &ctrl = GetWorld().GetComponent<criogenio::Controller>(entity);
+  auto *ctrl = GetWorld().GetComponent<criogenio::Controller>(entity);
+  if (!ctrl)
+    return;
 
-  ImGui::DragFloat("Speed", &ctrl.speed, 1.0f, 0.0f, 1000.0f);
+  ImGui::DragFloat("Speed", &ctrl->speed, 1.0f, 0.0f, 1000.0f);
 
   if (ImGui::BeginPopupContextItem("ControllerContext")) {
     if (ImGui::MenuItem("Remove Component")) {
@@ -848,16 +1145,50 @@ void EditorApp::DrawControllerInspector(int entity) {
 
 void EditorApp::DrawAIControllerInspector(int entity) {
 
-  if (!ImGui::CollapsingHeader("Player Controller"))
+  if (!ImGui::CollapsingHeader("Player AI Controller"))
     return;
 
-  auto &ctrl = GetWorld().GetComponent<criogenio::Controller>(entity);
+  auto *ctrl = GetWorld().GetComponent<criogenio::AIController>(entity);
+  if (!ctrl)
+    return;
 
-  ImGui::DragFloat("Speed", &ctrl.speed, 1.0f, 0.0f, 1000.0f);
+  ImGui::DragFloat("Speed", &ctrl->speed, 1.0f, 0.0f, 1000.0f);
 
-  if (ImGui::BeginPopupContextItem("ControllerContext")) {
+  // Add list of entities to choose from
+  ImGui::Text("(-1 means no target)");
+  // Gather entity names
+  std::vector<std::string> entityNames;
+  std::vector<int> entityIds;
+  entityNames.push_back("None (-1)");
+  entityIds.push_back(-1);
+  for (auto id : GetWorld().GetAllEntities()) {
+    if (id == entity)
+      continue; // skip self
+    auto *nameComp = GetWorld().GetComponent<criogenio::Name>(id);
+    std::string disp = nameComp ? nameComp->name : "";
+    entityNames.push_back(disp + " (" + std::to_string(id) + ")");
+    entityIds.push_back(id);
+  }
+  // Find current target index
+  int currentIndex = 0;
+  for (size_t i = 0; i < entityIds.size(); ++i)
+    if (entityIds[i] == ctrl->entityTarget)
+      currentIndex = (int)i;
+  // Create combo box
+  if (ImGui::Combo(
+          "Target Entity", &currentIndex,
+          [](void *data, int idx, const char **out_text) {
+            auto &names = *(std::vector<std::string> *)data;
+            *out_text = names[idx].c_str();
+            return true;
+          },
+          (void *)&entityNames, (int)entityNames.size(), 8)) {
+    ctrl->entityTarget = entityIds[currentIndex];
+  }
+
+  if (ImGui::BeginPopupContextItem("AIControllerContext")) {
     if (ImGui::MenuItem("Remove Component")) {
-      GetWorld().RemoveComponent<criogenio::Controller>(entity);
+      GetWorld().RemoveComponent<criogenio::AIController>(entity);
     }
     ImGui::EndPopup();
   }
@@ -866,7 +1197,6 @@ void EditorApp::DrawAIControllerInspector(int entity) {
 void EditorApp::DrawAddComponentMenu(int entity) {
 
   if (ImGui::Button("Add Component")) {
-
     ImGui::OpenPopup("AddComponentPopup");
   }
 
@@ -880,8 +1210,7 @@ void EditorApp::DrawAddComponentMenu(int entity) {
 
     if (!GetWorld().HasComponent<criogenio::AnimatedSprite>(entity)) {
       if (ImGui::MenuItem("Animated Sprite")) {
-        // You probably want a factory here
-        // GetWorld().AddComponent<criogenio::AnimatedSprite>(entity);
+        GetWorld().AddComponent<criogenio::AnimatedSprite>(entity);
       }
     }
 
@@ -893,7 +1222,8 @@ void EditorApp::DrawAddComponentMenu(int entity) {
 
     if (!GetWorld().HasComponent<criogenio::AIController>(entity)) {
       if (ImGui::MenuItem("AI Controller")) {
-        GetWorld().AddComponent<criogenio::AIController>(entity);
+        GetWorld().AddComponent<criogenio::AIController>(entity, 200.0f,
+                                                         entity);
       }
     }
     if (!GetWorld().HasComponent<criogenio::AnimationState>(entity)) {

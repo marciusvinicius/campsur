@@ -118,7 +118,8 @@ public:
 
   AIController() = default;
 
-  AIController(float speed) : speed(speed) {}
+  AIController(float speed, int entityTarget)
+      : speed(speed), entityTarget(entityTarget) {}
   std::string TypeName() const override { return "AIController"; }
 
   SerializedComponent Serialize() const override {

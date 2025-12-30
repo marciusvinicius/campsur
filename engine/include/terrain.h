@@ -2,6 +2,7 @@
 
 #include "raylib.h"
 #include "render.h"
+#include "resources.h"
 #include "serialization.h"
 #include <optional>
 #include <string>
@@ -16,7 +17,7 @@ struct TileLayer {
 };
 
 struct Tileset {
-  Texture2D atlas;
+  std::shared_ptr<TextureResource> atlas;
   std::string tilesetPath;
   int tileSize;
   int columns;

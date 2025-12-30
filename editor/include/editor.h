@@ -2,10 +2,14 @@
 
 #include "engine.h"
 #include "raylib.h"
-#include "world.h"
+#include "world2.h"
 #include <optional>
 
 #include "imgui.h"
+
+#include <memory>
+#include <string>
+#include <unordered_map>
 
 struct Hierarchy {
   int parent = -1;
@@ -61,6 +65,7 @@ private:
   void DrawAddComponentMenu(int entity);
 
   void PickEntityAt(Vector2 worldPos);
+  void CreateEmptyEntityAtMouse();
 
   bool IsSceneInputAllowed() const;
 
@@ -76,4 +81,19 @@ private:
   void OnGUI() override;
 
   bool dockLayoutBuilt = false;
+
+  // Editor-side per-entity temporary inputs (e.g., texture path being edited)
+  std::unordered_map<int, std::string> texturePathEdits;
+  // whether to edit the animation asset in-place (affects all instances)
+  std::unordered_map<int, bool> editInPlace;
+
+  // Simple ImGui file browser state
+  bool fileBrowserVisible = false;
+  int fileBrowserTargetEntity = -1;
+  std::vector<std::string> fileBrowserEntries;
+  std::string fileBrowserFilter;
+
+  // file browser preview
+  std::string fileBrowserPreviewPath;
+  std::shared_ptr<criogenio::TextureResource> fileBrowserPreviewTex;
 };

@@ -54,10 +54,16 @@ struct SerializedTileLayer {
   std::vector<int> tiles;
 };
 
-struct SerializedTerrain2D {
+struct SerializedTileSet {
   std::string tilesetPath;
   int tileSize;
+  int columns;
+  int rows;
+};
+
+struct SerializedTerrain2D {
   std::vector<SerializedTileLayer> layers;
+  SerializedTileSet tileset;
 };
 
 struct SerializedWorld {

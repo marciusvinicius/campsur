@@ -5,7 +5,6 @@
 #include "engine.h"
 #include "raylib.h"
 #include "raymath.h"
-#include <algorithm>
 #include <cassert>
 
 namespace criogenio {
@@ -16,7 +15,7 @@ World::~World() {
   // clear all entities and components
   entities.clear();
   if (terrain) {
-    UnloadTexture(terrain->tileset.atlas);
+    // tileset atlas is managed by AssetManager; releasing unique_ptr is enough
     terrain.reset();
   }
 }
@@ -36,9 +35,12 @@ World::GetEntities() const {
 Terrain2D &World::CreateTerrain2D(const std::string &name,
                                   const std::string &texture_path) {
   auto new_terrain = new Terrain2D();
-  auto atlas = CriogenioLoadTexture(texture_path.c_str());
-  // This should be created on editor or loaded from file
-  auto tileset = Tileset{atlas, texture_path, 24, 10, 8};
+  auto tileset = Tileset{};
+  tileset.tilesetPath = texture_path;
+  tileset.atlas = AssetManager::instance().load<TextureResource>(texture_path);
+  tileset.tileSize = 24;
+  tileset.columns = 10;
+  tileset.rows = 8;
   new_terrain->tileset = tileset;
   // Layers should be loaded from a file, but for now we create a simple one
   // Or Empty
@@ -52,7 +54,6 @@ Terrain2D &World::CreateTerrain2D(const std::string &name,
                     8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
                 }));
   terrain.reset(new_terrain);
-  // terrain = &new_terrain;
   return *terrain;
 }
 
@@ -119,53 +120,54 @@ void World::Deserialize(const SerializedWorld &data) {
   terrain.reset();
   nextId = 0;
 
-  for (const SerializedEntity &ent : data.entities) {
-    int entityId = ent.id;
+  if (!data.entities.empty()) {
+    for (const SerializedEntity &ent : data.entities) {
+      int entityId = ent.id;
+      entities[entityId] = std::vector<std::unique_ptr<Component>>();
+      // Ensure entity container exists
+      // Keep nextId valid
+      nextId = std::max(nextId, entityId + 1);
 
-    entities[entityId] = std::vector<std::unique_ptr<Component>>();
+      for (const SerializedComponent &comp : ent.components) {
 
-    // Ensure entity container exists
-    // Keep nextId valid
-    nextId += std::max(0, entityId - nextId + 1);
+        if (comp.type == "Name") {
+          auto name = GetString(comp.fields.at("name"));
+          AddComponent<Name>(entityId, name);
 
-    for (const SerializedComponent &comp : ent.components) {
+        }
 
-      if (comp.type == "Name") {
-        auto name = GetString(comp.fields.at("name"));
-        AddComponent<Name>(entityId, name);
+        else if (comp.type == "Transform") {
+          auto *transform = AddComponent<Transform>(entityId);
+          transform->Deserialize(comp);
+        }
 
-      }
+        else if (comp.type == "AnimatedSprite") {
+          auto *sprite = AddComponent<AnimatedSprite>(entityId);
+          sprite->Deserialize(comp);
+        }
 
-      else if (comp.type == "Transform") {
-        auto *transform = AddComponent<Transform>(entityId);
-        transform->Deserialize(comp);
-      }
+        else if (comp.type == "AnimationState") {
+          auto *state = AddComponent<AnimationState>(entityId);
+          state->Deserialize(comp);
+        }
 
-      else if (comp.type == "AnimatedSprite") {
-        auto *sprite = AddComponent<AnimatedSprite>(entityId);
-        sprite->Deserialize(comp);
-      }
+        else if (comp.type == "Controller") {
+          auto *controller = AddComponent<Controller>(entityId);
+          controller->Deserialize(comp);
+        }
 
-      else if (comp.type == "AnimationState") {
-        auto *state = AddComponent<AnimationState>(entityId);
-        state->Deserialize(comp);
-      }
+        else if (comp.type == "AIController") {
+          auto *aiController = AddComponent<AIController>(entityId);
+          aiController->Deserialize(comp);
+        }
 
-      else if (comp.type == "Controller") {
-        auto *controller = AddComponent<Controller>(entityId);
-        controller->Deserialize(comp);
-      }
-
-      else if (comp.type == "AIController") {
-        auto *aiController = AddComponent<AIController>(entityId);
-        aiController->Deserialize(comp);
-      }
-
-      else {
-        std::cerr << "Unknown component type: " << comp.type << "\n";
+        else {
+          std::cerr << "Unknown component type: " << comp.type << "\n";
+        }
       }
     }
   }
+
   if (!data.terrain.layers.size())
     return;
 
