@@ -60,6 +60,24 @@ void World::Render(Renderer &renderer) {
 SerializedWorld World::Serialize() const {
   SerializedWorld world;
 
+  // Serialize terrain if it exists
+  if (terrain) {
+    // Serialize tileset
+    world.terrain.tileset.tilesetPath = terrain->tileset.tilesetPath;
+    world.terrain.tileset.tileSize = terrain->tileset.tileSize;
+    world.terrain.tileset.columns = terrain->tileset.columns;
+    world.terrain.tileset.rows = terrain->tileset.rows;
+
+    // Serialize layers
+    for (const auto &layer : terrain->layers) {
+      SerializedTileLayer serialized_layer;
+      serialized_layer.width = layer.width;
+      serialized_layer.height = layer.height;
+      serialized_layer.tiles = layer.tiles;
+      world.terrain.layers.push_back(serialized_layer);
+    }
+  }
+
   for (ecs::EntityId entity_id : GetAllEntities()) {
     SerializedEntity serialized_entity;
     serialized_entity.id = entity_id;
@@ -99,6 +117,31 @@ SerializedWorld World::Serialize() const {
 
 void World::Deserialize(const SerializedWorld &data) {
   ecs::Registry::instance().clear();
+  terrain = nullptr;
+
+  // Restore terrain if it exists
+  if (!data.terrain.tileset.tilesetPath.empty()) {
+    terrain = std::make_unique<Terrain2D>();
+
+    // Restore tileset
+    Tileset tileset{};
+    tileset.tilesetPath = data.terrain.tileset.tilesetPath;
+    tileset.atlas =
+        AssetManager::instance().load<TextureResource>(tileset.tilesetPath);
+    tileset.tileSize = data.terrain.tileset.tileSize;
+    tileset.columns = data.terrain.tileset.columns;
+    tileset.rows = data.terrain.tileset.rows;
+    terrain->tileset = tileset;
+
+    // Restore layers
+    for (const auto &serialized_layer : data.terrain.layers) {
+      terrain->AddLayer(serialized_layer.width, serialized_layer.height, 8);
+      // Restore tiles for this layer (assuming we add to the last layer)
+      if (!terrain->layers.empty()) {
+        terrain->layers.back().tiles = serialized_layer.tiles;
+      }
+    }
+  }
 
   for (const auto &serialized_entity : data.entities) {
     ecs::EntityId entity_id = CreateEntity();
