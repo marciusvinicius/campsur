@@ -4,8 +4,8 @@
       "components": [
         {
           "fields": {
-            "x": 40.9744873046875,
-            "y": -28.206035614013672
+            "x": 0.0,
+            "y": 0.0
           },
           "type": "Transform"
         },
@@ -16,13 +16,6 @@
             "previous": 0
           },
           "type": "AnimationState"
-        },
-        {
-          "fields": {
-            "direction": 0,
-            "speed": 200.0
-          },
-          "type": "Controller"
         },
         {
           "fields": {

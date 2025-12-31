@@ -15,7 +15,7 @@ Engine::Engine(int width, int height, const char *title) : width(width) {
 
   RegisterCoreComponents();
   renderer = new Renderer(width, height, title);
-  world = new World2();
+  world = new World();
 
   // Register a simple texture loader that wraps raylib's LoadTexture
   AssetManager::instance().registerLoader<TextureResource>(
@@ -36,7 +36,7 @@ Engine::~Engine() {
   delete renderer;
 }
 
-World2 &Engine::GetWorld() { return *world; }
+World &Engine::GetWorld() { return *world; }
 EventBus &Engine::GetEventBus() { return eventBus; }
 Renderer &Engine::GetRenderer() { return *renderer; }
 
@@ -57,27 +57,27 @@ void Engine::Run() {
 
 void Engine::RegisterCoreComponents() {
 
-  ComponentFactory::Register("Transform", [](World2 &w, int e) {
+  ComponentFactory::Register("Transform", [](World &w, int e) {
     return &w.AddComponent<Transform>(e);
   });
 
-  ComponentFactory::Register("AnimatedSprite", [](World2 &w, int e) {
+  ComponentFactory::Register("AnimatedSprite", [](World &w, int e) {
     return &w.AddComponent<AnimatedSprite>(e);
   });
 
-  ComponentFactory::Register("Controller", [](World2 &w, int e) {
+  ComponentFactory::Register("Controller", [](World &w, int e) {
     return &w.AddComponent<Controller>(e);
   });
 
-  ComponentFactory::Register("AnimationState", [](World2 &w, int e) {
+  ComponentFactory::Register("AnimationState", [](World &w, int e) {
     return &w.AddComponent<AnimationState>(e);
   });
 
-  ComponentFactory::Register("AIController", [](World2 &w, int e) {
+  ComponentFactory::Register("AIController", [](World &w, int e) {
     return &w.AddComponent<AIController>(e);
   });
 
   ComponentFactory::Register(
-      "Name", [](World2 &w, int e) { return &w.AddComponent<Name>(e, ""); });
+      "Name", [](World &w, int e) { return &w.AddComponent<Name>(e, ""); });
 }
 } // namespace criogenio

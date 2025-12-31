@@ -7,7 +7,7 @@ using namespace criogenio;
 int main() {
   Engine engine(640, 480, "Snake Using Custom Engine");
 
-  World2 &World = engine.GetWorld();
+  World &World = engine.GetWorld();
   EventBus &bus = engine.GetEventBus();
 
   SnakeController snake(World, bus);

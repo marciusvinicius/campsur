@@ -1,178 +1,165 @@
 #include "world.h"
-#include "component_factory.h"
-#include "components.h"
-#include "core.h"
-#include "engine.h"
-#include "raylib.h"
-#include "raymath.h"
-#include <cassert>
+#include "animated_component.h"
+#include "animation_database.h"
+#include "asset_manager.h"
+#include "resources.h"
 
 namespace criogenio {
 
-World::World() {}
+World::World() = default;
 
-World::~World() {
-  // clear all entities and components
-  entities.clear();
-  if (terrain) {
-    // tileset atlas is managed by AssetManager; releasing unique_ptr is enough
-    terrain.reset();
+World::~World() { ecs::Registry::instance().clear(); }
+
+ecs::EntityId World::CreateEntity(const std::string &name) {
+  ecs::EntityId id = ecs::Registry::instance().create_entity();
+  if (!name.empty()) {
+    entity_names[id] = name;
   }
-}
-
-int World::CreateEntity(const std::string &name) {
-  int id = nextId++;
-  entities[id] = std::vector<std::unique_ptr<Component>>();
-  AddComponent<criogenio::Name>(id, "New Entity");
   return id;
 }
 
-const std::unordered_map<int, std::vector<std::unique_ptr<Component>>> &
-World::GetEntities() const {
-  return entities;
+void World::DeleteEntity(ecs::EntityId id) {
+  ecs::Registry::instance().destroy_entity(id);
+  entity_names.erase(id);
+}
+
+bool World::HasEntity(ecs::EntityId id) const {
+  return ecs::Registry::instance().has_entity(id);
+}
+
+void World::OnUpdate(std::function<void(float)> fn) { userUpdate = fn; }
+
+void World::Update(float dt) {
+  // Run user update callback
+  if (userUpdate) {
+    userUpdate(dt);
+  }
+
+  // Update systems
+  for (auto &system : systems) {
+    system->Update(dt);
+  }
+}
+
+void World::Render(Renderer &renderer) {
+  BeginMode2D(maincamera);
+  DrawGrid(100, 32);
+  DrawCircle(0, 0, 6, RED);
+
+  if (terrain)
+    terrain->Render(renderer);
+
+  // Render systems
+  for (auto &system : systems) {
+    system->Render(renderer);
+  }
+
+  EndMode2D();
+}
+
+SerializedWorld World::Serialize() const {
+  SerializedWorld world;
+
+  for (ecs::EntityId entity_id : GetAllEntities()) {
+    SerializedEntity serialized_entity;
+    serialized_entity.id = entity_id;
+
+    // Serialize Transform if exists
+    if (auto trans = GetComponent<Transform>(entity_id)) {
+      serialized_entity.components.push_back(trans->Serialize());
+    }
+
+    // Serialize AnimationState if exists
+    if (auto anim_state = GetComponent<AnimationState>(entity_id)) {
+      serialized_entity.components.push_back(anim_state->Serialize());
+    }
+
+    // Serialize Controller if exists
+    if (auto ctrl = GetComponent<Controller>(entity_id)) {
+      serialized_entity.components.push_back(ctrl->Serialize());
+    }
+
+    // Serialize AIController if exists
+    if (auto ai_ctrl = GetComponent<AIController>(entity_id)) {
+      serialized_entity.components.push_back(ai_ctrl->Serialize());
+    }
+
+    // Serialize AnimatedSprite if exists
+    if (auto anim_sprite = GetComponent<AnimatedSprite>(entity_id)) {
+      serialized_entity.components.push_back(anim_sprite->Serialize());
+    }
+
+    if (!serialized_entity.components.empty()) {
+      world.entities.push_back(serialized_entity);
+    }
+  }
+
+  return world;
+}
+
+void World::Deserialize(const SerializedWorld &data) {
+  ecs::Registry::instance().clear();
+
+  for (const auto &serialized_entity : data.entities) {
+    ecs::EntityId entity_id = CreateEntity();
+
+    for (const auto &serialized_component : serialized_entity.components) {
+      const auto &type_name = serialized_component.type;
+
+      if (type_name == "Transform") {
+        auto &trans = AddComponent<Transform>(entity_id);
+        trans.Deserialize(serialized_component);
+      }
+
+      else if (type_name == "AnimationState") {
+        auto &anim_state = AddComponent<AnimationState>(entity_id);
+        anim_state.Deserialize(serialized_component);
+      }
+
+      else if (type_name == "Controller") {
+        auto &ctrl = AddComponent<Controller>(entity_id);
+        ctrl.Deserialize(serialized_component);
+      }
+
+      else if (type_name == "AIController") {
+        auto &ai_ctrl = AddComponent<AIController>(entity_id);
+        ai_ctrl.Deserialize(serialized_component);
+      }
+
+      else if (type_name == "AnimatedSprite") {
+        auto &anim_sprite = AddComponent<AnimatedSprite>(entity_id);
+        anim_sprite.Deserialize(serialized_component);
+
+        // Re-track reference for animation
+        if (anim_sprite.animationId != 0) {
+          AnimationDatabase::instance().addReference(anim_sprite.animationId);
+        }
+      }
+    }
+  }
 }
 
 Terrain2D &World::CreateTerrain2D(const std::string &name,
                                   const std::string &texture_path) {
-  auto new_terrain = new Terrain2D();
-  auto tileset = Tileset{};
+  terrain = std::make_unique<Terrain2D>();
+
+  // Initialize tileset similarly to World::CreateTerrain2D
+  Tileset tileset{};
   tileset.tilesetPath = texture_path;
   tileset.atlas = AssetManager::instance().load<TextureResource>(texture_path);
   tileset.tileSize = 24;
   tileset.columns = 10;
   tileset.rows = 8;
-  new_terrain->tileset = tileset;
-  // Layers should be loaded from a file, but for now we create a simple one
-  // Or Empty
-  new_terrain->layers.push_back(
-      TileLayer(10, 10,
-                {
-                    0, 0, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-                    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-                    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-                    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-                    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-                }));
-  terrain.reset(new_terrain);
+  terrain->tileset = tileset;
+
+  // Create a default layer so something is visible
+  terrain->AddLayer(10, 10, 8);
+
   return *terrain;
 }
 
-void World::Update(float dt) {
-  if (userUpdate)
-    userUpdate(dt);
-  for (auto &sys : systems)
-    sys->Update(dt);
-}
+void World::AttachCamera2D(Camera2D cam) { maincamera = cam; }
 
-void World::Render(Renderer &renderer) {
+Terrain2D *World::GetTerrain() { return terrain.get(); }
 
-  BeginMode2D(maincamera);
-  DrawGrid(100, 32);
-  DrawCircle(0, 0, 6, RED);
-  if (terrain)
-    terrain->Render(renderer);
-
-  for (auto &sys : systems)
-    sys->Render(renderer);
-
-  EndMode2D();
-}
-
-// Should I remove the map values?
-void World::DeleteEntity(int id) { entities.erase(id); }
-
-void World::OnUpdate(std::function<void(float)> fn) { userUpdate = fn; }
-
-bool World::HasEntity(int id) const {
-  return entities.find(id) != entities.end();
-}
-
-void World::AttachCamera2D(Camera2D cam) {
-  // For now we have only one camera
-  maincamera = cam;
-}
-
-SerializedWorld World::Serialize() const {
-  SerializedWorld worldData;
-
-  for (const auto &[entityId, components] : entities) {
-    SerializedEntity ent;
-    ent.id = entityId;
-
-    for (const auto &comp : components) {
-      ent.components.push_back(comp->Serialize());
-    }
-    worldData.entities.push_back(std::move(ent));
-  }
-  // Serialize terrain too
-  if (terrain)
-    worldData.terrain = terrain->Serialize();
-
-  return worldData;
-}
-
-void World::Deserialize(const SerializedWorld &data) {
-  // Clear existing world
-  // Should recovery Systems and terrain too
-  entities.clear();
-  registry.clear();
-  systems.clear();
-  terrain.reset();
-  nextId = 0;
-
-  if (!data.entities.empty()) {
-    for (const SerializedEntity &ent : data.entities) {
-      int entityId = ent.id;
-      entities[entityId] = std::vector<std::unique_ptr<Component>>();
-      // Ensure entity container exists
-      // Keep nextId valid
-      nextId = std::max(nextId, entityId + 1);
-
-      for (const SerializedComponent &comp : ent.components) {
-
-        if (comp.type == "Name") {
-          auto name = GetString(comp.fields.at("name"));
-          AddComponent<Name>(entityId, name);
-
-        }
-
-        else if (comp.type == "Transform") {
-          auto *transform = AddComponent<Transform>(entityId);
-          transform->Deserialize(comp);
-        }
-
-        else if (comp.type == "AnimatedSprite") {
-          auto *sprite = AddComponent<AnimatedSprite>(entityId);
-          sprite->Deserialize(comp);
-        }
-
-        else if (comp.type == "AnimationState") {
-          auto *state = AddComponent<AnimationState>(entityId);
-          state->Deserialize(comp);
-        }
-
-        else if (comp.type == "Controller") {
-          auto *controller = AddComponent<Controller>(entityId);
-          controller->Deserialize(comp);
-        }
-
-        else if (comp.type == "AIController") {
-          auto *aiController = AddComponent<AIController>(entityId);
-          aiController->Deserialize(comp);
-        }
-
-        else {
-          std::cerr << "Unknown component type: " << comp.type << "\n";
-        }
-      }
-    }
-  }
-
-  if (!data.terrain.layers.size())
-    return;
-
-  // Deserialize terrain too
-  terrain = std::make_unique<Terrain2D>();
-  terrain->Deserialize(data.terrain);
-}
 } // namespace criogenio

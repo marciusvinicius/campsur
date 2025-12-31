@@ -16,7 +16,8 @@ void MovementSystem::Update(float dt) {
     auto *tr = world.GetComponent<Transform>(id);
     auto *anim = world.GetComponent<AnimationState>(id);
 
-    if (!ctrl || !tr || !anim) continue;
+    if (!ctrl || !tr || !anim)
+      continue;
 
     float dx = 0, dy = 0;
 
@@ -57,7 +58,8 @@ void AIMovementSystem::Update(float dt) {
     auto *tr = world.GetComponent<Transform>(id);
     auto *anim = world.GetComponent<AnimationState>(id);
 
-    if (!ctrl || !tr || !anim) continue;
+    if (!ctrl || !tr || !anim)
+      continue;
 
     if (ctrl->entityTarget <= 0 and ctrl->entityTarget != id) {
       return;
@@ -66,7 +68,8 @@ void AIMovementSystem::Update(float dt) {
     const float arriveRadius = 0.01f;
 
     auto *targetTrasnform = world.GetComponent<Transform>(ctrl->entityTarget);
-    if (!targetTrasnform) continue;
+    if (!targetTrasnform)
+      continue;
 
     float dx = targetTrasnform->x - tr->x;
     float dy = targetTrasnform->y - tr->y;
@@ -138,7 +141,8 @@ void AnimationSystem::Update(float dt) {
     auto *sprite = world.GetComponent<AnimatedSprite>(id);
     auto *st = world.GetComponent<AnimationState>(id);
 
-    if (!sprite || !st) continue;
+    if (!sprite || !st)
+      continue;
 
     sprite->SetClip(BuildClipKey(*st));
     st->previous = st->current;
@@ -156,7 +160,8 @@ void RenderSystem::Render(Renderer &renderer) {
     auto *animSprite = world.GetComponent<AnimatedSprite>(id);
     auto *tr = world.GetComponent<Transform>(id);
 
-    if (!animSprite || !tr) continue;
+    if (!animSprite || !tr)
+      continue;
 
     // Look up animation definition from database
     const auto *animDef =
@@ -177,7 +182,7 @@ void RenderSystem::Render(Renderer &renderer) {
   }
 }
 
-void AnimationSystem::OnWorldLoaded(World2 &world) {
+void AnimationSystem::OnWorldLoaded(World &world) {
   // Animation database should be pre-populated by editor or game code
   // Sprites just reference animations by ID at this point
 }

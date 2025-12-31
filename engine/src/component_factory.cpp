@@ -13,7 +13,7 @@ void ComponentFactory::Register(const std::string &type,
   Registry()[type] = std::move(fn);
 }
 
-Component *ComponentFactory::Create(const std::string &type, World2 &world,
+Component *ComponentFactory::Create(const std::string &type, World &world,
                                     int entity) {
   auto it = Registry().find(type);
   if (it == Registry().end())

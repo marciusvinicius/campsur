@@ -4,7 +4,7 @@
 
 using namespace criogenio;
 
-SnakeController::SnakeController(World2 &world, EventBus &bus)
+SnakeController::SnakeController(World &world, EventBus &bus)
     : world(world), bus(bus) {
   SpawnSnake();
   SpawnFood();

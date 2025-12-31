@@ -2,7 +2,7 @@
 
 #include "animated_component.h"
 #include "systems.h"
-#include "world2.h"
+#include "world.h"
 #include <algorithm>
 #include <functional>
 #include <iostream>
@@ -14,8 +14,8 @@ namespace criogenio {
 
 class MovementSystem : public ISystem {
 public:
-  World2 &world;
-  MovementSystem(World2 &w) : world(w) {}
+  World &world;
+  MovementSystem(World &w) : world(w) {}
 
   void Update(float dt) override;
   void Render(Renderer &renderer) override;
@@ -23,8 +23,8 @@ public:
 
 class AIMovementSystem : public ISystem {
 public:
-  World2 &world;
-  AIMovementSystem(World2 &w) : world(w) {}
+  World &world;
+  AIMovementSystem(World &w) : world(w) {}
 
   void Update(float dt) override;
   void Render(Renderer &renderer) override;
@@ -32,19 +32,19 @@ public:
 
 class AnimationSystem : public ISystem {
 public:
-  World2 &world;
-  AnimationSystem(World2 &w) : world(w) {};
+  World &world;
+  AnimationSystem(World &w) : world(w) {};
   std::string FacingToString(Direction d) const;
   std::string BuildClipKey(const AnimationState &st);
   void Update(float dt) override;
   void Render(Renderer &) override;
-  void OnWorldLoaded(World2 &world);
+  void OnWorldLoaded(World &world);
 };
 
 class RenderSystem : public ISystem {
 public:
-  World2 &world;
-  RenderSystem(World2 &w) : world(w) {}
+  World &world;
+  RenderSystem(World &w) : world(w) {}
   void Update(float) override;
   void Render(Renderer &renderer) override;
 };

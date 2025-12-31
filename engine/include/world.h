@@ -1,8 +1,12 @@
 #pragma once
 
-#include "entity.h"
+#include "components.h"
+#include "ecs_core.h"
+#include "ecs_registry.h"
 #include "raylib.h"
 #include "render.h"
+#include "systems.h"
+#include "terrain.h"
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -10,93 +14,66 @@
 #include <unordered_map>
 #include <vector>
 
-#include "components.h"
-#include "serialization.h"
-#include "systems.h"
-#include "terrain.h"
-
 namespace criogenio {
 
-struct Scene {};
-struct GameMode {};
-struct GameState {};
+// ============================================================================
+// World: ECS-based World
+// ============================================================================
 
 class World {
 public:
   World();
   ~World();
-  void OnUpdate(std::function<void(float)> fn);
-  void Update(float dt);
-  void Render(Renderer &renderer);
 
-  SerializedWorld Serialize() const;
-  void Deserialize(const SerializedWorld &data);
+  // Entity Management
+  ecs::EntityId CreateEntity(const std::string &name = "");
+  void DeleteEntity(ecs::EntityId id);
+  bool HasEntity(ecs::EntityId id) const;
 
-public:
-  // Templates
-  // Move all this to a entity manager system
-  //
+  // Component Management (new ECS style)
   template <typename T, typename... Args>
-  T *AddComponent(int entityId, Args &&...args) {
-    // 1— Construct the component
-    auto comp = std::make_unique<T>(std::forward<Args>(args)...);
-
-    // 2— Save raw pointer *before* moving the unique_ptr
-    T *ptr = comp.get();
-
-    // 3— Register in type registry
-    ComponentTypeId typeId = GetComponentTypeId<T>();
-    registry[typeId].push_back(entityId);
-
-    // 4— Attach to entity
-    entities[entityId].push_back(std::move(comp));
-
-    // 5— Return pointer for configuration
-    return ptr;
+  T &AddComponent(ecs::EntityId entity_id, Args &&...args) {
+    T component(std::forward<Args>(args)...);
+    return ecs::Registry::instance().add_component<T>(entity_id, component);
   }
 
-  template <typename T, typename... Args>
-  void RemoveComponent(int entityId, Args &&...args) {
-    // Remove component from the entity and from the registry
-    auto it = entities.find(entityId);
-    if (it == entities.end())
-      throw std::runtime_error("Entity not found");
-    auto &comps = it->second;
-    for (auto compIt = comps.begin(); compIt != comps.end(); ++compIt) {
-      if (auto casted = dynamic_cast<T *>(compIt->get())) {
-        // Remove from registry
-        ComponentTypeId typeId = GetComponentTypeId<T>();
-        auto &entityList = registry[typeId];
-        entityList.erase(
-            std::remove(entityList.begin(), entityList.end(), entityId),
-            entityList.end());
-        // Remove from entity
-        comps.erase(compIt);
-        return;
-      }
-    }
-    throw std::runtime_error("Component not found");
+  template <typename T> T *GetComponent(ecs::EntityId entity_id) {
+    return ecs::Registry::instance().get_component<T>(entity_id);
   }
 
-  template <typename T> T &GetComponent(int entityId) {
-    auto it = entities.find(entityId);
-    if (it == entities.end())
-      throw std::runtime_error("Entity not found");
-
-    auto &comps = it->second;
-    for (auto &c : comps) {
-      if (auto casted = dynamic_cast<T *>(c.get()))
-        return *casted;
-    }
-    throw std::runtime_error("Component not found");
+  template <typename T> const T *GetComponent(ecs::EntityId entity_id) const {
+    return ecs::Registry::instance().get_component<T>(entity_id);
   }
 
-  template <typename T> std::vector<int> GetEntitiesWith() {
-    ComponentTypeId typeId = GetComponentTypeId<T>();
-    if (registry.contains(typeId))
-      return registry[typeId];
-    return {};
+  template <typename T> bool HasComponent(ecs::EntityId entity_id) const {
+    return ecs::Registry::instance().has_component<T>(entity_id);
   }
+
+  template <typename T> void RemoveComponent(ecs::EntityId entity_id) {
+    ecs::Registry::instance().remove_component<T>(entity_id);
+  }
+
+  // Query (new ECS style - more efficient)
+  template <typename T> std::vector<ecs::EntityId> GetEntitiesWith() {
+    return ecs::Registry::instance().view<T>();
+  }
+
+  template <typename T, typename U>
+  std::vector<ecs::EntityId> GetEntitiesWith() {
+    return ecs::Registry::instance().view<T, U>();
+  }
+
+  template <typename T, typename U, typename V>
+  std::vector<ecs::EntityId> GetEntitiesWith() {
+    return ecs::Registry::instance().view<T, U, V>();
+  }
+
+  template <typename T, typename U, typename V, typename W>
+  std::vector<ecs::EntityId> GetEntitiesWith() {
+    return ecs::Registry::instance().view<T, U, V, W>();
+  }
+
+  // System Management
   template <typename T, typename... Args> T *AddSystem(Args &&...args) {
     auto sys = std::make_unique<T>(std::forward<Args>(args)...);
     T *ptr = sys.get();
@@ -104,37 +81,37 @@ public:
     return ptr;
   }
 
-  template <typename T> bool HasComponent(int entityId) const {
-    ComponentTypeId typeId = GetComponentTypeId<T>();
+  // World Update
+  void OnUpdate(std::function<void(float)> fn);
+  void Update(float dt);
+  void Render(Renderer &renderer);
 
-    auto it = registry.find(typeId);
-    if (it == registry.end())
-      return false;
+  // Serialization
+  SerializedWorld Serialize() const;
+  void Deserialize(const SerializedWorld &data);
 
-    const auto &entitiesWithComponent = it->second;
-    return std::find(entitiesWithComponent.begin(), entitiesWithComponent.end(),
-                     entityId) != entitiesWithComponent.end();
-  }
-
-  int CreateEntity(const std::string &name);
-
-  const std::unordered_map<int, std::vector<std::unique_ptr<Component>>> &
-  GetEntities() const;
-
-  void DeleteEntity(int id);
-  bool HasEntity(int id) const;
+  // Terrain
   Terrain2D &CreateTerrain2D(const std::string &name,
                              const std::string &texture_path);
-  void AttachCamera2D(Camera2D cam);
+  // Access terrain (may be null)
+  Terrain2D *GetTerrain();
 
+  // Camera
+  void AttachCamera2D(Camera2D cam);
   Camera2D maincamera;
 
+  // Get all entities
+  const std::vector<ecs::EntityId> &GetAllEntities() const {
+    return ecs::EntityManager::instance().get_alive_entities();
+  }
+
 private:
-  int nextId = 1;
-  std::unordered_map<int, std::vector<std::unique_ptr<Component>>> entities;
   std::vector<std::unique_ptr<ISystem>> systems;
-  std::unordered_map<ComponentTypeId, std::vector<int>> registry;
   std::unique_ptr<Terrain2D> terrain;
   std::function<void(float)> userUpdate = nullptr;
+
+  // Entity name tracking (optional, for debugging)
+  std::unordered_map<ecs::EntityId, std::string> entity_names;
 };
+
 } // namespace criogenio
