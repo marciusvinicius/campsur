@@ -16,7 +16,10 @@ void SnakeController::SpawnSnake() {
   for (int i = 0; i < 3; i++) {
     int entityId = world.CreateEntity("SnakePart");
     world.AddComponent<criogenio::Transform>(entityId, 200 - i * 20, 200);
+    world.AddComponent<criogenio::Name>(entityId, "SnakePart");
     segments.push_back(entityId);
+    std::cout << "Spawned snake part " << i << " at entity " << entityId
+              << " pos (" << (200 - i * 20) << ", 200)" << std::endl;
   }
 }
 
@@ -25,7 +28,10 @@ void SnakeController::SpawnFood() {
   float fx = (rand() % 30) * 20;
   float fy = (rand() % 20) * 20;
   world.AddComponent<criogenio::Transform>(entityID, fx, fy);
+  world.AddComponent<criogenio::Name>(entityID, "Food");
   foodId = entityID;
+  std::cout << "Spawned food at entity " << entityID << " pos (" << fx << ", "
+            << fy << ")" << std::endl;
 }
 
 void SnakeController::HandleInput() {

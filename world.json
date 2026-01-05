@@ -1,31 +1,118 @@
 {
-  "entities": [
-    {
-      "components": [
-        {
-          "fields": {
-            "x": 0.0,
-            "y": 0.0
-          },
-          "type": "Transform"
-        },
-        {
-          "fields": {
-            "current": 0,
-            "facing": 1,
-            "previous": 0
-          },
-          "type": "AnimationState"
-        },
-        {
-          "fields": {
-            "animationId": 1,
-            "currentClipName": "idle_down"
-          },
-          "type": "AnimatedSprite"
-        }
-      ],
-      "id": 1
+  "terrain": {
+    "layers": [
+      {
+        "height": 10,
+        "tiles": [
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          23,
+          23,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          23,
+          23,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          23,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          23,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          23,
+          8,
+          8,
+          8,
+          8,
+          8,
+          23,
+          23,
+          23,
+          23,
+          23,
+          8,
+          8
+        ],
+        "width": 10
+      }
+    ],
+    "tileset": {
+      "columns": 10,
+      "rows": 8,
+      "tileSize": 24,
+      "tilesetPath": "editor/assets/terrain.jpg"
     }
-  ]
+  }
 }

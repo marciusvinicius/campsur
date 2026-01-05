@@ -2,6 +2,7 @@
 
 ## Editor
 
+  [ ] Fixing issue with editor grid when editing a terrain
   [ ] Issue when selecting on editor a animation state that does not exist
   [ ] New entities should have the id in the name
   [ ] Entity selected drawing before tileset
@@ -9,7 +10,6 @@
     [ ] System diolog create new scene
     [ ] System diolog save scene
     [ ] System diolog load scene
-
   [√] Making possible to serialize scene on SaveScene
     [√] Serialize world
         [√] Bug on entity ID after load
@@ -59,5 +59,3 @@
     [ ] Events
     [ ] Collision
     [ ] Network
-
-

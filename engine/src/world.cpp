@@ -8,7 +8,10 @@ namespace criogenio {
 
 World::World() = default;
 
-World::~World() { ecs::Registry::instance().clear(); }
+World::~World() {
+  systems.clear(); // Clear all systems explicitly
+  ecs::Registry::instance().clear();
+}
 
 ecs::EntityId World::CreateEntity(const std::string &name) {
   ecs::EntityId id = ecs::Registry::instance().create_entity();

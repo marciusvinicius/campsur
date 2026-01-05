@@ -57,7 +57,9 @@ public:
 
 private:
   AnimationDatabase() : nextId_(INVALID_ASSET_ID + 1) {}
-  ~AnimationDatabase() = default;
+  ~AnimationDatabase() {
+    clear(); // Clean up on destruction
+  }
 
   AssetId nextId_;
   std::unordered_map<AssetId, AnimationDef> animations_;

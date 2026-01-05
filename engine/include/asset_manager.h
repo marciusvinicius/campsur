@@ -72,9 +72,17 @@ public:
   void registerHotReloadCallback(const std::string &path, HotReloadCallback cb);
   void triggerHotReload(const std::string &path);
 
+  void clear() {
+    std::lock_guard<std::mutex> lk(mutex_);
+    cache_.clear();
+  }
+
 private:
   AssetManager() = default;
-  ~AssetManager() = default;
+  ~AssetManager() {
+    std::lock_guard<std::mutex> lk(mutex_);
+    cache_.clear();
+  }
 
   struct Key {
     std::type_index type{typeid(void)};

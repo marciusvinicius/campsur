@@ -1,5 +1,6 @@
 #include "animation_database.h"
 #include "components.h"
+#include "criogenio_io.h"
 #include "engine.h"
 #include "game.h"
 
@@ -12,111 +13,27 @@ int main() {
   Engine engine(InitialWidth, InitialHeight, "Ways of the Truth");
 
   auto &World = engine.GetWorld();
-  World.CreateTerrain2D("MainTerrain", "game/assets/terrain.jpg");
 
+  // Load the scene from editor
+  if (!LoadWorldFromFile(World, "world.json")) {
+    TraceLog(LOG_ERROR, "Failed to load world from world.json");
+    return 1;
+  }
+
+  // Add game systems
   World.AddSystem<criogenio::MovementSystem>(World);
   World.AddSystem<criogenio::AnimationSystem>(World);
   World.AddSystem<criogenio::RenderSystem>(World);
   World.AddSystem<criogenio::AIMovementSystem>(World);
 
+  // Setup camera
   auto maincamera = Camera2D{};
   maincamera.target = {0.0f, 0.0f};
-  maincamera.offset = {InitialWidth / 2.0f, InitialHeight / 2.0f}; // IMPORTANT
+  maincamera.offset = {InitialWidth / 2.0f, InitialHeight / 2.0f};
   maincamera.zoom = 1.0f;
-
   World.AttachCamera2D(maincamera);
 
-  int entityId = World.CreateEntity("Player");
-  World.AddComponent<criogenio::Transform>(entityId);
-  World.AddComponent<criogenio::Transform>(entityId, 0.0f, 0.0f);
-  auto path = "editor/assets/Woman/woman.png";
-  auto texture = LoadTexture(path);
-
-  /// Make this data-driven later
-  std::vector<Rectangle> idleDown = {
-      {0, 0, 64, 128},   {64, 0, 64, 128},  {128, 0, 64, 128},
-      {192, 0, 64, 128}, {256, 0, 64, 128}, {320, 0, 64, 128},
-      {384, 0, 64, 128}, {448, 0, 64, 128}, {512, 0, 64, 128},
-  };
-
-  std::vector<Rectangle> idleLeft = {
-      {0, 128, 64, 128},   {64, 128, 64, 128},  {128, 128, 64, 128},
-      {192, 128, 64, 128}, {256, 128, 64, 128}, {320, 128, 64, 128},
-      {384, 128, 64, 128}, {448, 128, 64, 128}, {512, 128, 64, 128},
-  };
-
-  std::vector<Rectangle> idleRight = {
-      {0, 256, 64, 128},   {64, 256, 64, 128},  {128, 256, 64, 128},
-      {192, 256, 64, 128}, {256, 256, 64, 128}, {320, 256, 64, 128},
-      {384, 256, 64, 128}, {448, 256, 64, 128}, {512, 256, 64, 128},
-  };
-
-  std::vector<Rectangle> idleUp = {
-      {0, 384, 64, 128},   {64, 384, 64, 128},  {128, 384, 64, 128},
-      {192, 384, 64, 128}, {256, 384, 64, 128}, {320, 384, 64, 128},
-      {384, 384, 64, 128}, {448, 384, 64, 128}, {512, 384, 64, 128},
-  };
-
-  // Register animation definition in the database
-  auto &db = criogenio::AnimationDatabase::instance();
-  criogenio::AssetId animId = db.createAnimation(path);
-
-  // Helper: convert Rectangle vector to AnimationFrame vector
-  auto toFrames = [](const std::vector<Rectangle> &rects) {
-    std::vector<criogenio::AnimationFrame> frames;
-    for (const auto &r : rects)
-      frames.push_back({r});
-    return frames;
-  };
-
-  // Add all animation clips
-  db.addClip(animId, {"idle_down", toFrames(idleDown), 0.10f});
-  db.addClip(animId, {"idle_up", toFrames(idleUp), 0.10f});
-  db.addClip(animId, {"idle_left", toFrames(idleLeft), 0.10f});
-  db.addClip(animId, {"idle_right", toFrames(idleRight), 0.10f});
-
-  // TODO:(maraujo)
-  //  That should come from a file, since I can edit it on editor
-
-  // Add walking animation, should start after 64 pixels in y axis
-  std::vector<Rectangle> walkDown = {
-      {0, 512, 64, 128},   {64, 512, 64, 128},  {128, 512, 64, 128},
-      {192, 512, 64, 128}, {256, 512, 64, 128}, {320, 512, 64, 128},
-      {384, 512, 64, 128}, {448, 512, 64, 128}, {512, 512, 64, 128},
-  };
-  db.addClip(animId, {"walk_down", toFrames(walkDown), 0.1f});
-
-  std::vector<Rectangle> walkLeft = {
-      {0, 640, 64, 128},   {64, 640, 64, 128},  {128, 640, 64, 128},
-      {192, 640, 64, 128}, {256, 640, 64, 128}, {320, 640, 64, 128},
-      {384, 640, 64, 128}, {448, 640, 64, 128}, {512, 640, 64, 128},
-  };
-  db.addClip(animId, {"walk_left", toFrames(walkLeft), 0.1f});
-
-  std::vector<Rectangle> walkRight = {
-      {0, 768, 64, 128},   {64, 768, 64, 128},  {128, 768, 64, 128},
-      {192, 768, 64, 128}, {256, 768, 64, 128}, {320, 768, 64, 128},
-      {384, 768, 64, 128}, {448, 768, 64, 128}, {512, 768, 64, 128},
-  };
-  db.addClip(animId, {"walk_right", toFrames(walkRight), 0.1f});
-
-  std::vector<Rectangle> walkUp = {
-      {0, 896, 64, 128},   {64, 896, 64, 128},  {128, 896, 64, 128},
-      {192, 896, 64, 128}, {256, 896, 64, 128}, {320, 896, 64, 128},
-      {384, 896, 64, 128}, {448, 896, 64, 128}, {512, 896, 64, 128},
-  };
-  db.addClip(animId, {"walk_up", toFrames(walkUp), 0.1f});
-
-  // Create the sprite component with the animation asset ID
-  auto &anim = World.AddComponent<criogenio::AnimatedSprite>(entityId, animId);
-  anim.SetClip("idle_down");
-  // track usage
-  criogenio::AnimationDatabase::instance().addReference(animId);
-
-  // TODO:inter dependent of animatin sprited component
-  World.AddComponent<criogenio::AnimationState>(entityId);
-  World.AddComponent<criogenio::Controller>(entityId, 200);
-
+  // Add custom game system
   static_assert(std::is_base_of_v<criogenio::ISystem, MySystem>);
   static_assert(!std::is_abstract_v<MySystem>);
   World.AddSystem<MySystem>(World);

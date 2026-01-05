@@ -32,8 +32,25 @@ Engine::Engine(int width, int height, const char *title) : width(width) {
 }
 
 Engine::~Engine() {
-  delete world;
-  delete renderer;
+  // Clear animation database first to remove references
+  criogenio::AnimationDatabase::instance().clear();
+
+  // Delete world - its destructor will clean up systems and ECS
+  // Do this BEFORE deleting renderer so GPU resources exist during cleanup
+  if (world) {
+    delete world;
+    world = nullptr;
+  }
+
+  // Clear AssetManager cache BEFORE closing window (while OpenGL context is
+  // active) This will properly call glDeleteTextures before CloseWindow()
+  criogenio::AssetManager::instance().clear();
+
+  // Delete renderer last (calls CloseWindow())
+  if (renderer) {
+    delete renderer;
+    renderer = nullptr;
+  }
 }
 
 World &Engine::GetWorld() { return *world; }
