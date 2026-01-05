@@ -20,3 +20,5 @@ imgui-master
 .vscode/*.log
 
 */assets/*
+
+imgui.ini
