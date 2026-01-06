@@ -45,6 +45,7 @@ struct SerializedEntity {
 struct SerializedAnimation {
   std::string name;
   std::vector<int> frameIndices;
+  std::string texturePath;
   float frameSpeed;
 };
 
