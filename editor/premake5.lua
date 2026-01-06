@@ -1,53 +1,77 @@
-baseName = path.getbasename(os.getcwd())
-
-project(workspaceName)
-kind("ConsoleApp")
-location("./")
-targetdir("../bin/%{cfg.buildcfg}")
-
-cdialect("C23")
+project(workspaceName .. "_editor")
+kind("ConsoleApp") -- or WindowedApp
+language("C++")
 cppdialect("C++23")
+staticruntime("off")
 
-filter("action:vs*")
-debugdir("$(SolutionDir)")
+targetdir("../bin/%{cfg.buildcfg}")
+objdir("../bin-int/%{prj.name}/%{cfg.buildcfg}")
 
-filter({ "action:vs*", "configurations:Release" })
-kind("WindowedApp")
-entrypoint("mainCRTStartup")
+-----------------------------------------
+-- SOURCE FILES (ONLY WHAT YOU NEED)
+-----------------------------------------
+files({
+	"src/**.cpp",
+	"src/**.h",
 
-filter("configurations:*")
-defines({ "_GLIBCXX_ASSERTIONS" })
+	"include/**.h",
 
+	-- rlImGui
+	"thirdpart/rlImGui-main/rlImGui.cpp",
+
+	-- Dear ImGui core
+	"thirdpart/imgui-docking/imgui.cpp",
+	"thirdpart/imgui-docking/imgui_draw.cpp",
+	"thirdpart/imgui-docking/imgui_tables.cpp",
+	"thirdpart/imgui-docking/imgui_widgets.cpp",
+})
+
+-----------------------------------------
+-- INCLUDE DIRECTORIES
+-----------------------------------------
+includedirs({
+	"src",
+	"include",
+
+	"../engine/include",
+
+	-- ImGui
+	"thirdpart/rlImGui-main",
+	"thirdpart/imgui-docking",
+})
+
+-----------------------------------------
+-- LINKS
+-----------------------------------------
+links({
+	"engine",
+})
+
+link_raylib()
+
+-----------------------------------------
+-- PLATFORM
+-----------------------------------------
+filter("system:linux")
+links({
+	"GL",
+	"pthread",
+	"m",
+	"dl",
+	"X11",
+})
+
+filter("system:windows")
+systemversion("latest")
+
+-----------------------------------------
+-- CONFIGS
+-----------------------------------------
 filter("configurations:Debug")
 symbols("On")
 optimize("Off")
 
-filter({})
-
-vpaths({
-	["Header Files/*"] = { "include/**.h", "include/**.hpp", "src/**.h", "src/**.hpp", "**.h", "**.hpp" },
-	["Source Files/*"] = { "src/**.c", "src/**.cpp", "**.c", "**.cpp" },
-	["Application Resource Files/*"] = { "src/**.rc", "src/**.ico" },
-})
-files({ "**.c", "**.cpp", "**.h", "**.hpp" })
-
-filter("system:windows")
-files({ "src/**.rc", "src/**.ico" })
-resincludedirs({ "src/**" })
-filter({})
-
-filter("files:**.ico")
-buildaction("Embed")
+filter("configurations:Release")
+optimize("On")
 
 filter({})
-
-includedirs({ "./" })
-includedirs({ "src" })
-includedirs({ "include" })
-
-link_to("engine")
-link_raylib()
---link_raygui()
---link_to("../bin/Debug/ImGui")
-
--- To link to a lib use link_to("LIB_FOLDER_NAME")

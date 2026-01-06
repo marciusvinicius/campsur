@@ -1,32 +1,30 @@
 #pragma once
 
-#include "core.h"
+#include "core_systems.h"
 #include "event.h"
+#include "raylib.h"
 #include "render.h"
-#include "scene.h"
+#include "world.h"
 
 namespace criogenio {
 
 Texture2D CriogenioLoadTexture(const char *file_name);
 
-/*
-
-	Start to think about how to serialize the scene, for now we dont have a simple way
-	to build the scenes and then load it from a file
-	that should include entities and components
-
-*/
-
 class Engine {
 public:
+  int width;
+  int height;
   Engine(int width, int height, const char *title);
   ~Engine();
 
   void Run();
 
-  Scene &GetScene();
+  World &GetWorld();
   EventBus &GetEventBus();
   Renderer &GetRenderer();
+  Vector2 GetMouseWorld();
+
+  void RegisterCoreComponents();
 
 protected:
   virtual void OnGUI() {} // Editor overrides this
@@ -34,7 +32,7 @@ protected:
 private:
   // TODO:(maraujo) use smartpointer
   Renderer *renderer;
-  Scene *scene;
+  World *world;
   EventBus eventBus;
   float previousTime = 0;
 };

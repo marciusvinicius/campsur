@@ -16,7 +16,8 @@ Terrain2D TilemapLoader::LoadFromJSON(const std::string &path) {
   auto &tilesetJson = data["tilesets"][0];
   std::string img = tilesetJson["image"];
 
-  terrain.tileset.atlas = LoadTexture(img.c_str());
+  terrain.tileset.atlas =
+      criogenio::AssetManager::instance().load<TextureResource>(img);
   terrain.tileset.tileSize = data["tilewidth"];
   terrain.tileset.columns = tilesetJson["columns"];
   terrain.tileset.rows = tilesetJson["tilecount"];

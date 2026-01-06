@@ -1,6 +1,6 @@
 baseName = path.getbasename(os.getcwd())
 
-project(workspaceName)
+project(workspaceName .. "snakegame")
 kind("ConsoleApp")
 location("./")
 targetdir("../bin/%{cfg.buildcfg}")

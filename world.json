@@ -1,0 +1,154 @@
+{
+  "entities": [
+    {
+      "components": [
+        {
+          "fields": {
+            "x": 85.66779327392578,
+            "y": 22.333730697631836
+          },
+          "type": "Transform"
+        },
+        {
+          "fields": {
+            "current": 0,
+            "facing": 0,
+            "previous": 0
+          },
+          "type": "AnimationState"
+        },
+        {
+          "fields": {
+            "direction": 0,
+            "speed": 200.0
+          },
+          "type": "Controller"
+        },
+        {
+          "fields": {
+            "animationId": 1,
+            "currentClipName": "idle_up"
+          },
+          "type": "AnimatedSprite"
+        }
+      ],
+      "id": 1
+    }
+  ],
+  "terrain": {
+    "layers": [
+      {
+        "height": 10,
+        "tiles": [
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8
+        ],
+        "width": 10
+      }
+    ],
+    "tileset": {
+      "columns": 10,
+      "rows": 8,
+      "tileSize": 24,
+      "tilesetPath": "editor/assets/terrain.jpg"
+    }
+  }
+}

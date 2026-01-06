@@ -1,7 +1,10 @@
 #include "editor.h"
 
 int main() {
-  EditorApp app(1280, 720);
+  int monitor = 0; // Primary monitor
+  int width = GetMonitorWidth(monitor);
+  int height = GetMonitorHeight(monitor);
+  EditorApp app(width, height);
   app.Run();
   return 0;
 }

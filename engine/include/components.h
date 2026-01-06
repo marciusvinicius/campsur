@@ -1,7 +1,7 @@
 #pragma once
 #include "animation_state.h"
-#include "serialization.h"
 #include "raylib.h"
+#include "serialization.h"
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -11,8 +11,13 @@ using ComponentTypeId = std::size_t;
 
 namespace criogenio {
 
-//TODO(maraujo): Move this to a const.h
-enum Direction { UP, DOWN, LEFT, RIGHT };
+struct ISerializableComponent {
+  virtual ~ISerializableComponent() = default;
+
+  virtual std::string TypeName() const = 0;
+  virtual SerializedComponent Serialize() const = 0;
+  virtual void Deserialize(const SerializedComponent &data) = 0;
+};
 
 class ComponentTypeRegistry {
 public:
@@ -21,46 +26,58 @@ public:
     return lastId++;
   }
 };
-
-template <typename T> ComponentTypeId GetComponentTypeId() {
-  static ComponentTypeId id = ComponentTypeRegistry::NewId();
-  return id;
+inline ComponentTypeId GetUniqueComponentTypeId() {
+  static ComponentTypeId lastId = 0;
+  return lastId++;
 }
 
-
-struct ISerializableComponent {
-    virtual ~ISerializableComponent() = default;
-
-    virtual std::string TypeName() const = 0;
-    virtual SerializedComponent Serialize() const = 0;
-    virtual void Deserialize(const SerializedComponent& data) = 0;
-};
-
+template <typename T> inline ComponentTypeId GetComponentTypeId() {
+  static ComponentTypeId typeId = GetUniqueComponentTypeId();
+  return typeId;
+}
 
 class Component {
 public:
   virtual ~Component() = default;
+
+  virtual std::string TypeName() const = 0;
+  virtual SerializedComponent Serialize() const = 0;
+  virtual void Deserialize(const SerializedComponent &data) = 0;
 };
 
 class Transform : public Component {
 public:
   float x = 0;
   float y = 0;
+  float rotation = 0;
+  float scale_x = 0;
+  float scale_y = 0;
 
   Transform() = default;
   Transform(float x, float y) : x(x), y(y) {}
-};
 
-class Sprite : public Component {
-public:
-  Sprite() {
-    loaded = true;
-    // Add this on the constructor later
-    texture = LoadTextureFromImage(GenImageColor(32, 32, WHITE));
+  std::string TypeName() const override { return "Transform"; }
+
+  SerializedComponent Serialize() const override {
+    return {"Transform", {{"x", x}, {"y", y}}};
   }
-  Texture2D texture;
-  bool loaded = false;
-  std::string path;
+
+  void Deserialize(const SerializedComponent &data) override {
+    if (auto it = data.fields.find("x"); it != data.fields.end())
+      x = std::get<float>(it->second);
+
+    if (auto it = data.fields.find("y"); it != data.fields.end())
+      y = std::get<float>(it->second);
+
+    if (auto it = data.fields.find("rotation"); it != data.fields.end())
+      rotation = std::get<float>(it->second);
+
+    if (auto it = data.fields.find("scale_x"); it != data.fields.end())
+      scale_x = std::get<float>(it->second);
+
+    if (auto it = data.fields.find("scale_y"); it != data.fields.end())
+      scale_y = std::get<float>(it->second);
+  }
 };
 
 struct Animation {
@@ -68,119 +85,78 @@ struct Animation {
   float frameTime = 0.1f;
 };
 
-class AnimatedSprite : public Component {
-public:
-  struct Animation {
-    std::vector<Rectangle> frames;
-    float frameSpeed = 0.2f;
-  };
-
-  std::unordered_map<std::string, Animation> animations;
-  std::string currentAnim = "";
-  float timer = 0.0f;
-  int frameIndex = 0;
-
-  Texture2D texture;
-
-  AnimatedSprite(const std::string &initialAnim,
-                 const std::vector<Rectangle> &frames, float speed,
-                 Texture2D tex)
-      : texture(tex) {
-    AddAnimation(initialAnim, frames, speed);
-    SetAnimation(initialAnim);
-  }
-
-  void AddAnimation(const std::string &name,
-                    const std::vector<Rectangle> &frames, float speed) {
-    animations[name] = Animation{frames, speed};
-  }
-
-  void SetAnimation(const std::string &name) {
-    if (currentAnim == name)
-      return;
-
-    currentAnim = name;
-    frameIndex = 0;
-    timer = 0.0f;
-  }
-
-  void Update(float dt) {
-    if (animations.empty() || currentAnim.empty())
-      return;
-    auto it = animations.find(currentAnim);
-    if (it == animations.end())
-      return;
-
-    auto &anim = it->second;
-    if (anim.frames.empty())
-      return;
-
-    timer += dt;
-    if (timer >= anim.frameSpeed) {
-      timer = 0;
-      frameIndex = (frameIndex + 1) % anim.frames.size();
-    }
-  }
-
-  Rectangle GetFrame() const {
-
-    const auto &anim = animations.at(currentAnim);
-    if (anim.frames.empty()) {
-      TraceLog(LOG_ERROR, "AnimatedSprite: animation '%s' has 0 frames!",
-               currentAnim.c_str());
-      return {0, 0, 0, 0}; // prevent crash
-    }
-    return anim.frames[frameIndex];
-  }
-};
-
-class Collider : public Component {
-public:
-  float width = 20;
-  float height = 20;
-  bool isTrigger = false; // If true, no physics resolution
-};
-
-class CameraComponent : public Component {
-
-public:
-  Camera2D cam;
-  bool active = false;
-};
-
 class Controller : public Component {
 public:
   float speed = 200.0f;
-  Direction direction = UP;
+  Direction direction = Direction::UP;
+  Controller() = default;
   Controller(float speed) : speed(speed) {}
-};
 
+  std::string TypeName() const override { return "Controller"; }
+
+  SerializedComponent Serialize() const override {
+    return {"Controller",
+            {
+                {"speed", speed},
+                {"direction", static_cast<int>(direction)},
+            }};
+  }
+
+  void Deserialize(const SerializedComponent &data) override {
+    speed = std::get<float>(data.fields.at("speed"));
+    direction =
+        static_cast<Direction>(std::get<int>(data.fields.at("direction")));
+  }
+};
 
 class AIController : public Component {
 public:
-    float speed = 200.0f;
-    Direction direction = UP;
-    AIBrainState brainState = FRIENDLY;
-    int entityTarget;
-};
+  float speed = 200.0f;
+  Direction direction = Direction::UP;
+  AIBrainState brainState = FRIENDLY;
+  int entityTarget = -1;
 
+  AIController() = default;
 
-class InteractableComponent : public Component {
-public:
+  AIController(float speed, int entityTarget)
+      : speed(speed), entityTarget(entityTarget) {}
+  std::string TypeName() const override { return "AIController"; }
 
+  SerializedComponent Serialize() const override {
+    return {"AIController",
+            {
+                {"speed", speed},
+                {"direction", static_cast<int>(direction)},
+                {"brainState", static_cast<int>(brainState)},
+                {"entityTarget", entityTarget},
+            }};
+  }
+
+  void Deserialize(const SerializedComponent &data) override {
+    speed = std::get<float>(data.fields.at("speed"));
+    direction =
+        static_cast<Direction>(std::get<int>(data.fields.at("direction")));
+    brainState =
+        static_cast<AIBrainState>(std::get<int>(data.fields.at("brainState")));
+    entityTarget = std::get<int>(data.fields.at("entityTarget"));
+  }
 };
 
 class Name : public Component {
 public:
   std::string name;
-  Name(const std::string &name) : name(name) {}
-};
 
-class AnimationState : public Component {
-public:
-  AnimState current = AnimState::IDLE;
-  AnimState previous = AnimState::IDLE;
-  Direction facing = DOWN;
+  Name() = default;
+  Name(const std::string &name) : name(name) {}
+
+  std::string TypeName() const override { return "Name"; }
+  SerializedComponent Serialize() const override {
+    return {"Name", {{"name", name}}};
+  }
+
+  void Deserialize(const SerializedComponent &data) override {
+    name = std::get<std::string>(data.fields.at("name"));
+  }
 };
 
 } // namespace criogenio

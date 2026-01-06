@@ -1,23 +1,59 @@
 #include "engine.h"
+#include "asset_manager.h"
+#include "component_factory.h"
 #include "raylib.h"
 #include "raymath.h"
+#include "resources.h"
 
 namespace criogenio {
+
 Texture2D CriogenioLoadTexture(const char *file_name) {
   return LoadTexture(file_name);
 }
 
-Engine::Engine(int width, int height, const char *title) {
+Engine::Engine(int width, int height, const char *title) : width(width) {
+
+  RegisterCoreComponents();
   renderer = new Renderer(width, height, title);
-  scene = new Scene();
+  world = new World();
+
+  // Register a simple texture loader that wraps raylib's LoadTexture
+  AssetManager::instance().registerLoader<TextureResource>(
+      [](const std::string &p) -> std::shared_ptr<TextureResource> {
+        Texture2D t = CriogenioLoadTexture(p.c_str());
+        if (t.id == 0) {
+          // Failed to load texture, log error
+          TraceLog(LOG_WARNING, "AssetManager: Failed to load texture: %s",
+                   p.c_str());
+          return nullptr;
+        }
+        return std::make_shared<TextureResource>(p, t);
+      });
 }
 
 Engine::~Engine() {
-  delete scene;
-  delete renderer;
+  // Clear animation database first to remove references
+  criogenio::AnimationDatabase::instance().clear();
+
+  // Delete world - its destructor will clean up systems and ECS
+  // Do this BEFORE deleting renderer so GPU resources exist during cleanup
+  if (world) {
+    delete world;
+    world = nullptr;
+  }
+
+  // Clear AssetManager cache BEFORE closing window (while OpenGL context is
+  // active) This will properly call glDeleteTextures before CloseWindow()
+  criogenio::AssetManager::instance().clear();
+
+  // Delete renderer last (calls CloseWindow())
+  if (renderer) {
+    delete renderer;
+    renderer = nullptr;
+  }
 }
 
-Scene &Engine::GetScene() { return *scene; }
+World &Engine::GetWorld() { return *world; }
 EventBus &Engine::GetEventBus() { return eventBus; }
 Renderer &Engine::GetRenderer() { return *renderer; }
 
@@ -27,12 +63,38 @@ void Engine::Run() {
     float now = GetTime();
     float dt = now - previousTime;
     previousTime = now;
-    scene->Update(dt);
+    world->Update(dt);
     renderer->BeginFrame();
-    scene->Render(*renderer);
+    world->Render(*renderer);
     // Just call GUI hook — unused in game runtime
     OnGUI();
     renderer->EndFrame();
   }
+}
+
+void Engine::RegisterCoreComponents() {
+
+  ComponentFactory::Register("Transform", [](World &w, int e) {
+    return &w.AddComponent<Transform>(e);
+  });
+
+  ComponentFactory::Register("AnimatedSprite", [](World &w, int e) {
+    return &w.AddComponent<AnimatedSprite>(e);
+  });
+
+  ComponentFactory::Register("Controller", [](World &w, int e) {
+    return &w.AddComponent<Controller>(e);
+  });
+
+  ComponentFactory::Register("AnimationState", [](World &w, int e) {
+    return &w.AddComponent<AnimationState>(e);
+  });
+
+  ComponentFactory::Register("AIController", [](World &w, int e) {
+    return &w.AddComponent<AIController>(e);
+  });
+
+  ComponentFactory::Register(
+      "Name", [](World &w, int e) { return &w.AddComponent<Name>(e, ""); });
 }
 } // namespace criogenio
