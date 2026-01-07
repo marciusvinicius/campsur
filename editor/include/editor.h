@@ -73,6 +73,9 @@ private:
   void DrawEntityNode(int entity);
 
   bool IsMouseInWorldView();
+  
+  // Helper to convert mouse screen position to world coordinates
+  Vector2 ScreenToWorldPosition(Vector2 mouseScreen);
 
   // helpers
   void DrawButton(int x, int y, int w, int h, const char *label,
@@ -90,6 +93,7 @@ private:
   // Simple ImGui file browser state
   bool fileBrowserVisible = false;
   int fileBrowserTargetEntity = -1;
+  bool fileBrowserForTerrain = false; // Flag to indicate if browser is for terrain
   std::vector<std::string> fileBrowserEntries;
   std::string fileBrowserFilter;
 
@@ -105,4 +109,6 @@ private:
   void DrawTerrainEditor();
   // Draw grid overlay on terrain in viewport
   void DrawTerrainGridOverlay();
+  // Draw file browser popup (called every frame)
+  void DrawFileBrowserPopup();
 };

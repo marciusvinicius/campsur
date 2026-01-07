@@ -3,7 +3,7 @@
 ## Editor
 
   [ ] Fixing issue with editor grid when editing a terrain
-  [ ] Issue when selecting on editor a animation state that does not exist
+  [√] Issue when selecting on editor a animation state that does not exist
   [ ] New entities should have the id in the name
   [ ] Entity selected drawing before tileset
   [ ] Asset manager system
@@ -43,9 +43,6 @@
   [ ] Add 3D engine backend
   [ ] World Graph (persist and load json for now)
   [ ] Organize better the arquitecture of World and systems
-  [ ] Add a system manager
-  [ ] Add a component manager
-  [ ] World hold the managers and system comunicate with then
 
 ## Game
 

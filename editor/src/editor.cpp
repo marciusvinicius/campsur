@@ -355,10 +355,13 @@ void EditorApp::OnGUI() {
   DrawTerrainEditor();
   // DrawToolbar();
   DrawMainMenuBar();
+  
+  // File browser popup (must be rendered every frame when visible)
+  DrawFileBrowserPopup();
+  
   rlImGuiEnd(); // renders ImGui
 
-  // Draw terrain grid overlay (on top of ImGui, on the viewport)
-  DrawTerrainGridOverlay();
+  // Grid overlay is drawn inside RenderSceneToTexture() in world space
 }
 
 void EditorApp::DrawDockSpace() {
@@ -585,16 +588,17 @@ void EditorApp::DrawMainMenuBar() {
 
   // Terrain painting mode
   if (terrainEditMode) {
-    // Check if mouse is within viewport
     Vector2 mouseScreen = GetMousePosition();
+    
+    // Check if mouse is within viewport
     if (mouseScreen.x >= viewportPos.x &&
         mouseScreen.x <= viewportPos.x + viewportSize.x &&
         mouseScreen.y >= viewportPos.y &&
         mouseScreen.y <= viewportPos.y + viewportSize.y) {
 
       if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
-        Vector2 worldPos =
-            GetScreenToWorld2D(mouseScreen, GetWorld().maincamera);
+        Vector2 worldPos = ScreenToWorldPosition(mouseScreen);
+        
         auto *terrain = GetWorld().GetTerrain();
         if (terrain) {
           int tileSize = terrain->tileset.tileSize;
@@ -676,6 +680,40 @@ void EditorApp::DrawTerrainEditor() {
     int atlasH = tex->texture.height;
 
     ImGui::Text("Tileset: %s", terrain->tileset.tilesetPath.c_str());
+    ImGui::SameLine();
+    if (ImGui::Button("Change Texture")) {
+      namespace fs = std::filesystem;
+      auto root = fs::path("editor") / "assets";
+      fileBrowserEntries.clear();
+      try {
+        if (fs::exists(root)) {
+          for (auto &p : fs::recursive_directory_iterator(root)) {
+            if (p.is_regular_file()) {
+              std::string ext = p.path().extension().string();
+              // Filter for image files
+              if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || 
+                  ext == ".bmp" || ext == ".gif" || ext == ".tga") {
+                fileBrowserEntries.push_back(p.path().string());
+              }
+            }
+          }
+          std::sort(fileBrowserEntries.begin(), fileBrowserEntries.end());
+        }
+      } catch (...) {
+      }
+      fileBrowserFilter.clear();
+      fileBrowserForTerrain = true;
+      fileBrowserTargetEntity = -1; // Not used for terrain
+      // Initialize preview with current terrain texture
+      fileBrowserPreviewPath = terrain->tileset.tilesetPath;
+      if (!fileBrowserPreviewPath.empty()) {
+        fileBrowserPreviewTex = AssetManager::instance().load<criogenio::TextureResource>(fileBrowserPreviewPath);
+      } else {
+        fileBrowserPreviewTex = nullptr;
+      }
+      fileBrowserVisible = true;
+      ImGui::OpenPopup("File Browser");
+    }
     ImGui::Separator();
 
     for (int y = 0; y < rows; ++y) {
@@ -738,30 +776,42 @@ void EditorApp::DrawTerrainGridOverlay() {
   }
 
   // Draw vertical grid lines (world space, already inside BeginMode2D)
-  // Only draw lines within terrain bounds
+  // Draw lines at exact tile boundaries - use thin rectangles for precise alignment
+  float lineWidth = 1.0f;
+  Color gridColor = Color{100, 200, 255, 150};
+  float extend = 10.0f; // Extend grid slightly beyond terrain for visibility
+  
+  // Draw vertical lines at tile boundaries (including edges)
   for (int x = 0; x <= cols; ++x) {
-    Vector2 start = {(float)x * tileSize, 0.0f};
-    Vector2 end = {(float)x * tileSize, (float)rows * tileSize};
-    DrawLineEx(start, end, 2.0f, Color{100, 200, 255, 150});
+    float xPos = (float)x * tileSize;
+    // Draw a thin vertical rectangle centered on the boundary
+    DrawRectangleRec(
+      {xPos - lineWidth * 0.5f, -extend, lineWidth, (float)rows * tileSize + extend * 2.0f},
+      gridColor
+    );
   }
 
-  // Draw horizontal grid lines (world space)
-  // Only draw lines within terrain bounds
+  // Draw horizontal lines at tile boundaries (including edges)
   for (int y = 0; y <= rows; ++y) {
-    Vector2 start = {0.0f, (float)y * tileSize};
-    Vector2 end = {(float)cols * tileSize, (float)y * tileSize};
-    DrawLineEx(start, end, 2.0f, Color{100, 200, 255, 150});
+    float yPos = (float)y * tileSize;
+    // Draw a thin horizontal rectangle centered on the boundary
+    DrawRectangleRec(
+      {-extend, yPos - lineWidth * 0.5f, (float)cols * tileSize + extend * 2.0f, lineWidth},
+      gridColor
+    );
   }
 
   // Draw current tile preview at mouse cursor
   Vector2 mouseScreen = GetMousePosition();
-  Vector2 worldPos = GetScreenToWorld2D(mouseScreen, GetWorld().maincamera);
+  Vector2 worldPos = ScreenToWorldPosition(mouseScreen);
+  
+  // Calculate tile coordinates (snap to grid)
   int tx = static_cast<int>(floor(worldPos.x / (float)tileSize));
   int ty = static_cast<int>(floor(worldPos.y / (float)tileSize));
 
   if (tx >= 0 && tx < cols && ty >= 0 && ty < rows) {
+    // Calculate tile position in world space (aligned to grid)
     Vector2 tilePos = {(float)tx * tileSize, (float)ty * tileSize};
-    Vector2 tileEnd = {tilePos.x + tileSize, tilePos.y + tileSize};
 
     // Highlight the tile under cursor with a green border (world space)
     DrawRectangleLinesEx(
@@ -911,6 +961,36 @@ void EditorApp::PickEntityAt(Vector2 worldPos) {
 bool EditorApp::IsSceneInputAllowed() const {
   return viewportHovered && !ImGui::IsAnyItemActive() &&
          !ImGui::IsAnyItemHovered();
+}
+
+Vector2 EditorApp::ScreenToWorldPosition(Vector2 mouseScreen) {
+  // Check if mouse is within viewport
+  if (mouseScreen.x < viewportPos.x || mouseScreen.x > viewportPos.x + viewportSize.x ||
+      mouseScreen.y < viewportPos.y || mouseScreen.y > viewportPos.y + viewportSize.y) {
+    return {0, 0}; // Return invalid position if outside viewport
+  }
+  
+  // Convert screen coordinates to viewport coordinates
+  Vector2 viewportMouse = {
+    mouseScreen.x - viewportPos.x,
+    mouseScreen.y - viewportPos.y
+  };
+  
+  // Convert viewport coordinates to normalized texture coordinates (0-1)
+  Vector2 normalizedPos = {
+    viewportMouse.x / viewportSize.x,
+    viewportMouse.y / viewportSize.y
+  };
+  
+  // Convert normalized coordinates to texture screen coordinates
+  // Note: Texture Y is flipped (0 at top in ImGui, 0 at bottom in texture)
+  Vector2 textureScreen = {
+    normalizedPos.x * (float)sceneRT.texture.width,
+    (1.0f - normalizedPos.y) * (float)sceneRT.texture.height
+  };
+  
+  // Convert texture screen coordinates to world coordinates using camera
+  return GetScreenToWorld2D(textureScreen, GetWorld().maincamera);
 }
 
 void EditorApp::DrawEntityHeader(int entity) {
@@ -1215,6 +1295,7 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
       }
       fileBrowserFilter.clear();
       fileBrowserTargetEntity = entity;
+      fileBrowserForTerrain = false;
       fileBrowserVisible = true;
       ImGui::OpenPopup("File Browser");
     }
@@ -1235,11 +1316,17 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
     }
   }
 
-  // Simple file browser popup
-  if (fileBrowserVisible) {
-    if (ImGui::BeginPopupModal("File Browser", NULL,
+  // File browser popup is now in DrawFileBrowserPopup() - removed from here
+}
+
+void EditorApp::DrawFileBrowserPopup() {
+  // Simple file browser popup - must be called every frame when visible
+  // OpenPopup is called when button is clicked, BeginPopupModal shows it
+  if (fileBrowserVisible && ImGui::BeginPopupModal("File Browser", NULL,
                                ImGuiWindowFlags_AlwaysAutoResize)) {
-      ImGui::Text("Select texture file (root: editor/assets)");
+      ImGui::Text(fileBrowserForTerrain ? 
+                  "Select terrain texture file (root: editor/assets)" :
+                  "Select texture file (root: editor/assets)");
       char filterBuf[256] = {0};
       strncpy(filterBuf, fileBrowserFilter.c_str(), sizeof(filterBuf) - 1);
       if (ImGui::InputText("Filter", filterBuf, sizeof(filterBuf))) {
@@ -1253,7 +1340,11 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
             continue;
         }
         if (ImGui::Selectable(entry.c_str())) {
-          texturePathEdits[fileBrowserTargetEntity] = entry;
+          if (fileBrowserForTerrain) {
+            fileBrowserPreviewPath = entry; // Store selected path for terrain
+          } else {
+            texturePathEdits[fileBrowserTargetEntity] = entry;
+          }
         }
         if (ImGui::IsItemHovered()) {
           // update preview when hovered
@@ -1265,41 +1356,62 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
           }
         }
         if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
-          texturePathEdits[fileBrowserTargetEntity] = entry;
-          // apply selection by cloning or editing in-place depending on user's
-          // choice
-          auto *spr = GetWorld().GetComponent<criogenio::AnimatedSprite>(
-              fileBrowserTargetEntity);
-          bool inplace = false;
-          auto itEdit = editInPlace.find(fileBrowserTargetEntity);
-          if (itEdit != editInPlace.end())
-            inplace = itEdit->second;
-
-          AssetId oldId = spr->animationId;
-          int refs = AnimationDatabase::instance().getRefCount(oldId);
-
-          if (inplace || refs <= 1) {
-            std::string oldPath =
-                AnimationDatabase::instance().setTexturePath(oldId, entry);
-            if (!oldPath.empty())
-              AssetManager::instance().unload(oldPath);
-            AssetManager::instance().load<criogenio::TextureResource>(entry);
-          } else {
-            AssetId newId = AnimationDatabase::instance().cloneAnimation(oldId);
-            if (newId == INVALID_ASSET_ID) {
-              newId = AnimationDatabase::instance().createAnimation(entry);
-            } else {
-              AnimationDatabase::instance().setTexturePath(newId, entry);
+          if (fileBrowserForTerrain) {
+            // Apply terrain texture
+            auto *terrain = GetWorld().GetTerrain();
+            if (terrain) {
+              // Unload old texture
+              if (!terrain->tileset.tilesetPath.empty()) {
+                AssetManager::instance().unload(terrain->tileset.tilesetPath);
+              }
+              // Update tileset with new texture
+              terrain->tileset.tilesetPath = entry;
+              terrain->tileset.atlas = AssetManager::instance().load<criogenio::TextureResource>(entry);
+              if (!terrain->tileset.atlas) {
+                TraceLog(LOG_WARNING, "Failed to load terrain texture: %s", entry.c_str());
+              }
             }
-            AnimationDatabase::instance().removeReference(oldId);
-            AnimationDatabase::instance().addReference(newId);
-            spr->animationId = newId;
-            AssetManager::instance().load<criogenio::TextureResource>(entry);
-          }
+            fileBrowserVisible = false;
+            fileBrowserForTerrain = false;
+            ImGui::CloseCurrentPopup();
+            break;
+          } else {
+            texturePathEdits[fileBrowserTargetEntity] = entry;
+            // apply selection by cloning or editing in-place depending on user's
+            // choice
+            auto *spr = GetWorld().GetComponent<criogenio::AnimatedSprite>(
+                fileBrowserTargetEntity);
+            bool inplace = false;
+            auto itEdit = editInPlace.find(fileBrowserTargetEntity);
+            if (itEdit != editInPlace.end())
+              inplace = itEdit->second;
 
-          fileBrowserVisible = false;
-          ImGui::CloseCurrentPopup();
-          break;
+            AssetId oldId = spr->animationId;
+            int refs = AnimationDatabase::instance().getRefCount(oldId);
+
+            if (inplace || refs <= 1) {
+              std::string oldPath =
+                  AnimationDatabase::instance().setTexturePath(oldId, entry);
+              if (!oldPath.empty())
+                AssetManager::instance().unload(oldPath);
+              AssetManager::instance().load<criogenio::TextureResource>(entry);
+            } else {
+              AssetId newId = AnimationDatabase::instance().cloneAnimation(oldId);
+              if (newId == INVALID_ASSET_ID) {
+                newId = AnimationDatabase::instance().createAnimation(entry);
+              } else {
+                AnimationDatabase::instance().setTexturePath(newId, entry);
+              }
+              AnimationDatabase::instance().removeReference(oldId);
+              AnimationDatabase::instance().addReference(newId);
+              spr->animationId = newId;
+              AssetManager::instance().load<criogenio::TextureResource>(entry);
+            }
+
+            fileBrowserVisible = false;
+            ImGui::CloseCurrentPopup();
+            break;
+          }
         }
       }
       ImGui::EndChild();
@@ -1322,34 +1434,52 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
       ImGui::EndChild();
 
       if (ImGui::Button("OK")) {
-        auto sel = texturePathEdits[fileBrowserTargetEntity];
-        auto *spr = GetWorld().GetComponent<criogenio::AnimatedSprite>(
-            fileBrowserTargetEntity);
-        bool inplace = false;
-        auto itEdit = editInPlace.find(fileBrowserTargetEntity);
-        if (itEdit != editInPlace.end())
-          inplace = itEdit->second;
-
-        AssetId oldId = spr->animationId;
-        int refs = AnimationDatabase::instance().getRefCount(oldId);
-
-        if (inplace || refs <= 1) {
-          std::string oldPath =
-              AnimationDatabase::instance().setTexturePath(oldId, sel);
-          if (!oldPath.empty())
-            AssetManager::instance().unload(oldPath);
-          AssetManager::instance().load<criogenio::TextureResource>(sel);
-        } else {
-          AssetId newId = AnimationDatabase::instance().cloneAnimation(oldId);
-          if (newId == INVALID_ASSET_ID) {
-            newId = AnimationDatabase::instance().createAnimation(sel);
-          } else {
-            AnimationDatabase::instance().setTexturePath(newId, sel);
+        if (fileBrowserForTerrain) {
+          // Apply terrain texture
+          auto *terrain = GetWorld().GetTerrain();
+          if (terrain && !fileBrowserPreviewPath.empty()) {
+            // Unload old texture
+            if (!terrain->tileset.tilesetPath.empty()) {
+              AssetManager::instance().unload(terrain->tileset.tilesetPath);
+            }
+            // Update tileset with new texture
+            terrain->tileset.tilesetPath = fileBrowserPreviewPath;
+            terrain->tileset.atlas = AssetManager::instance().load<criogenio::TextureResource>(fileBrowserPreviewPath);
+            if (!terrain->tileset.atlas) {
+              TraceLog(LOG_WARNING, "Failed to load terrain texture: %s", fileBrowserPreviewPath.c_str());
+            }
           }
-          AnimationDatabase::instance().removeReference(oldId);
-          AnimationDatabase::instance().addReference(newId);
-          spr->animationId = newId;
-          AssetManager::instance().load<criogenio::TextureResource>(sel);
+          fileBrowserForTerrain = false;
+        } else {
+          auto sel = texturePathEdits[fileBrowserTargetEntity];
+          auto *spr = GetWorld().GetComponent<criogenio::AnimatedSprite>(
+              fileBrowserTargetEntity);
+          bool inplace = false;
+          auto itEdit = editInPlace.find(fileBrowserTargetEntity);
+          if (itEdit != editInPlace.end())
+            inplace = itEdit->second;
+
+          AssetId oldId = spr->animationId;
+          int refs = AnimationDatabase::instance().getRefCount(oldId);
+
+          if (inplace || refs <= 1) {
+            std::string oldPath =
+                AnimationDatabase::instance().setTexturePath(oldId, sel);
+            if (!oldPath.empty())
+              AssetManager::instance().unload(oldPath);
+            AssetManager::instance().load<criogenio::TextureResource>(sel);
+          } else {
+            AssetId newId = AnimationDatabase::instance().cloneAnimation(oldId);
+            if (newId == INVALID_ASSET_ID) {
+              newId = AnimationDatabase::instance().createAnimation(sel);
+            } else {
+              AnimationDatabase::instance().setTexturePath(newId, sel);
+            }
+            AnimationDatabase::instance().removeReference(oldId);
+            AnimationDatabase::instance().addReference(newId);
+            spr->animationId = newId;
+            AssetManager::instance().load<criogenio::TextureResource>(sel);
+          }
         }
 
         fileBrowserVisible = false;
@@ -1358,12 +1488,12 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
       ImGui::SameLine();
       if (ImGui::Button("Cancel")) {
         fileBrowserVisible = false;
+        fileBrowserForTerrain = false;
         ImGui::CloseCurrentPopup();
       }
 
       ImGui::EndPopup();
     }
-  }
 }
 
 void EditorApp::DrawControllerInspector(int entity) {
