@@ -759,8 +759,8 @@ void EditorApp::DrawTerrainGridOverlay() {
     return;
 
   int tileSize = terrain->tileset.tileSize;
-  int cols = 10; // default
-  int rows = 10;
+  int cols = terrain->tileset.columns;
+  int rows = terrain->tileset.rows;
 
   // Get the layer bounds
   int selectedLayer = terrainSelectedLayer;
