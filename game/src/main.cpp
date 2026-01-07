@@ -20,6 +20,7 @@ int main() {
     return 1;
   }
 
+  engine.RegisterCoreComponents();
   // Add game systems
   World.AddSystem<criogenio::MovementSystem>(World);
   World.AddSystem<criogenio::AnimationSystem>(World);

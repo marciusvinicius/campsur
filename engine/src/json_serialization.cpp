@@ -54,6 +54,32 @@ json ToJson(const SerializedWorld &world) {
     j["terrain"]["tileset"]["tilesetPath"] = world.terrain.tileset.tilesetPath;
   }
 
+  // Serialize animations
+  for (const auto &anim : world.animations) {
+    json ja;
+    ja["id"] = anim.id;
+    ja["texturePath"] = anim.texturePath;
+
+    for (const auto &clip : anim.clips) {
+      json jc;
+      jc["name"] = clip.name;
+      jc["frameSpeed"] = clip.frameSpeed;
+
+      for (const auto &frame : clip.frames) {
+        json jf;
+        jf["x"] = frame.x;
+        jf["y"] = frame.y;
+        jf["width"] = frame.width;
+        jf["height"] = frame.height;
+        jc["frames"].push_back(jf);
+      }
+
+      ja["clips"].push_back(jc);
+    }
+
+    j["animations"].push_back(ja);
+  }
+
   return j;
 }
 
@@ -77,6 +103,38 @@ SerializedWorld FromJson(const json &j) {
         j.at("terrain").at("tileset").at("tileSize").get<int>();
     world.terrain.tileset.tilesetPath =
         j.at("terrain").at("tileset").at("tilesetPath").get<std::string>();
+  }
+
+  // Deserialize animations
+  if (j.contains("animations")) {
+    for (const auto &ja : j.at("animations")) {
+      SerializedAnimation anim;
+      anim.id = ja.at("id").get<uint32_t>();
+      anim.texturePath = ja.at("texturePath").get<std::string>();
+
+      if (ja.contains("clips")) {
+        for (const auto &jc : ja.at("clips")) {
+          SerializedAnimationClip clip;
+          clip.name = jc.at("name").get<std::string>();
+          clip.frameSpeed = jc.at("frameSpeed").get<float>();
+
+          if (jc.contains("frames")) {
+            for (const auto &jf : jc.at("frames")) {
+              SerializedAnimationFrame frame;
+              frame.x = jf.at("x").get<float>();
+              frame.y = jf.at("y").get<float>();
+              frame.width = jf.at("width").get<float>();
+              frame.height = jf.at("height").get<float>();
+              clip.frames.push_back(frame);
+            }
+          }
+
+          anim.clips.push_back(clip);
+        }
+      }
+
+      world.animations.push_back(anim);
+    }
   }
 
   if (j.contains("entities") == false)

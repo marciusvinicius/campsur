@@ -7,6 +7,7 @@
 #include "json.hpp"
 #include "resources.h"
 #include "serialization.h"
+#include <string>
 
 namespace criogenio {
 

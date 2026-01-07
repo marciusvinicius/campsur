@@ -19,7 +19,6 @@
 using namespace criogenio;
 
 EditorApp::EditorApp(int width, int height) : Engine(width, height, "Editor") {
-  // LoadWorldFromFile(GetWorld(), "assets/worlds/test_world.json");
   EditorAppReset();
 }
 
@@ -161,10 +160,17 @@ void EditorApp::DrawHierarchyPanel() {
 
       // --- Right-click context menu ---
       if (ImGui::BeginPopupContextItem()) {
-        if (ImGui::MenuItem("Delete")) {
-          // world.DeleteEntity(id);
-          if (selectedEntityId == id)
-            selectedEntityId = -1;
+        if (ImGui::MenuItem("Delete Entity")) {
+          // Clean up animation references if entity has AnimatedSprite
+          if (auto *sprite = GetWorld().GetComponent<criogenio::AnimatedSprite>(id)) {
+            if (sprite->animationId != INVALID_ASSET_ID) {
+              AnimationDatabase::instance().removeReference(sprite->animationId);
+            }
+          }
+          GetWorld().DeleteEntity(id);
+          if (selectedEntityId.has_value() && selectedEntityId.value() == id) {
+            selectedEntityId.reset();
+          }
           ImGui::EndPopup();
           break;
         }
@@ -178,8 +184,16 @@ void EditorApp::DrawHierarchyPanel() {
       }
       if (selectedEntityId.has_value()) {
         ImGui::Separator();
-        if (ImGui::MenuItem("Delete")) {
-          // DeleteEntity(selectedEntityId.value());
+        if (ImGui::MenuItem("Delete Entity")) {
+          int entityToDelete = selectedEntityId.value();
+          // Clean up animation references if entity has AnimatedSprite
+          if (auto *sprite = GetWorld().GetComponent<criogenio::AnimatedSprite>(entityToDelete)) {
+            if (sprite->animationId != INVALID_ASSET_ID) {
+              AnimationDatabase::instance().removeReference(sprite->animationId);
+            }
+          }
+          GetWorld().DeleteEntity(entityToDelete);
+          selectedEntityId.reset();
         }
       }
 
@@ -558,8 +572,9 @@ void EditorApp::DrawMainMenuBar() {
         // CreateSpriteEntity();
       }
       if (ImGui::MenuItem("Terrain")) {
-        auto &t =
-            GetWorld().CreateTerrain2D("Terrain", "editor/assets/terrain.jpg");
+        auto &t = GetWorld().CreateTerrain2D(
+            "Terrain",
+            "editor/assets/mystic_woods_free_2.2/sprites/tilesets/plains.png");
         // CreateTerrain();
       }
       ImGui::EndMenu();
@@ -913,9 +928,28 @@ void EditorApp::DrawEntityHeader(int entity) {
   // show entity ID
   ImGui::Text("Entity ID: %d", entity);
 
+  // Delete button
+  ImGui::SameLine();
+  if (ImGui::Button("Delete Entity")) {
+    // Clean up animation references if entity has AnimatedSprite
+    if (auto *sprite = GetWorld().GetComponent<criogenio::AnimatedSprite>(entity)) {
+      if (sprite->animationId != INVALID_ASSET_ID) {
+        AnimationDatabase::instance().removeReference(sprite->animationId);
+      }
+    }
+    GetWorld().DeleteEntity(entity);
+    selectedEntityId.reset();
+  }
+
   if (ImGui::BeginPopupContextItem("EntityHeaderContext")) {
     if (ImGui::MenuItem("Delete Entity")) {
-      // DeleteEntity(entity);
+      // Clean up animation references if entity has AnimatedSprite
+      if (auto *sprite = GetWorld().GetComponent<criogenio::AnimatedSprite>(entity)) {
+        if (sprite->animationId != INVALID_ASSET_ID) {
+          AnimationDatabase::instance().removeReference(sprite->animationId);
+        }
+      }
+      GetWorld().DeleteEntity(entity);
       selectedEntityId.reset();
     }
     ImGui::EndPopup();
@@ -942,7 +976,20 @@ void EditorApp::DrawComponentInspectors(int entity) {
 
 void EditorApp::DrawAnimationStateInspector(int entity) {
 
-  if (!ImGui::CollapsingHeader("Animation State"))
+  ImGui::PushID("AnimationState");
+  ImGui::BeginGroup();
+  bool headerOpen = ImGui::CollapsingHeader("Animation State");
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+  if (ImGui::SmallButton("X")) {
+    GetWorld().RemoveComponent<criogenio::AnimationState>(entity);
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return;
+  }
+  ImGui::EndGroup();
+  ImGui::PopID();
+  
+  if (!headerOpen)
     return;
 
   auto *animState = GetWorld().GetComponent<criogenio::AnimationState>(entity);
@@ -998,7 +1045,20 @@ void EditorApp::DrawAnimationStateInspector(int entity) {
 
 void EditorApp::DrawTransformInspector(int entity) {
 
-  if (!ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))
+  ImGui::PushID("Transform");
+  ImGui::BeginGroup();
+  bool headerOpen = ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen);
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+  if (ImGui::SmallButton("X")) {
+    GetWorld().RemoveComponent<criogenio::Transform>(entity);
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return;
+  }
+  ImGui::EndGroup();
+  ImGui::PopID();
+  
+  if (!headerOpen)
     return;
 
   auto *t = GetWorld().GetComponent<criogenio::Transform>(entity);
@@ -1020,7 +1080,25 @@ void EditorApp::DrawTransformInspector(int entity) {
 
 void EditorApp::DrawAnimatedSpriteInspector(int entity) {
 
-  if (!ImGui::CollapsingHeader("Animated Sprite"))
+  ImGui::PushID("AnimatedSprite");
+  ImGui::BeginGroup();
+  bool headerOpen = ImGui::CollapsingHeader("Animated Sprite");
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+  if (ImGui::SmallButton("X")) {
+    // Clean up animation references
+    auto *sp = GetWorld().GetComponent<criogenio::AnimatedSprite>(entity);
+    if (sp && sp->animationId != INVALID_ASSET_ID) {
+      AnimationDatabase::instance().removeReference(sp->animationId);
+    }
+    GetWorld().RemoveComponent<criogenio::AnimatedSprite>(entity);
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return;
+  }
+  ImGui::EndGroup();
+  ImGui::PopID();
+  
+  if (!headerOpen)
     return;
 
   auto *sprite = GetWorld().GetComponent<criogenio::AnimatedSprite>(entity);
@@ -1290,7 +1368,20 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
 
 void EditorApp::DrawControllerInspector(int entity) {
 
-  if (!ImGui::CollapsingHeader("Player Controller"))
+  ImGui::PushID("Controller");
+  ImGui::BeginGroup();
+  bool headerOpen = ImGui::CollapsingHeader("Player Controller");
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+  if (ImGui::SmallButton("X")) {
+    GetWorld().RemoveComponent<criogenio::Controller>(entity);
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return;
+  }
+  ImGui::EndGroup();
+  ImGui::PopID();
+  
+  if (!headerOpen)
     return;
 
   auto *ctrl = GetWorld().GetComponent<criogenio::Controller>(entity);
@@ -1309,7 +1400,20 @@ void EditorApp::DrawControllerInspector(int entity) {
 
 void EditorApp::DrawAIControllerInspector(int entity) {
 
-  if (!ImGui::CollapsingHeader("Player AI Controller"))
+  ImGui::PushID("AIController");
+  ImGui::BeginGroup();
+  bool headerOpen = ImGui::CollapsingHeader("Player AI Controller");
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+  if (ImGui::SmallButton("X")) {
+    GetWorld().RemoveComponent<criogenio::AIController>(entity);
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return;
+  }
+  ImGui::EndGroup();
+  ImGui::PopID();
+  
+  if (!headerOpen)
     return;
 
   auto *ctrl = GetWorld().GetComponent<criogenio::AIController>(entity);

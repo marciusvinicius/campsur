@@ -1,6 +1,7 @@
 #pragma once
 
 #include "error.h"
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <variant>
@@ -42,11 +43,23 @@ struct SerializedEntity {
   std::vector<SerializedComponent> components;
 };
 
-struct SerializedAnimation {
+struct SerializedAnimationFrame {
+  float x;
+  float y;
+  float width;
+  float height;
+};
+
+struct SerializedAnimationClip {
   std::string name;
-  std::vector<int> frameIndices;
-  std::string texturePath;
+  std::vector<SerializedAnimationFrame> frames;
   float frameSpeed;
+};
+
+struct SerializedAnimation {
+  uint32_t id;
+  std::string texturePath;
+  std::vector<SerializedAnimationClip> clips;
 };
 
 struct SerializedTileLayer {
@@ -71,6 +84,7 @@ struct SerializedWorld {
   std::string name;
   std::vector<SerializedEntity> entities;
   SerializedTerrain2D terrain;
+  std::vector<SerializedAnimation> animations;
 };
 
 } // namespace criogenio
