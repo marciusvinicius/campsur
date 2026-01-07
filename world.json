@@ -492,8 +492,8 @@
       "components": [
         {
           "fields": {
-            "x": 88.66764831542969,
-            "y": 6.334712028503418
+            "x": 55.0,
+            "y": 65.33332824707031
           },
           "type": "Transform"
         },
@@ -511,33 +511,6 @@
             "speed": 200.0
           },
           "type": "Controller"
-        },
-        {
-          "fields": {
-            "animationId": 0,
-            "currentClipName": "idle_down"
-          },
-          "type": "AnimatedSprite"
-        }
-      ],
-      "id": 1
-    },
-    {
-      "components": [
-        {
-          "fields": {
-            "x": 88.0,
-            "y": 37.33332824707031
-          },
-          "type": "Transform"
-        },
-        {
-          "fields": {
-            "current": 0,
-            "facing": 1,
-            "previous": 0
-          },
-          "type": "AnimationState"
         },
         {
           "fields": {
