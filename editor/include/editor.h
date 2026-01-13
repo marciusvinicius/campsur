@@ -1,3 +1,5 @@
+// For scene save/load file browser
+
 #pragma once
 
 #include "engine.h"
@@ -11,6 +13,7 @@
 #include <string>
 #include <unordered_map>
 
+enum class FileDialogMode { None, SaveScene, LoadScene };
 struct Hierarchy {
   int parent = -1;
   std::vector<int> children;
@@ -90,6 +93,8 @@ private:
   void OnGUI() override;
 
   bool dockLayoutBuilt = false;
+  FileDialogMode fileDialogMode = FileDialogMode::None;
+  std::string pendingScenePath;
 
   // Editor-side per-entity temporary inputs (e.g., texture path being edited)
   std::unordered_map<int, std::string> texturePathEdits;

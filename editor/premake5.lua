@@ -16,6 +16,9 @@ files({
 
 	"include/**.h",
 
+	-- tinyfiledialogs
+	"thirdpart/tinyfiledialogs.c",
+
 	-- rlImGui
 	"thirdpart/rlImGui-main/rlImGui.cpp",
 
@@ -34,6 +37,9 @@ includedirs({
 	"include",
 
 	"../engine/include",
+
+	-- tinyfiledialogs
+	"thirdpart",
 
 	-- ImGui
 	"thirdpart/rlImGui-main",

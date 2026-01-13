@@ -3,8 +3,8 @@
 #include "animation_database.h"
 #include "asset_manager.h"
 #include "resources.h"
-#include <unordered_set>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace criogenio {
 
@@ -154,6 +154,10 @@ SerializedWorld World::Serialize() const {
       serialized_entity.components.push_back(anim_sprite->Serialize());
     }
 
+    if (auto nameComp = GetComponent<Name>(entity_id)) {
+      serialized_entity.components.push_back(nameComp->Serialize());
+    }
+
     if (!serialized_entity.components.empty()) {
       world.entities.push_back(serialized_entity);
     }
@@ -171,26 +175,33 @@ void World::Deserialize(const SerializedWorld &data) {
   // This is critical because AnimatedSprite components reference animation IDs
   // Create a map to track animation ID remapping (old ID -> new ID)
   std::unordered_map<AssetId, AssetId> animIdMap;
-  
+
   for (const auto &serializedAnim : data.animations) {
     // Validate texture path before creating animation
     if (serializedAnim.texturePath.empty()) {
-      TraceLog(LOG_WARNING, "Animation ID %u has empty texture path, skipping", serializedAnim.id);
+      TraceLog(LOG_WARNING, "Animation ID %u has empty texture path, skipping",
+               serializedAnim.id);
       continue;
     }
 
     // Create animation in database
-    AssetId createdId = AnimationDatabase::instance().createAnimation(serializedAnim.texturePath);
-    
+    AssetId createdId = AnimationDatabase::instance().createAnimation(
+        serializedAnim.texturePath);
+
     // Load texture through asset manager and cache it
-    auto texture = AssetManager::instance().load<TextureResource>(serializedAnim.texturePath);
+    auto texture = AssetManager::instance().load<TextureResource>(
+        serializedAnim.texturePath);
     if (!texture) {
-      TraceLog(LOG_ERROR, "Failed to load texture for animation ID %u (new ID: %u): %s", 
-               serializedAnim.id, createdId, serializedAnim.texturePath.c_str());
-      // Continue anyway - the animation will be created but texture won't be available
+      TraceLog(LOG_ERROR,
+               "Failed to load texture for animation ID %u (new ID: %u): %s",
+               serializedAnim.id, createdId,
+               serializedAnim.texturePath.c_str());
+      // Continue anyway - the animation will be created but texture won't be
+      // available
     } else {
-      TraceLog(LOG_INFO, "Loaded texture for animation ID %u (new ID: %u): %s", 
-               serializedAnim.id, createdId, serializedAnim.texturePath.c_str());
+      TraceLog(LOG_INFO, "Loaded texture for animation ID %u (new ID: %u): %s",
+               serializedAnim.id, createdId,
+               serializedAnim.texturePath.c_str());
     }
 
     // Restore clips
@@ -215,9 +226,10 @@ void World::Deserialize(const SerializedWorld &data) {
     // Map old animation ID to new ID
     animIdMap[serializedAnim.id] = createdId;
   }
-  
+
   if (data.animations.empty() && !data.entities.empty()) {
-    // Check if any entities have AnimatedSprite components that reference animations
+    // Check if any entities have AnimatedSprite components that reference
+    // animations
     bool hasAnimatedSprites = false;
     for (const auto &ent : data.entities) {
       for (const auto &comp : ent.components) {
@@ -226,13 +238,15 @@ void World::Deserialize(const SerializedWorld &data) {
           break;
         }
       }
-      if (hasAnimatedSprites) break;
+      if (hasAnimatedSprites)
+        break;
     }
-    
+
     if (hasAnimatedSprites) {
-      TraceLog(LOG_WARNING, 
-               "World contains AnimatedSprite components but no animation definitions were found. "
-               "Textures will not be loaded. Make sure to save the world from the editor to include animations.");
+      TraceLog(LOG_WARNING, "World contains AnimatedSprite components but no "
+                            "animation definitions were found. "
+                            "Textures will not be loaded. Make sure to save "
+                            "the world from the editor to include animations.");
     }
   }
 
@@ -269,58 +283,55 @@ void World::Deserialize(const SerializedWorld &data) {
       if (type_name == "Transform") {
         auto &trans = AddComponent<Transform>(entity_id);
         trans.Deserialize(serialized_component);
-      }
-
-      else if (type_name == "AnimationState") {
+      } else if (type_name == "AnimationState") {
         auto &anim_state = AddComponent<AnimationState>(entity_id);
         anim_state.Deserialize(serialized_component);
-      }
-
-      else if (type_name == "Controller") {
+      } else if (type_name == "Controller") {
         auto &ctrl = AddComponent<Controller>(entity_id);
         ctrl.Deserialize(serialized_component);
-      }
-
-      else if (type_name == "AIController") {
+      } else if (type_name == "AIController") {
         auto &ai_ctrl = AddComponent<AIController>(entity_id);
         ai_ctrl.Deserialize(serialized_component);
-      }
-
-      else if (type_name == "AnimatedSprite") {
+      } else if (type_name == "AnimatedSprite") {
         auto &anim_sprite = AddComponent<AnimatedSprite>(entity_id);
         anim_sprite.Deserialize(serialized_component);
-
         // Map old animation ID to new ID if needed
         if (anim_sprite.animationId != INVALID_ASSET_ID) {
           auto it = animIdMap.find(anim_sprite.animationId);
           if (it != animIdMap.end()) {
             anim_sprite.animationId = it->second;
           } else {
-            // Animation ID not found in map - this means the animation wasn't serialized
-            // Log a warning and invalidate the animation ID
-            TraceLog(LOG_WARNING, 
-                     "AnimatedSprite component references animation ID %u which was not found in serialized data. "
-                     "The animation may not have been saved. Entity ID: %d", 
+            // Animation ID not found in map - this means the animation wasn't
+            // serialized Log a warning and invalidate the animation ID
+            TraceLog(LOG_WARNING,
+                     "AnimatedSprite component references animation ID %u "
+                     "which was not found in serialized data. "
+                     "The animation may not have been saved. Entity ID: %d",
                      anim_sprite.animationId, entity_id);
             anim_sprite.animationId = INVALID_ASSET_ID;
           }
         }
-
         // Re-track reference for animation and ensure texture is loaded
         if (anim_sprite.animationId != INVALID_ASSET_ID) {
           AnimationDatabase::instance().addReference(anim_sprite.animationId);
-          
           // Ensure texture is loaded for this animation
-          const auto *animDef = AnimationDatabase::instance().getAnimation(anim_sprite.animationId);
+          const auto *animDef = AnimationDatabase::instance().getAnimation(
+              anim_sprite.animationId);
           if (animDef && !animDef->texturePath.empty()) {
-            auto texture = AssetManager::instance().load<TextureResource>(animDef->texturePath);
+            auto texture = AssetManager::instance().load<TextureResource>(
+                animDef->texturePath);
             if (!texture) {
-              TraceLog(LOG_ERROR, 
-                       "Failed to load texture for animation ID %u: %s (Entity ID: %d)", 
-                       anim_sprite.animationId, animDef->texturePath.c_str(), entity_id);
+              TraceLog(LOG_ERROR,
+                       "Failed to load texture for animation ID %u: %s (Entity "
+                       "ID: %d)",
+                       anim_sprite.animationId, animDef->texturePath.c_str(),
+                       entity_id);
             }
           }
         }
+      } else if (type_name == "Name") {
+        auto &nameComp = AddComponent<Name>(entity_id);
+        nameComp.Deserialize(serialized_component);
       }
     }
   }
