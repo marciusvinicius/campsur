@@ -7,6 +7,8 @@
 #include <unordered_map>
 #include <vector>
 
+// Base class for global (scene-wide) components
+
 using ComponentTypeId = std::size_t;
 
 namespace criogenio {
@@ -35,6 +37,14 @@ template <typename T> inline ComponentTypeId GetComponentTypeId() {
   static ComponentTypeId typeId = GetUniqueComponentTypeId();
   return typeId;
 }
+
+class GlobalComponent {
+public:
+  virtual ~GlobalComponent() = default;
+  virtual std::string TypeName() const = 0;
+  virtual SerializedComponent Serialize() const = 0;
+  virtual void Deserialize(const SerializedComponent &data) = 0;
+};
 
 class Component {
 public:
@@ -87,23 +97,26 @@ struct Animation {
 
 class Controller : public Component {
 public:
-  float speed = 200.0f;
+  Vector2 velocity = {0, 0};
+
   Direction direction = Direction::UP;
   Controller() = default;
-  Controller(float speed) : speed(speed) {}
+  Controller(Vector2 velocity) : velocity(velocity) {}
 
   std::string TypeName() const override { return "Controller"; }
 
   SerializedComponent Serialize() const override {
     return {"Controller",
             {
-                {"speed", speed},
+                {"velocity_x", velocity.x},
+                {"velocity_y", velocity.y},
                 {"direction", static_cast<int>(direction)},
             }};
   }
 
   void Deserialize(const SerializedComponent &data) override {
-    speed = std::get<float>(data.fields.at("speed"));
+    velocity.x = std::get<float>(data.fields.at("velocity_x"));
+    velocity.y = std::get<float>(data.fields.at("velocity_y"));
     direction =
         static_cast<Direction>(std::get<int>(data.fields.at("direction")));
   }
@@ -111,21 +124,22 @@ public:
 
 class AIController : public Component {
 public:
-  float speed = 200.0f;
+  Vector2 velocity = {0, 0};
   Direction direction = Direction::UP;
   AIBrainState brainState = FRIENDLY;
   int entityTarget = -1;
 
   AIController() = default;
+  AIController(Vector2 velocity, int entityTarget)
+      : velocity(velocity), entityTarget(entityTarget) {}
 
-  AIController(float speed, int entityTarget)
-      : speed(speed), entityTarget(entityTarget) {}
   std::string TypeName() const override { return "AIController"; }
 
   SerializedComponent Serialize() const override {
     return {"AIController",
             {
-                {"speed", speed},
+                {"velocity_x", velocity.x},
+                {"velocity_y", velocity.y},
                 {"direction", static_cast<int>(direction)},
                 {"brainState", static_cast<int>(brainState)},
                 {"entityTarget", entityTarget},
@@ -133,7 +147,8 @@ public:
   }
 
   void Deserialize(const SerializedComponent &data) override {
-    speed = std::get<float>(data.fields.at("speed"));
+    velocity.x = std::get<float>(data.fields.at("velocity_x"));
+    velocity.y = std::get<float>(data.fields.at("velocity_y"));
     direction =
         static_cast<Direction>(std::get<int>(data.fields.at("direction")));
     brainState =
@@ -156,6 +171,47 @@ public:
 
   void Deserialize(const SerializedComponent &data) override {
     name = std::get<std::string>(data.fields.at("name"));
+  }
+};
+
+class Gravity : public GlobalComponent {
+public:
+  Gravity() = default;
+  std::string TypeName() const override { return "Gravity"; }
+  float strength = 9.81f;
+  SerializedComponent Serialize() const override { return {"Gravity", {}}; }
+  void Deserialize(const SerializedComponent &data) override {}
+};
+
+class RigidBody : public Component {
+public:
+  RigidBody() = default;
+  std::string TypeName() const override { return "RigidBody"; }
+  float mass = 1.0f;
+  SerializedComponent Serialize() const override {
+    return {"RigidBody", {{"mass", mass}}};
+  }
+  void Deserialize(const SerializedComponent &data) override {
+    if (auto it = data.fields.find("mass"); it != data.fields.end())
+      mass = std::get<float>(it->second);
+  }
+};
+
+class BoxCollider : public Component {
+public:
+  BoxCollider() = default;
+  std::string TypeName() const override { return "BoxCollider"; }
+  float width = 1.0f;
+  float height = 1.0f;
+  SerializedComponent Serialize() const override {
+    return {"BoxCollider", {{"width", width}, {"height", height}}};
+  }
+  void Deserialize(const SerializedComponent &data) override {
+    if (auto it = data.fields.find("width"); it != data.fields.end())
+
+      width = std::get<float>(it->second);
+    if (auto it = data.fields.find("height"); it != data.fields.end())
+      height = std::get<float>(it->second);
   }
 };
 

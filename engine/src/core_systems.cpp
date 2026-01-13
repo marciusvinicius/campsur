@@ -39,8 +39,8 @@ void MovementSystem::Update(float dt) {
     }
 
     if (dx != 0 || dy != 0) {
-      tr->x += dx * ctrl->speed * dt;
-      tr->y += dy * ctrl->speed * dt;
+      tr->x += dx * ctrl->velocity.x * dt;
+      tr->y += dy * ctrl->velocity.y * dt;
       anim->current = AnimState::WALKING;
     } else {
       anim->current = AnimState::IDLE;
@@ -82,7 +82,7 @@ void AIMovementSystem::Update(float dt) {
       float dirX = dx / dist;
       float dirY = dy / dist;
 
-      float step = ctrl->speed * dt;
+      float step = ctrl->velocity.x * dt; // assuming velocity.x is speed
 
       // Prevent overshoot
       if (step >= dist) {
@@ -186,4 +186,15 @@ void AnimationSystem::OnWorldLoaded(World &world) {
   // Animation database should be pre-populated by editor or game code
   // Sprites just reference animations by ID at this point
 }
+
+void GravitySystem::Update(float dt) {
+  auto gravity = world.GetGlobalComponent<Gravity>();
+  auto ids = world.GetEntitiesWith<Transform, Controller, RigidBody>();
+
+  for (ecs::EntityId id : ids) {
+  }
+}
+
+void GravitySystem::Render(Renderer &renderer) {}
+
 } // namespace criogenio

@@ -34,6 +34,7 @@ public:
 
 class Terrain2D : public Terrain {
 public:
+  Vector2 origin = {0, 0}; // world-space anchor
   void Render(Renderer &renderer) override;
   void Update(float dt) override;
   void FillLayer(int layerIndex, int tileId);

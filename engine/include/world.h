@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include "components.h"
@@ -22,6 +23,32 @@ namespace criogenio {
 
 class World {
 public:
+  // --- Global Component Management ---
+  template <typename T, typename... Args>
+  T &AddGlobalComponent(Args &&...args) {
+    static_assert(std::is_base_of<GlobalComponent, T>::value,
+                  "T must inherit from GlobalComponent");
+    auto ptr = std::make_unique<T>(std::forward<Args>(args)...);
+    T *raw = ptr.get();
+    globalComponents[typeid(T).hash_code()] = std::move(ptr);
+    return *raw;
+  }
+
+  template <typename T> T *GetGlobalComponent() {
+    auto it = globalComponents.find(typeid(T).hash_code());
+    if (it != globalComponents.end())
+      return static_cast<T *>(it->second.get());
+    return nullptr;
+  }
+
+  template <typename T> bool HasGlobalComponent() const {
+    return globalComponents.find(typeid(T).hash_code()) !=
+           globalComponents.end();
+  }
+
+  template <typename T> void RemoveGlobalComponent() {
+    globalComponents.erase(typeid(T).hash_code());
+  }
   World();
   ~World();
 
@@ -106,6 +133,7 @@ public:
   }
 
 private:
+  std::unordered_map<size_t, std::unique_ptr<GlobalComponent>> globalComponents;
   std::vector<std::unique_ptr<ISystem>> systems;
   std::unique_ptr<Terrain2D> terrain;
   std::function<void(float)> userUpdate = nullptr;

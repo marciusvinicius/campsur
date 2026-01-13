@@ -23,6 +23,8 @@ struct EditorState {
 class EditorApp : public criogenio::Engine {
 public:
   EditorApp(int width, int height);
+  std::optional<Vector2> WorldToTile(const criogenio::Terrain2D &terrain,
+                                     Vector2 worldPos);
   void EditorAppReset();
   //~EditorApp();
   void Run();
@@ -45,8 +47,9 @@ private:
   void RenderSceneToTexture();
 
   void DrawUI();
-  void DrawDockSpace();
   void DrawHierarchyPanel();
+  void DrawInspectorPanel();
+  void DrawDockSpace();
   void DrawWorldView();
   void DrawMainMenuBar();
   void DrawToolbar();
@@ -57,12 +60,15 @@ private:
   // Entity Inspector TODO:(maraujo) Move this to UI file
   void DrawEntityHeader(int entity);
   void DrawComponentInspectors(int entity);
+  void DrawGravityInspector(int entity);
   void DrawTransformInspector(int entity);
   void DrawAnimationStateInspector(int entity);
   void DrawAnimatedSpriteInspector(int entity);
   void DrawControllerInspector(int entity);
   void DrawAIControllerInspector(int entity);
   void DrawAddComponentMenu(int entity);
+  void DrawGlobalComponentsPanel();
+  void DrawGlobalInspector();
 
   void PickEntityAt(Vector2 worldPos);
   void CreateEmptyEntityAtMouse();
@@ -73,7 +79,7 @@ private:
   void DrawEntityNode(int entity);
 
   bool IsMouseInWorldView();
-  
+
   // Helper to convert mouse screen position to world coordinates
   Vector2 ScreenToWorldPosition(Vector2 mouseScreen);
 
@@ -93,7 +99,8 @@ private:
   // Simple ImGui file browser state
   bool fileBrowserVisible = false;
   int fileBrowserTargetEntity = -1;
-  bool fileBrowserForTerrain = false; // Flag to indicate if browser is for terrain
+  bool fileBrowserForTerrain =
+      false; // Flag to indicate if browser is for terrain
   std::vector<std::string> fileBrowserEntries;
   std::string fileBrowserFilter;
 
@@ -108,7 +115,8 @@ private:
   // Draw terrain editor panel
   void DrawTerrainEditor();
   // Draw grid overlay on terrain in viewport
-  void DrawTerrainGridOverlay();
+  void DrawTerrainGridOverlay(const criogenio::Terrain2D &terrain,
+                              const Camera2D &camera);
   // Draw file browser popup (called every frame)
   void DrawFileBrowserPopup();
 };
