@@ -26,6 +26,7 @@ int main() {
   World.AddSystem<criogenio::AnimationSystem>(World);
   World.AddSystem<criogenio::RenderSystem>(World);
   World.AddSystem<criogenio::AIMovementSystem>(World);
+  // World.AddSystem<criogenio::NetWork>(World);
 
   // Setup camera
   auto maincamera = Camera2D{};

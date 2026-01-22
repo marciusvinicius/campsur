@@ -484,7 +484,7 @@
         }
       ],
       "id": 1,
-      "texturePath": "/home/marcius/Workspace/criogenio/camp_sur_cpp/editor/assets/raw/world.png"
+      "texturePath": "/home/marcius/Workspace/criogenio/camp_sur_cpp/editor/assets/mystic_woods_free_2.2/sprites/characters/skeleton.png"
     }
   ],
   "entities": [
@@ -492,16 +492,16 @@
       "components": [
         {
           "fields": {
-            "x": 189.0,
-            "y": 66.0
+            "x": 63.0,
+            "y": -64.0
           },
           "type": "Transform"
         },
         {
           "fields": {
-            "current": 0,
+            "current": 2,
             "facing": 1,
-            "previous": 0
+            "previous": 2
           },
           "type": "AnimationState"
         },
@@ -514,7 +514,7 @@
         },
         {
           "fields": {
-            "name": "New Entity 1"
+            "name": "Player"
           },
           "type": "Name"
         }
