@@ -227,4 +227,11 @@ for _, folderName in ipairs(folders) do
 			include(folderName)
 		end
 	end
+	if string.starts(folderName, "enet") == false and string.starts(folderName, ".") == false then
+		if os.isfile(folderName .. "/premake5.lua") then
+			print(folderName)
+			include(folderName)
+		end
+	end
 end
+link_to("enet")

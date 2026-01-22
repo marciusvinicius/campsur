@@ -1,6 +1,6 @@
 #pragma once
 
-#include "error.h"
+#include <stdexcept>
 #include <cstdint>
 #include <string>
 #include <unordered_map>
