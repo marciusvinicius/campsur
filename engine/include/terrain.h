@@ -48,6 +48,7 @@ public:
   void SetTileSize(int newTileSize);
   SerializedTerrain2D Serialize() const;
   void Deserialize(const SerializedTerrain2D &data);
+  void SetAtlas(int layer, const char *path);
 
 public:
   Tileset tileset;

@@ -123,5 +123,5 @@ private:
   void DrawTerrainGridOverlay(const criogenio::Terrain2D &terrain,
                               const Camera2D &camera);
   // Draw file browser popup (called every frame)
-  void DrawFileBrowserPopup();
+  const char *DrawFileBrowserPopup();
 };

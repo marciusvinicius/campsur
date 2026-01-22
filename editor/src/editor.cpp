@@ -2,6 +2,7 @@
 #include "animation_database.h"
 #include "animation_state.h"
 #include "asset_manager.h"
+#include "criogenio_io.h"
 #include "input.h"
 #include "raymath.h"
 #include "resources.h"
@@ -19,9 +20,7 @@ extern "C" {
 }
 #endif
 
-#include <filesystem>
 namespace fs = std::filesystem;
-#include "criogenio_io.h"
 
 using namespace criogenio;
 
@@ -397,9 +396,6 @@ void EditorApp::OnGUI() {
   DrawTerrainEditor();
   // DrawToolbar();
   DrawMainMenuBar();
-
-  // File browser popup (must be rendered every frame when visible)
-  DrawFileBrowserPopup();
 
   rlImGuiEnd(); // renders ImGui
 
@@ -786,41 +782,9 @@ void EditorApp::DrawTerrainEditor() {
     ImGui::Text("Tileset: %s", terrain->tileset.tilesetPath.c_str());
     ImGui::SameLine();
     if (ImGui::Button("Change Texture")) {
-      namespace fs = std::filesystem;
-      auto root = fs::path("editor") / "assets";
-      fileBrowserEntries.clear();
-      try {
-        if (fs::exists(root)) {
-          for (auto &p : fs::recursive_directory_iterator(root)) {
-            if (p.is_regular_file()) {
-              std::string ext = p.path().extension().string();
-              // Filter for image files
-              if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" ||
-                  ext == ".bmp" || ext == ".gif" || ext == ".tga") {
-                fileBrowserEntries.push_back(p.path().string());
-              }
-            }
-          }
-          std::sort(fileBrowserEntries.begin(), fileBrowserEntries.end());
-        }
-      } catch (...) {
-      }
-      fileBrowserFilter.clear();
-      fileBrowserForTerrain = true;
-      fileBrowserTargetEntity = -1; // Not used for terrain
-      // Initialize preview with current terrain texture
-      fileBrowserPreviewPath = terrain->tileset.tilesetPath;
-      if (!fileBrowserPreviewPath.empty()) {
-        fileBrowserPreviewTex =
-            AssetManager::instance().load<criogenio::TextureResource>(
-                fileBrowserPreviewPath);
-      } else {
-        fileBrowserPreviewTex = nullptr;
-      }
-      fileBrowserVisible = true;
-      ImGui::OpenPopup("File Browser");
+      const char *path = DrawFileBrowserPopup();
+      GetWorld().GetTerrain()->SetAtlas(0, path);
     }
-
     ImGui::DragInt("Tileset size", &terrain->tileset.tileSize, 1, 0, 100);
     ImGui::Separator();
 
@@ -871,7 +835,8 @@ EditorApp::WorldToTile(const criogenio::Terrain2D &terrain, Vector2 worldPos) {
   float tx = local.x / terrain.tileset.tileSize;
   float ty = local.y / terrain.tileset.tileSize;
 
-  const auto &layer = terrain.layers[0];
+  // TODO:get the current layer
+  const auto &layer = terrain.layers[terrainSelectedLayer];
 
   if (tx < 0 || ty < 0 || tx >= layer.width || ty >= layer.height)
     return std::nullopt;
@@ -1067,7 +1032,8 @@ Vector2 EditorApp::ScreenToWorldPosition(Vector2 mouseScreen) {
                            viewportMouse.y / viewportSize.y};
 
   // Convert normalized coordinates to texture screen coordinates
-  // Note: Texture Y is flipped (0 at top in ImGui, 0 at bottom in texture)
+  // Note: Texture Y is flipped (0 at top in ImGui, 0 at bottom in
+  // texture)
   Vector2 textureScreen = {normalizedPos.x * (float)sceneRT.texture.width,
                            (1.0f - normalizedPos.y) *
                                (float)sceneRT.texture.height};
@@ -1275,10 +1241,26 @@ void EditorApp::DrawTransformInspector(int entity) {
 }
 
 // TODO:(maraujo) move these kind of thing to UI
-void EditorApp::DrawFileBrowserPopup() {
-  // Simple file browser popup - must be called every frame when visible
-  // OpenPopup is called when button is clicked, BeginPopupModal shows it
-  if (fileBrowserVisible &&
+const char *EditorApp::DrawFileBrowserPopup() {
+  const char *filters[] = {"*.png", "*.jpeg", "*.jpg"};
+  const char *path =
+      tinyfd_openFileDialog("Test", "", 1, filters, "Select File", 0);
+
+  if (path && strlen(path) > 0) {
+    printf("[Editor] Selected file: '%s'\n", path);
+    FILE *fp = fopen(path, "r");
+    if (fp) {
+      fclose(fp);
+      // GetWorld().GetTerrain().tileset.atlas.texture = fileBrowserPreviewTex;
+      return path;
+    } else {
+      printf("[Editor] ERROR: File does not exist or cannot be opened: "
+             "'%s'\n",
+             path);
+    }
+  }
+  /*
+
       ImGui::BeginPopupModal("File Browser", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     ImGui::Text(fileBrowserForTerrain
@@ -1301,9 +1283,8 @@ void EditorApp::DrawFileBrowserPopup() {
             this->fileDialogMode == FileDialogMode::LoadScene) {
           this->pendingScenePath = entry;
         } else if (fileBrowserForTerrain) {
-          fileBrowserPreviewPath = entry; // Store selected path for terrain
-        } else {
-          texturePathEdits[fileBrowserTargetEntity] = entry;
+          fileBrowserPreviewPath = entry; // Store selected path for
+  terrain } else { texturePathEdits[fileBrowserTargetEntity] = entry;
         }
       }
       if (ImGui::IsItemHovered()) {
@@ -1346,22 +1327,19 @@ void EditorApp::DrawFileBrowserPopup() {
           if (ImGui::Button("OK")) {
             if (this->fileDialogMode == FileDialogMode::SaveScene &&
                 !this->pendingScenePath.empty()) {
-              criogenio::SaveWorldToFile(GetWorld(), this->pendingScenePath);
-              this->fileDialogMode = FileDialogMode::None;
+              criogenio::SaveWorldToFile(GetWorld(),
+  this->pendingScenePath); this->fileDialogMode = FileDialogMode::None;
               this->pendingScenePath.clear();
               fileBrowserVisible = false;
               ImGui::CloseCurrentPopup();
               return;
-            } else if (this->fileDialogMode == FileDialogMode::LoadScene &&
-                       !this->pendingScenePath.empty()) {
-              criogenio::LoadWorldFromFile(GetWorld(), this->pendingScenePath);
-              EditorAppReset();
-              this->fileDialogMode = FileDialogMode::None;
-              this->pendingScenePath.clear();
-              fileBrowserVisible = false;
-              ImGui::CloseCurrentPopup();
-              return;
-            } else if (fileBrowserForTerrain) {
+            } else if (this->fileDialogMode == FileDialogMode::LoadScene
+  && !this->pendingScenePath.empty()) {
+              criogenio::LoadWorldFromFile(GetWorld(),
+  this->pendingScenePath); EditorAppReset(); this->fileDialogMode =
+  FileDialogMode::None; this->pendingScenePath.clear(); fileBrowserVisible
+  = false; ImGui::CloseCurrentPopup(); return; } else if
+  (fileBrowserForTerrain) {
               // ...existing code for terrain...
               ImGui::SameLine();
               if (ImGui::Button("Cancel")) {
@@ -1376,7 +1354,7 @@ void EditorApp::DrawFileBrowserPopup() {
         }
       }
     }
-  }
+  }*/
 }
 
 void EditorApp::DrawAnimatedSpriteInspector(int entity) {
@@ -1501,24 +1479,8 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
     }
     ImGui::SameLine();
     if (ImGui::Button("Browse")) {
-      namespace fs = std::filesystem;
-      auto root = fs::path("editor") / "assets";
-      fileBrowserEntries.clear();
-      try {
-        if (fs::exists(root)) {
-          for (auto &p : fs::recursive_directory_iterator(root)) {
-            if (p.is_regular_file())
-              fileBrowserEntries.push_back(p.path().string());
-          }
-          std::sort(fileBrowserEntries.begin(), fileBrowserEntries.end());
-        }
-      } catch (...) {
-      }
-      fileBrowserFilter.clear();
-      fileBrowserTargetEntity = entity;
-      fileBrowserForTerrain = false;
-      fileBrowserVisible = true;
-      ImGui::OpenPopup("File Browser");
+      const char *path = DrawFileBrowserPopup();
+      tmp = path;
     }
     ImGui::SameLine();
     if (ImGui::Button("Reload")) {
@@ -1536,8 +1498,6 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
       // nothing to do
     }
   }
-  // File browser popup is now in DrawFileBrowserPopup() - removed
-  // from here
 }
 
 void EditorApp::DrawControllerInspector(int entity) {

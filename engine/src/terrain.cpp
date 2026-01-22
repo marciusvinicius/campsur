@@ -10,6 +10,12 @@ void Terrain2D::Update(float dt) {
   // Update terrain logic if needed
 }
 
+void Terrain2D::SetAtlas(int layer, const char *path) {
+  tileset.atlas =
+      AssetManager::instance().load<criogenio::TextureResource>(path);
+  tileset.tilesetPath = path;
+}
+
 void Terrain2D::Render(Renderer &renderer) {
   // Render the terrain lay
   if (!tileset.atlas)
