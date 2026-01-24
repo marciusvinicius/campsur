@@ -394,7 +394,7 @@ void EditorApp::OnGUI() {
 
   DrawDockSpace();
   DrawTerrainEditor();
-  // DrawToolbar();
+  //  DrawToolbar();
   DrawMainMenuBar();
 
   rlImGuiEnd(); // renders ImGui
@@ -446,6 +446,8 @@ void EditorApp::DrawDockSpace() {
 
     ImGui::DockBuilderDockWindow("Hierarchy", dock_left);
     ImGui::DockBuilderDockWindow("Inspector", dock_right);
+    ImGui::DockBuilderDockWindow("Terrain Editor", dock_right);
+    ImGui::DockBuilderDockWindow("Global Inspector", dock_right);
     ImGui::DockBuilderDockWindow("Viewport", dock_main);
     ImGui::DockBuilderDockWindow("##Toolbar", dock_main);
     if (ImGui::Button("Click Me")) {
@@ -564,11 +566,14 @@ void EditorApp::DrawMainMenuBar() {
     if (ImGui::BeginMenu("GameObject")) {
       if (ImGui::MenuItem("Create Empty")) {
         // CreateEmptyEntity();
+        // TODO: move this to a  help function?
         int id = GetWorld().CreateEntity("New Entity");
         GetWorld().AddComponent<criogenio::Name>(id, "New Entity " +
                                                          std::to_string(id));
+
         GetWorld().AddComponent<criogenio::Transform>(id, 0.0f, 0.0f);
 
+        /*
         auto path = "/home/marcius/Workspace/criogenio/camp_sur_cpp/editor/"
                     "assets/raw/world.png";
         auto texture = LoadTexture(path);
@@ -668,6 +673,7 @@ void EditorApp::DrawMainMenuBar() {
         AnimationDatabase::instance().addReference(animId);
 
         GetWorld().AddComponent<criogenio::AnimationState>(id);
+        */
       }
       if (ImGui::MenuItem("Sprite")) {
         // CreateSpriteEntity();
@@ -714,6 +720,8 @@ void EditorApp::CreateEmptyEntityAtMouse() {
   Vector2 worldPos = GetScreenToWorld2D(mouseScreen, GetWorld().maincamera);
 
   int id = GetWorld().CreateEntity("New Entity");
+  GetWorld().AddComponent<criogenio::Name>(id,
+                                           "New Entity " + std::to_string(id));
   GetWorld().AddComponent<criogenio::Transform>(id, worldPos.x, worldPos.y);
 }
 
