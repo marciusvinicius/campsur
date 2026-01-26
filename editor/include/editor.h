@@ -67,6 +67,7 @@ private:
   void DrawTransformInspector(int entity);
   void DrawAnimationStateInspector(int entity);
   void DrawAnimatedSpriteInspector(int entity);
+  void DrawSpriteInspector(int entity);
   void DrawControllerInspector(int entity);
   void DrawAIControllerInspector(int entity);
   void DrawAddComponentMenu(int entity);

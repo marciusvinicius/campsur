@@ -1109,6 +1109,8 @@ void EditorApp::DrawComponentInspectors(int entity) {
 
   if (GetWorld().HasComponent<criogenio::AIController>(entity))
     DrawAIControllerInspector(entity);
+  if (GetWorld().HasComponent<criogenio::Sprite>(entity))
+    DrawSpriteInspector(entity);
 }
 
 void EditorApp::DrawGravityInspector(int entity) {
@@ -1508,6 +1510,45 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
   }
 }
 
+void EditorApp::DrawSpriteInspector(int entity) {
+
+  ImGui::PushID("Sprite");
+  ImGui::BeginGroup();
+  bool headerOpen = ImGui::CollapsingHeader("Sprite");
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+  if (ImGui::SmallButton("X")) {
+    // Clean up animation references
+    auto *sp = GetWorld().GetComponent<criogenio::Sprite>(entity);
+    GetWorld().RemoveComponent<criogenio::Sprite>(entity);
+    if (ImGui::Button("Browse")) {
+      const char *path = DrawFileBrowserPopup();
+      sp->SetTexture(path);
+    }
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return;
+  }
+  ImGui::EndGroup();
+  ImGui::PopID();
+
+  if (!headerOpen)
+    return;
+
+  auto *sprite = GetWorld().GetComponent<criogenio::Sprite>(entity);
+  if (!sprite)
+    return;
+
+  ImGui::Separator();
+  if (ImGui::BeginPopupContextItem("SpriteContext")) {
+    if (ImGui::MenuItem("Remove Component")) {
+      // decrement usage if this component owned an animation asset
+      auto *sp = GetWorld().GetComponent<criogenio::Sprite>(entity);
+      GetWorld().RemoveComponent<criogenio::AnimatedSprite>(entity);
+    }
+    ImGui::EndPopup();
+  }
+}
+
 void EditorApp::DrawControllerInspector(int entity) {
 
   ImGui::PushID("Controller");
@@ -1640,6 +1681,12 @@ void EditorApp::DrawAddComponentMenu(int entity) {
     if (!GetWorld().HasComponent<criogenio::AnimationState>(entity)) {
       if (ImGui::MenuItem("Animation State")) {
         GetWorld().AddComponent<criogenio::AnimationState>(entity);
+      }
+    }
+
+    if (!GetWorld().HasComponent<criogenio::Sprite>(entity)) {
+      if (ImGui::MenuItem("Sprite")) {
+        GetWorld().AddComponent<criogenio::Sprite>(entity);
       }
     }
     ImGui::EndPopup();

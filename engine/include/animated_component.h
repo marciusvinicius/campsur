@@ -97,7 +97,7 @@ public:
 
   SerializedComponent Serialize() const override {
     SerializedComponent out;
-    out.type = "AnimatedSprite";
+    out.type = TypeName();
     out.fields["animationId"] = static_cast<int>(animationId);
     out.fields["currentClipName"] = currentClipName;
     return out;

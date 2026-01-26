@@ -1,6 +1,10 @@
 #pragma once
+#include "animation_database.h"
 #include "animation_state.h"
+#include "asset_manager.h"
+#include "json.hpp"
 #include "raylib.h"
+#include "resources.h"
 #include "serialization.h"
 #include <memory>
 #include <string>
@@ -197,6 +201,7 @@ public:
   }
 };
 
+// TODO:(maraujo) Normalize the way I'm serializing
 class BoxCollider : public Component {
 public:
   BoxCollider() = default;
@@ -212,6 +217,37 @@ public:
       width = std::get<float>(it->second);
     if (auto it = data.fields.find("height"); it != data.fields.end())
       height = std::get<float>(it->second);
+  }
+};
+
+class Sprite : public Component {
+public:
+  Sprite() = default;
+  explicit Sprite(AssetId id) : textureId(id) {}
+  AssetId textureId = INVALID_ASSET_ID;
+  std::string TypeName() const override { return "Sprite"; }
+  int spriteSize = 32;
+
+  std::shared_ptr<TextureResource> atlas;
+  std::string tilesetPath;
+
+  SerializedComponent Serialize() const override {
+    SerializedComponent out;
+    out.type = TypeName();
+    out.fields["textureId"] = static_cast<int>(textureId);
+    out.fields["spriteSize"] = static_cast<int>(spriteSize);
+    return out;
+  }
+
+  void Deserialize(const SerializedComponent &data) override {
+    textureId =
+        static_cast<AssetId>(std::get<int>(data.fields.at("textureId")));
+    spriteSize =
+        static_cast<AssetId>(std::get<int>(data.fields.at("spriteSize")));
+  }
+
+  void SetTexture(const char *path) {
+    atlas = criogenio::AssetManager::instance().load<TextureResource>(path);
   }
 };
 
