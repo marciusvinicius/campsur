@@ -304,9 +304,12 @@ void EditorApp::DrawHierarchyPanel() {
 }
 
 bool EditorApp::IsMouseInWorldView() {
-  int mx = GetMouseX();
-  int my = GetMouseY();
-  return mx > leftPanelWidth && mx < GetScreenWidth() - rightPanelWidth;
+  Vector2 mouse = GetMousePosition();
+  // Use the actual ImGui viewport rectangle instead of fixed panel widths
+  return mouse.x >= viewportPos.x &&
+         mouse.x <= viewportPos.x + viewportSize.x &&
+         mouse.y >= viewportPos.y &&
+         mouse.y <= viewportPos.y + viewportSize.y;
 }
 
 void EditorApp::HandleEntityDrag() {
@@ -1433,6 +1436,58 @@ void EditorApp::DrawAnimationEditor(int entity) {
 
   ImGui::Separator();
 
+  // Editing vs creating new clip state
+  auto &currentEditingName = editingClipName[entity];
+  if (!currentEditingName.empty()) {
+    ImGui::Text("Editing clip: %s", currentEditingName.c_str());
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Done")) {
+      // Finish editing and reset draft to defaults so the next Save
+      // creates a brand new clip instead of overwriting.
+      currentEditingName.clear();
+      draft = AnimationClipDraft{};
+      draft.tileIndices.clear();
+    }
+  } else {
+    ImGui::Text("Creating new clip");
+  }
+
+  ImGui::Separator();
+
+  // Export / import this animation definition as standalone JSON
+  ImGui::Text("Animation Asset:");
+  ImGui::SameLine();
+  if (ImGui::Button("Export...")) {
+    if (sprite->animationId != criogenio::INVALID_ASSET_ID) {
+      const char *filters[] = {"*.json"};
+      const char *path = tinyfd_saveFileDialog(
+          "Export Animation", "animation.json", 1, filters, "Animation Files");
+      if (path && std::strlen(path) > 0) {
+        criogenio::SaveAnimationToFile(sprite->animationId, path);
+      }
+    }
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Import...")) {
+    const char *filters[] = {"*.json"};
+    const char *path = tinyfd_openFileDialog("Import Animation", "", 1, filters,
+                                             "Animation Files", 0);
+    if (path && std::strlen(path) > 0) {
+      criogenio::AssetId oldId = sprite->animationId;
+      criogenio::AssetId newId = criogenio::LoadAnimationFromFile(path);
+      if (newId != criogenio::INVALID_ASSET_ID) {
+        if (oldId != criogenio::INVALID_ASSET_ID) {
+          criogenio::AnimationDatabase::instance().removeReference(oldId);
+        }
+        sprite->animationId = newId;
+        criogenio::AnimationDatabase::instance().addReference(newId);
+        sprite->currentClipName.clear();
+      }
+    }
+  }
+
+  ImGui::Separator();
+
   ImGui::InputInt("Tile Size", &draft.tileSize);
   if (draft.tileSize < 1)
     draft.tileSize = 1;
@@ -1605,6 +1660,7 @@ void EditorApp::DrawAnimationEditor(int entity) {
     clip.name = draft.name;
     clip.frameSpeed = draft.frameSpeed;
     clip.state = draft.state;
+    clip.direction = draft.direction;
 
     // Build frames from selected tile indices in the order they were clicked
     if (tex && draft.tileSize > 0) {
@@ -1621,12 +1677,20 @@ void EditorApp::DrawAnimationEditor(int entity) {
       }
     }
 
+    // If we are editing an existing clip, remove the old version first
+    auto &editingName = editingClipName[entity];
+    if (!editingName.empty()) {
+      criogenio::AnimationDatabase::instance().removeClip(animId, editingName);
+    }
+
     criogenio::AnimationDatabase::instance().addClip(animId, clip);
     sprite->SetClip(clip.name);
     // Ensure we have an AnimationState component for this animated entity
     if (!GetWorld().HasComponent<criogenio::AnimationState>(entity)) {
       GetWorld().AddComponent<criogenio::AnimationState>(entity);
     }
+    // Track this clip as the one currently being edited
+    editingName = clip.name;
   }
   if (!canSave) {
     ImGui::EndDisabled();
@@ -1640,11 +1704,20 @@ void EditorApp::DrawAnimationEditor(int entity) {
     ImGui::TextDisabled("No clips defined yet.");
   } else {
     for (const auto &clip : def->clips) {
-      ImGui::PushID(clip.name.c_str());
       bool selected = (sprite->currentClipName == clip.name);
-      if (ImGui::Selectable(clip.name.c_str(), selected)) {
+
+      // Draw clip name as text and allow clicking it to select the clip
+      if (selected) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.9f, 0.2f, 1.0f));
+      }
+      ImGui::TextUnformatted(clip.name.c_str());
+      if (ImGui::IsItemClicked()) {
         sprite->SetClip(clip.name);
       }
+      if (selected) {
+        ImGui::PopStyleColor();
+      }
+
       if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip("State: %s, Dir: %s\nFrames: %d, Speed: %.2f",
                           criogenio::anim_state_to_string(clip.state).c_str(),
@@ -1652,16 +1725,52 @@ void EditorApp::DrawAnimationEditor(int entity) {
                           (int)clip.frames.size(), clip.frameSpeed);
       }
       ImGui::SameLine();
-      if (ImGui::SmallButton("Delete")) {
+      std::string editLabel = "Edit##" + clip.name;
+      if (ImGui::SmallButton(editLabel.c_str())) {
+        // Populate draft from this clip for editing
+        auto &draft = animationClipDrafts[entity];
+        draft.state = clip.state;
+        draft.direction = clip.direction;
+        draft.frameSpeed = clip.frameSpeed;
+        draft.tileIndices.clear();
+
+        // Infer tile size from first frame, if any
+        if (!clip.frames.empty()) {
+          draft.tileSize = static_cast<int>(clip.frames[0].rect.width);
+        }
+
+        // Reconstruct tile indices from frame rectangles
+        if (def && !def->texturePath.empty() && draft.tileSize > 0) {
+          auto tex =
+              criogenio::AssetManager::instance().load<criogenio::TextureResource>(
+                  def->texturePath);
+          if (tex) {
+            int sheetCols = tex->texture.width / draft.tileSize;
+            for (const auto &f : clip.frames) {
+              int x = static_cast<int>(f.rect.x) / draft.tileSize;
+              int y = static_cast<int>(f.rect.y) / draft.tileSize;
+              int idx = y * sheetCols + x;
+              draft.tileIndices.push_back(idx);
+            }
+          }
+        }
+
+        // Track which clip we are editing so Save overwrites it
+        editingClipName[entity] = clip.name;
+      }
+      ImGui::SameLine();
+      std::string deleteLabel = "Delete##" + clip.name;
+      if (ImGui::SmallButton(deleteLabel.c_str())) {
         criogenio::AnimationDatabase::instance().removeClip(
             sprite->animationId, clip.name);
         if (sprite->currentClipName == clip.name) {
           sprite->currentClipName.clear();
         }
-        ImGui::PopID();
+        if (editingClipName[entity] == clip.name) {
+          editingClipName[entity].clear();
+        }
         break; // clips vector changed, break out of loop
       }
-      ImGui::PopID();
     }
   }
 }

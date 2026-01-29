@@ -128,6 +128,8 @@ private:
   };
 
   std::unordered_map<int, AnimationClipDraft> animationClipDrafts;
+  // Name of the clip currently being edited for a given entity (empty = new)
+  std::unordered_map<int, std::string> editingClipName;
 
   // Terrain editor state
   bool terrainEditMode = false;
