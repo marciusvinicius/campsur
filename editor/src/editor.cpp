@@ -32,6 +32,7 @@ void EditorApp::EditorAppReset() {
   RegisterCoreComponents();
   GetWorld().AddSystem<MovementSystem>(GetWorld());
   GetWorld().AddSystem<AnimationSystem>(GetWorld());
+  GetWorld().AddSystem<SpriteSystem>(GetWorld());
   GetWorld().AddSystem<RenderSystem>(GetWorld());
   GetWorld().AddSystem<AIMovementSystem>(GetWorld());
 }
@@ -1511,23 +1512,19 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
 }
 
 void EditorApp::DrawSpriteInspector(int entity) {
-
   ImGui::PushID("Sprite");
   ImGui::BeginGroup();
   bool headerOpen = ImGui::CollapsingHeader("Sprite");
   ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+
   if (ImGui::SmallButton("X")) {
-    // Clean up animation references
     auto *sp = GetWorld().GetComponent<criogenio::Sprite>(entity);
     GetWorld().RemoveComponent<criogenio::Sprite>(entity);
-    if (ImGui::Button("Browse")) {
-      const char *path = DrawFileBrowserPopup();
-      sp->SetTexture(path);
-    }
     ImGui::EndGroup();
     ImGui::PopID();
     return;
   }
+
   ImGui::EndGroup();
   ImGui::PopID();
 
@@ -1539,12 +1536,32 @@ void EditorApp::DrawSpriteInspector(int entity) {
     return;
 
   ImGui::Separator();
+  char buf[512] = {0};
+  auto &tmp = sprite->atlasPath;
+  strncpy(buf, tmp.c_str(), sizeof(buf) - 1);
+  if (ImGui::InputText("Texture Path", buf, sizeof(buf))) {
+    tmp = std::string(buf);
+  }
+  if (ImGui::Button("Browse")) {
+    const char *path = DrawFileBrowserPopup();
+    sprite->SetTexture(path);
+  }
+
+  ImGui::Separator();
+
+  ImGui::InputInt("##sprite size", &sprite->spriteSize);
+
+  ImGui::InputInt("##sprite X", &sprite->spriteX);
+
+  ImGui::InputInt("##sprite Y", &sprite->spriteY);
+
   if (ImGui::BeginPopupContextItem("SpriteContext")) {
     if (ImGui::MenuItem("Remove Component")) {
       // decrement usage if this component owned an animation asset
       auto *sp = GetWorld().GetComponent<criogenio::Sprite>(entity);
       GetWorld().RemoveComponent<criogenio::AnimatedSprite>(entity);
     }
+    ImGui::Separator();
     ImGui::EndPopup();
   }
 }

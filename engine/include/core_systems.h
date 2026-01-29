@@ -41,6 +41,14 @@ public:
   void OnWorldLoaded(World &world);
 };
 
+class SpriteSystem : public ISystem {
+public:
+  World &world;
+  SpriteSystem(World &w) : world(w) {};
+  void Update(float dt) override;
+  void Render(Renderer &) override;
+};
+
 class RenderSystem : public ISystem {
 public:
   World &world;

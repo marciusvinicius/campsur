@@ -226,15 +226,19 @@ public:
   explicit Sprite(AssetId id) : textureId(id) {}
   AssetId textureId = INVALID_ASSET_ID;
   std::string TypeName() const override { return "Sprite"; }
+  int spriteX = 32;
+  int spriteY = 32;
   int spriteSize = 32;
 
   std::shared_ptr<TextureResource> atlas;
-  std::string tilesetPath;
+  std::string atlasPath;
 
   SerializedComponent Serialize() const override {
     SerializedComponent out;
     out.type = TypeName();
     out.fields["textureId"] = static_cast<int>(textureId);
+    out.fields["spriteX"] = static_cast<int>(spriteX);
+    out.fields["spriteY"] = static_cast<int>(spriteY);
     out.fields["spriteSize"] = static_cast<int>(spriteSize);
     return out;
   }
@@ -248,6 +252,7 @@ public:
 
   void SetTexture(const char *path) {
     atlas = criogenio::AssetManager::instance().load<TextureResource>(path);
+    atlasPath = path;
   }
 };
 

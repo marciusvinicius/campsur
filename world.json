@@ -528,6 +528,24 @@
         }
       ],
       "id": 1
+    },
+    {
+      "components": [
+        {
+          "fields": {
+            "x": 474.0,
+            "y": 96.0
+          },
+          "type": "Transform"
+        },
+        {
+          "fields": {
+            "name": "New Entity 3"
+          },
+          "type": "Name"
+        }
+      ],
+      "id": 3
     }
   ],
   "terrain": {

@@ -132,7 +132,6 @@ SerializedWorld FromJson(const json &j) {
           anim.clips.push_back(clip);
         }
       }
-
       world.animations.push_back(anim);
     }
   }
