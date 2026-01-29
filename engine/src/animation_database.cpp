@@ -1,5 +1,6 @@
 #include "animation_database.h"
 #include <string>
+#include <algorithm>
 
 namespace criogenio {
 
@@ -60,6 +61,20 @@ AnimationDatabase::getClip(AssetId animId, const std::string &clipName) const {
       return &clip;
   }
   return nullptr;
+}
+
+void AnimationDatabase::removeClip(AssetId animId,
+                                   const std::string &clipName) {
+  auto it = animations_.find(animId);
+  if (it == animations_.end())
+    return;
+
+  auto &clips = it->second.clips;
+  clips.erase(std::remove_if(clips.begin(), clips.end(),
+                             [&](const AnimationClip &c) {
+                               return c.name == clipName;
+                             }),
+              clips.end());
 }
 
 void AnimationDatabase::clear() {

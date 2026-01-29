@@ -108,6 +108,8 @@ SerializedWorld World::Serialize() const {
       SerializedAnimationClip serializedClip;
       serializedClip.name = clip.name;
       serializedClip.frameSpeed = clip.frameSpeed;
+      serializedClip.state = static_cast<int>(clip.state);
+      serializedClip.direction = static_cast<int>(clip.direction);
 
       // Serialize frames
       for (const auto &frame : clip.frames) {
@@ -209,6 +211,8 @@ void World::Deserialize(const SerializedWorld &data) {
       AnimationClip clip;
       clip.name = serializedClip.name;
       clip.frameSpeed = serializedClip.frameSpeed;
+      clip.state = static_cast<AnimState>(serializedClip.state);
+      clip.direction = static_cast<Direction>(serializedClip.direction);
 
       // Restore frames
       for (const auto &serializedFrame : serializedClip.frames) {

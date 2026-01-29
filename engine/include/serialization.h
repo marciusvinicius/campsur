@@ -54,6 +54,10 @@ struct SerializedAnimationClip {
   std::string name;
   std::vector<SerializedAnimationFrame> frames;
   float frameSpeed;
+  // Optional link to an AnimState (stored as int, cast to AnimState)
+  int state = 0;
+  // Optional link to a Direction (stored as int, cast to Direction)
+  int direction = 0;
 };
 
 struct SerializedAnimation {

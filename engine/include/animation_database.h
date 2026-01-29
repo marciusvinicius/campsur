@@ -1,6 +1,7 @@
 #pragma once
 
 #include "raylib.h"
+#include "animation_state.h"
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -21,6 +22,9 @@ struct AnimationClip {
   std::string name;
   std::vector<AnimationFrame> frames;
   float frameSpeed = 0.2f;
+  // Logical state + facing this clip represents
+  AnimState state = AnimState::IDLE;
+  Direction direction = Direction::DOWN;
 };
 
 struct AnimationDef {
@@ -40,6 +44,9 @@ public:
   const AnimationDef *getAnimation(AssetId animId) const;
   const AnimationClip *getClip(AssetId animId,
                                const std::string &clipName) const;
+
+  // Remove a single clip from an animation by name
+  void removeClip(AssetId animId, const std::string &clipName);
 
   // Update the texture path for an existing animation. Returns the previous
   // texture path (empty if none or animId not found).
