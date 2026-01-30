@@ -2,6 +2,7 @@
 #include "animation_database.h"
 #include "animation_state.h"
 #include "asset_manager.h"
+#include "criogenio_io.h"
 #include "input.h"
 #include "raymath.h"
 #include "resources.h"
@@ -11,6 +12,8 @@
 #include "imgui_internal.h"
 #include "rlImGui.h"
 
+#include <algorithm>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -19,9 +22,7 @@ extern "C" {
 }
 #endif
 
-#include <filesystem>
 namespace fs = std::filesystem;
-#include "criogenio_io.h"
 
 using namespace criogenio;
 
@@ -33,6 +34,7 @@ void EditorApp::EditorAppReset() {
   RegisterCoreComponents();
   GetWorld().AddSystem<MovementSystem>(GetWorld());
   GetWorld().AddSystem<AnimationSystem>(GetWorld());
+  GetWorld().AddSystem<SpriteSystem>(GetWorld());
   GetWorld().AddSystem<RenderSystem>(GetWorld());
   GetWorld().AddSystem<AIMovementSystem>(GetWorld());
 }
@@ -245,6 +247,7 @@ void EditorApp::DrawHierarchyPanel() {
   }
   ImGui::End();
 
+  // Inspector window (components only)
   if (ImGui::Begin("Inspector")) {
     if (selectedEntityId.has_value()) {
       int entity = selectedEntityId.value();
@@ -301,9 +304,12 @@ void EditorApp::DrawHierarchyPanel() {
 }
 
 bool EditorApp::IsMouseInWorldView() {
-  int mx = GetMouseX();
-  int my = GetMouseY();
-  return mx > leftPanelWidth && mx < GetScreenWidth() - rightPanelWidth;
+  Vector2 mouse = GetMousePosition();
+  // Use the actual ImGui viewport rectangle instead of fixed panel widths
+  return mouse.x >= viewportPos.x &&
+         mouse.x <= viewportPos.x + viewportSize.x &&
+         mouse.y >= viewportPos.y &&
+         mouse.y <= viewportPos.y + viewportSize.y;
 }
 
 void EditorApp::HandleEntityDrag() {
@@ -395,11 +401,9 @@ void EditorApp::OnGUI() {
 
   DrawDockSpace();
   DrawTerrainEditor();
-  // DrawToolbar();
+  DrawAnimationEditorWindow();
+  //  DrawToolbar();
   DrawMainMenuBar();
-
-  // File browser popup (must be rendered every frame when visible)
-  DrawFileBrowserPopup();
 
   rlImGuiEnd(); // renders ImGui
 
@@ -450,6 +454,9 @@ void EditorApp::DrawDockSpace() {
 
     ImGui::DockBuilderDockWindow("Hierarchy", dock_left);
     ImGui::DockBuilderDockWindow("Inspector", dock_right);
+    ImGui::DockBuilderDockWindow("Terrain Editor", dock_right);
+    ImGui::DockBuilderDockWindow("Animation Editor", dock_right);
+    ImGui::DockBuilderDockWindow("Global Inspector", dock_right);
     ImGui::DockBuilderDockWindow("Viewport", dock_main);
     ImGui::DockBuilderDockWindow("##Toolbar", dock_main);
     if (ImGui::Button("Click Me")) {
@@ -568,11 +575,14 @@ void EditorApp::DrawMainMenuBar() {
     if (ImGui::BeginMenu("GameObject")) {
       if (ImGui::MenuItem("Create Empty")) {
         // CreateEmptyEntity();
+        // TODO: move this to a  help function?
         int id = GetWorld().CreateEntity("New Entity");
         GetWorld().AddComponent<criogenio::Name>(id, "New Entity " +
                                                          std::to_string(id));
+
         GetWorld().AddComponent<criogenio::Transform>(id, 0.0f, 0.0f);
 
+        /*
         auto path = "/home/marcius/Workspace/criogenio/camp_sur_cpp/editor/"
                     "assets/raw/world.png";
         auto texture = LoadTexture(path);
@@ -672,6 +682,7 @@ void EditorApp::DrawMainMenuBar() {
         AnimationDatabase::instance().addReference(animId);
 
         GetWorld().AddComponent<criogenio::AnimationState>(id);
+        */
       }
       if (ImGui::MenuItem("Sprite")) {
         // CreateSpriteEntity();
@@ -718,6 +729,8 @@ void EditorApp::CreateEmptyEntityAtMouse() {
   Vector2 worldPos = GetScreenToWorld2D(mouseScreen, GetWorld().maincamera);
 
   int id = GetWorld().CreateEntity("New Entity");
+  GetWorld().AddComponent<criogenio::Name>(id,
+                                           "New Entity " + std::to_string(id));
   GetWorld().AddComponent<criogenio::Transform>(id, worldPos.x, worldPos.y);
 }
 
@@ -786,41 +799,9 @@ void EditorApp::DrawTerrainEditor() {
     ImGui::Text("Tileset: %s", terrain->tileset.tilesetPath.c_str());
     ImGui::SameLine();
     if (ImGui::Button("Change Texture")) {
-      namespace fs = std::filesystem;
-      auto root = fs::path("editor") / "assets";
-      fileBrowserEntries.clear();
-      try {
-        if (fs::exists(root)) {
-          for (auto &p : fs::recursive_directory_iterator(root)) {
-            if (p.is_regular_file()) {
-              std::string ext = p.path().extension().string();
-              // Filter for image files
-              if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" ||
-                  ext == ".bmp" || ext == ".gif" || ext == ".tga") {
-                fileBrowserEntries.push_back(p.path().string());
-              }
-            }
-          }
-          std::sort(fileBrowserEntries.begin(), fileBrowserEntries.end());
-        }
-      } catch (...) {
-      }
-      fileBrowserFilter.clear();
-      fileBrowserForTerrain = true;
-      fileBrowserTargetEntity = -1; // Not used for terrain
-      // Initialize preview with current terrain texture
-      fileBrowserPreviewPath = terrain->tileset.tilesetPath;
-      if (!fileBrowserPreviewPath.empty()) {
-        fileBrowserPreviewTex =
-            AssetManager::instance().load<criogenio::TextureResource>(
-                fileBrowserPreviewPath);
-      } else {
-        fileBrowserPreviewTex = nullptr;
-      }
-      fileBrowserVisible = true;
-      ImGui::OpenPopup("File Browser");
+      const char *path = DrawFileBrowserPopup();
+      GetWorld().GetTerrain()->SetAtlas(0, path);
     }
-
     ImGui::DragInt("Tileset size", &terrain->tileset.tileSize, 1, 0, 100);
     ImGui::Separator();
 
@@ -871,7 +852,8 @@ EditorApp::WorldToTile(const criogenio::Terrain2D &terrain, Vector2 worldPos) {
   float tx = local.x / terrain.tileset.tileSize;
   float ty = local.y / terrain.tileset.tileSize;
 
-  const auto &layer = terrain.layers[0];
+  // TODO:get the current layer
+  const auto &layer = terrain.layers[terrainSelectedLayer];
 
   if (tx < 0 || ty < 0 || tx >= layer.width || ty >= layer.height)
     return std::nullopt;
@@ -1067,7 +1049,8 @@ Vector2 EditorApp::ScreenToWorldPosition(Vector2 mouseScreen) {
                            viewportMouse.y / viewportSize.y};
 
   // Convert normalized coordinates to texture screen coordinates
-  // Note: Texture Y is flipped (0 at top in ImGui, 0 at bottom in texture)
+  // Note: Texture Y is flipped (0 at top in ImGui, 0 at bottom in
+  // texture)
   Vector2 textureScreen = {normalizedPos.x * (float)sceneRT.texture.width,
                            (1.0f - normalizedPos.y) *
                                (float)sceneRT.texture.height};
@@ -1135,6 +1118,8 @@ void EditorApp::DrawComponentInspectors(int entity) {
 
   if (GetWorld().HasComponent<criogenio::AIController>(entity))
     DrawAIControllerInspector(entity);
+  if (GetWorld().HasComponent<criogenio::Sprite>(entity))
+    DrawSpriteInspector(entity);
 }
 
 void EditorApp::DrawGravityInspector(int entity) {
@@ -1275,10 +1260,26 @@ void EditorApp::DrawTransformInspector(int entity) {
 }
 
 // TODO:(maraujo) move these kind of thing to UI
-void EditorApp::DrawFileBrowserPopup() {
-  // Simple file browser popup - must be called every frame when visible
-  // OpenPopup is called when button is clicked, BeginPopupModal shows it
-  if (fileBrowserVisible &&
+const char *EditorApp::DrawFileBrowserPopup() {
+  const char *filters[] = {"*.png", "*.jpeg", "*.jpg"};
+  const char *path =
+      tinyfd_openFileDialog("Test", "", 1, filters, "Select File", 0);
+
+  if (path && strlen(path) > 0) {
+    printf("[Editor] Selected file: '%s'\n", path);
+    FILE *fp = fopen(path, "r");
+    if (fp) {
+      fclose(fp);
+      // GetWorld().GetTerrain().tileset.atlas.texture = fileBrowserPreviewTex;
+      return path;
+    } else {
+      printf("[Editor] ERROR: File does not exist or cannot be opened: "
+             "'%s'\n",
+             path);
+    }
+  }
+  /*
+
       ImGui::BeginPopupModal("File Browser", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     ImGui::Text(fileBrowserForTerrain
@@ -1301,9 +1302,8 @@ void EditorApp::DrawFileBrowserPopup() {
             this->fileDialogMode == FileDialogMode::LoadScene) {
           this->pendingScenePath = entry;
         } else if (fileBrowserForTerrain) {
-          fileBrowserPreviewPath = entry; // Store selected path for terrain
-        } else {
-          texturePathEdits[fileBrowserTargetEntity] = entry;
+          fileBrowserPreviewPath = entry; // Store selected path for
+  terrain } else { texturePathEdits[fileBrowserTargetEntity] = entry;
         }
       }
       if (ImGui::IsItemHovered()) {
@@ -1346,22 +1346,19 @@ void EditorApp::DrawFileBrowserPopup() {
           if (ImGui::Button("OK")) {
             if (this->fileDialogMode == FileDialogMode::SaveScene &&
                 !this->pendingScenePath.empty()) {
-              criogenio::SaveWorldToFile(GetWorld(), this->pendingScenePath);
-              this->fileDialogMode = FileDialogMode::None;
+              criogenio::SaveWorldToFile(GetWorld(),
+  this->pendingScenePath); this->fileDialogMode = FileDialogMode::None;
               this->pendingScenePath.clear();
               fileBrowserVisible = false;
               ImGui::CloseCurrentPopup();
               return;
-            } else if (this->fileDialogMode == FileDialogMode::LoadScene &&
-                       !this->pendingScenePath.empty()) {
-              criogenio::LoadWorldFromFile(GetWorld(), this->pendingScenePath);
-              EditorAppReset();
-              this->fileDialogMode = FileDialogMode::None;
-              this->pendingScenePath.clear();
-              fileBrowserVisible = false;
-              ImGui::CloseCurrentPopup();
-              return;
-            } else if (fileBrowserForTerrain) {
+            } else if (this->fileDialogMode == FileDialogMode::LoadScene
+  && !this->pendingScenePath.empty()) {
+              criogenio::LoadWorldFromFile(GetWorld(),
+  this->pendingScenePath); EditorAppReset(); this->fileDialogMode =
+  FileDialogMode::None; this->pendingScenePath.clear(); fileBrowserVisible
+  = false; ImGui::CloseCurrentPopup(); return; } else if
+  (fileBrowserForTerrain) {
               // ...existing code for terrain...
               ImGui::SameLine();
               if (ImGui::Button("Cancel")) {
@@ -1374,6 +1371,405 @@ void EditorApp::DrawFileBrowserPopup() {
             }
           }
         }
+      }
+    }
+  }*/
+}
+
+void EditorApp::DrawAnimationEditorWindow() {
+  if (!ImGui::Begin("Animation Editor")) {
+    ImGui::End();
+    return;
+  }
+
+  if (!selectedEntityId.has_value()) {
+    ImGui::TextDisabled("No entity selected.");
+    ImGui::End();
+    return;
+  }
+
+  int entity = selectedEntityId.value();
+  DrawAnimationEditor(entity);
+
+  ImGui::End();
+}
+
+void EditorApp::DrawAnimationEditor(int entity) {
+
+  auto *sprite = GetWorld().GetComponent<criogenio::AnimatedSprite>(entity);
+
+  if (!sprite) {
+    ImGui::TextDisabled("Entity has no AnimatedSprite component.");
+    if (ImGui::Button("Add AnimatedSprite Component")) {
+      GetWorld().AddComponent<criogenio::AnimatedSprite>(entity);
+      if (!GetWorld().HasComponent<criogenio::AnimationState>(entity)) {
+        GetWorld().AddComponent<criogenio::AnimationState>(entity);
+      }
+    }
+    return;
+  }
+
+  // Ensure we have a draft for this entity
+  auto &draft = animationClipDrafts[entity];
+
+  // Texture / spritesheet selection
+  auto *animDef =
+      criogenio::AnimationDatabase::instance().getAnimation(sprite->animationId);
+
+  auto &texPathEdit = texturePathEdits[entity];
+  if (texPathEdit.empty() && animDef) {
+    texPathEdit = animDef->texturePath;
+  }
+
+  char texBuf[512] = {0};
+  strncpy(texBuf, texPathEdit.c_str(), sizeof(texBuf) - 1);
+  if (ImGui::InputText("Texture Path", texBuf, sizeof(texBuf))) {
+    texPathEdit = std::string(texBuf);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Browse##AnimTexture")) {
+    const char *path = DrawFileBrowserPopup();
+    if (path && std::strlen(path) > 0) {
+      texPathEdit = path;
+    }
+  }
+
+  ImGui::Separator();
+
+  // Editing vs creating new clip state
+  auto &currentEditingName = editingClipName[entity];
+  if (!currentEditingName.empty()) {
+    ImGui::Text("Editing clip: %s", currentEditingName.c_str());
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Done")) {
+      // Finish editing and reset draft to defaults so the next Save
+      // creates a brand new clip instead of overwriting.
+      currentEditingName.clear();
+      draft = AnimationClipDraft{};
+      draft.tileIndices.clear();
+    }
+  } else {
+    ImGui::Text("Creating new clip");
+  }
+
+  ImGui::Separator();
+
+  // Export / import this animation definition as standalone JSON
+  ImGui::Text("Animation Asset:");
+  ImGui::SameLine();
+  if (ImGui::Button("Export...")) {
+    if (sprite->animationId != criogenio::INVALID_ASSET_ID) {
+      const char *filters[] = {"*.json"};
+      const char *path = tinyfd_saveFileDialog(
+          "Export Animation", "animation.json", 1, filters, "Animation Files");
+      if (path && std::strlen(path) > 0) {
+        criogenio::SaveAnimationToFile(sprite->animationId, path);
+      }
+    }
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Import...")) {
+    const char *filters[] = {"*.json"};
+    const char *path = tinyfd_openFileDialog("Import Animation", "", 1, filters,
+                                             "Animation Files", 0);
+    if (path && std::strlen(path) > 0) {
+      criogenio::AssetId oldId = sprite->animationId;
+      criogenio::AssetId newId = criogenio::LoadAnimationFromFile(path);
+      if (newId != criogenio::INVALID_ASSET_ID) {
+        if (oldId != criogenio::INVALID_ASSET_ID) {
+          criogenio::AnimationDatabase::instance().removeReference(oldId);
+        }
+        sprite->animationId = newId;
+        criogenio::AnimationDatabase::instance().addReference(newId);
+        sprite->currentClipName.clear();
+      }
+    }
+  }
+
+  ImGui::Separator();
+
+  ImGui::InputInt("Tile Size", &draft.tileSize);
+  if (draft.tileSize < 1)
+    draft.tileSize = 1;
+
+  ImGui::DragFloat("Frame Speed (s)", &draft.frameSpeed, 0.01f, 0.01f, 10.0f);
+
+  ImGui::Separator();
+
+  // Link this clip to an AnimState
+  int currentStateIndex = static_cast<int>(draft.state);
+  const char *currentStateLabel =
+      criogenio::anim_state_to_string(draft.state).c_str();
+  if (ImGui::BeginCombo("Anim State", currentStateLabel)) {
+    for (int i = 0; i < static_cast<int>(criogenio::AnimState::Count); ++i) {
+      auto state = static_cast<criogenio::AnimState>(i);
+      bool selected = (i == currentStateIndex);
+      const std::string label = criogenio::anim_state_to_string(state);
+      if (ImGui::Selectable(label.c_str(), selected)) {
+        draft.state = state;
+        currentStateIndex = i;
+      }
+      if (selected) {
+        ImGui::SetItemDefaultFocus();
+      }
+    }
+    ImGui::EndCombo();
+  }
+
+  // Link this clip to a Direction
+  int currentDirIndex = static_cast<int>(draft.direction);
+  const std::string currentDirLabel =
+      criogenio::direction_to_string(draft.direction);
+  if (ImGui::BeginCombo("Direction", currentDirLabel.c_str())) {
+    for (int i = 0; i < static_cast<int>(criogenio::Direction::Count); ++i) {
+      auto dir = static_cast<criogenio::Direction>(i);
+      bool selected = (i == currentDirIndex);
+      const std::string label = criogenio::direction_to_string(dir);
+      if (ImGui::Selectable(label.c_str(), selected)) {
+        draft.direction = dir;
+        currentDirIndex = i;
+      }
+      if (selected) {
+        ImGui::SetItemDefaultFocus();
+      }
+    }
+    ImGui::EndCombo();
+  }
+
+  // Show computed clip name (state + direction)
+  std::string baseName;
+  switch (draft.state) {
+  case criogenio::AnimState::IDLE:
+    baseName = "idle";
+    break;
+  case criogenio::AnimState::WALKING:
+    baseName = "walk";
+    break;
+  case criogenio::AnimState::ATTACKING:
+    baseName = "attack";
+    break;
+  case criogenio::AnimState::RUNNING:
+    baseName = "run";
+    break;
+  case criogenio::AnimState::JUMPING:
+    baseName = "jump";
+    break;
+  default:
+    baseName = "idle";
+    break;
+  }
+  std::string dirSuffix = criogenio::direction_to_string(draft.direction);
+  draft.name = baseName + "_" + dirSuffix;
+  ImGui::Text("Clip Name: %s", draft.name.c_str());
+
+  ImGui::Separator();
+
+  std::shared_ptr<criogenio::TextureResource> tex = nullptr;
+  int cols = 0;
+  int rows = 0;
+
+  if (!texPathEdit.empty()) {
+    tex =
+        criogenio::AssetManager::instance().load<criogenio::TextureResource>(
+            texPathEdit);
+    if (tex && draft.tileSize > 0) {
+      cols = tex->texture.width / draft.tileSize;
+      rows = tex->texture.height / draft.tileSize;
+    }
+  }
+
+  if (!tex || cols <= 0 || rows <= 0) {
+    ImGui::TextDisabled(
+        "Select a valid texture and tile size to pick frames.");
+  } else {
+    ImGui::Text("Click tiles to toggle them as frames (order = click order).");
+
+    ImTextureID id = (ImTextureID)(intptr_t)tex->texture.id;
+    ImVec2 buttonSize(32, 32);
+
+    for (int y = 0; y < rows; ++y) {
+      for (int x = 0; x < cols; ++x) {
+        int idx = y * cols + x;
+        float u0 =
+            (x * draft.tileSize) / static_cast<float>(tex->texture.width);
+        float v0 =
+            (y * draft.tileSize) / static_cast<float>(tex->texture.height);
+        float u1 = ((x + 1) * draft.tileSize) /
+                   static_cast<float>(tex->texture.width);
+        float v1 = ((y + 1) * draft.tileSize) /
+                   static_cast<float>(tex->texture.height);
+
+        bool selected = std::find(draft.tileIndices.begin(),
+                                  draft.tileIndices.end(),
+                                  idx) != draft.tileIndices.end();
+
+        ImGui::PushID(idx);
+        if (selected) {
+          ImGui::PushStyleColor(ImGuiCol_Button,
+                                ImVec4(0.0f, 0.6f, 1.0f, 1.0f));
+        }
+
+        if (ImGui::ImageButton("", id, buttonSize, ImVec2(u0, v0),
+                               ImVec2(u1, v1))) {
+          auto it = std::find(draft.tileIndices.begin(),
+                              draft.tileIndices.end(), idx);
+          if (it == draft.tileIndices.end()) {
+            draft.tileIndices.push_back(idx);
+          } else {
+            draft.tileIndices.erase(it);
+          }
+        }
+
+        if (selected) {
+          ImGui::PopStyleColor();
+        }
+        ImGui::PopID();
+        ImGui::SameLine();
+      }
+      ImGui::NewLine();
+    }
+  }
+
+  ImGui::Separator();
+  ImGui::Text("Frames in clip: %d", (int)draft.tileIndices.size());
+  if (ImGui::Button("Clear Frames")) {
+    draft.tileIndices.clear();
+  }
+
+  ImGui::SameLine();
+  bool canSave = !texPathEdit.empty() && draft.tileSize > 0 &&
+                 !draft.name.empty() && !draft.tileIndices.empty();
+  if (!canSave) {
+    ImGui::BeginDisabled();
+  }
+  if (ImGui::Button("Save Clip to Animation")) {
+    // Ensure animation asset exists
+    criogenio::AssetId animId = sprite->animationId;
+    if (animId == criogenio::INVALID_ASSET_ID) {
+      animId =
+          criogenio::AnimationDatabase::instance().createAnimation(texPathEdit);
+      sprite->animationId = animId;
+      criogenio::AnimationDatabase::instance().addReference(animId);
+    } else {
+      // Ensure texture path matches the edited one
+      criogenio::AnimationDatabase::instance().setTexturePath(animId,
+                                                               texPathEdit);
+    }
+
+    criogenio::AnimationClip clip;
+    clip.name = draft.name;
+    clip.frameSpeed = draft.frameSpeed;
+    clip.state = draft.state;
+    clip.direction = draft.direction;
+
+    // Build frames from selected tile indices in the order they were clicked
+    if (tex && draft.tileSize > 0) {
+      int sheetCols = tex->texture.width / draft.tileSize;
+      for (int idx : draft.tileIndices) {
+        int x = idx % sheetCols;
+        int y = idx / sheetCols;
+        criogenio::AnimationFrame frame;
+        frame.rect.x = static_cast<float>(x * draft.tileSize);
+        frame.rect.y = static_cast<float>(y * draft.tileSize);
+        frame.rect.width = static_cast<float>(draft.tileSize);
+        frame.rect.height = static_cast<float>(draft.tileSize);
+        clip.frames.push_back(frame);
+      }
+    }
+
+    // If we are editing an existing clip, remove the old version first
+    auto &editingName = editingClipName[entity];
+    if (!editingName.empty()) {
+      criogenio::AnimationDatabase::instance().removeClip(animId, editingName);
+    }
+
+    criogenio::AnimationDatabase::instance().addClip(animId, clip);
+    sprite->SetClip(clip.name);
+    // Ensure we have an AnimationState component for this animated entity
+    if (!GetWorld().HasComponent<criogenio::AnimationState>(entity)) {
+      GetWorld().AddComponent<criogenio::AnimationState>(entity);
+    }
+    // Track this clip as the one currently being edited
+    editingName = clip.name;
+  }
+  if (!canSave) {
+    ImGui::EndDisabled();
+  }
+
+  ImGui::Separator();
+  ImGui::Text("Existing Clips on this Animation:");
+  const auto *def =
+      criogenio::AnimationDatabase::instance().getAnimation(sprite->animationId);
+  if (!def || def->clips.empty()) {
+    ImGui::TextDisabled("No clips defined yet.");
+  } else {
+    for (const auto &clip : def->clips) {
+      bool selected = (sprite->currentClipName == clip.name);
+
+      // Draw clip name as text and allow clicking it to select the clip
+      if (selected) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.9f, 0.2f, 1.0f));
+      }
+      ImGui::TextUnformatted(clip.name.c_str());
+      if (ImGui::IsItemClicked()) {
+        sprite->SetClip(clip.name);
+      }
+      if (selected) {
+        ImGui::PopStyleColor();
+      }
+
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("State: %s, Dir: %s\nFrames: %d, Speed: %.2f",
+                          criogenio::anim_state_to_string(clip.state).c_str(),
+                          criogenio::direction_to_string(clip.direction).c_str(),
+                          (int)clip.frames.size(), clip.frameSpeed);
+      }
+      ImGui::SameLine();
+      std::string editLabel = "Edit##" + clip.name;
+      if (ImGui::SmallButton(editLabel.c_str())) {
+        // Populate draft from this clip for editing
+        auto &draft = animationClipDrafts[entity];
+        draft.state = clip.state;
+        draft.direction = clip.direction;
+        draft.frameSpeed = clip.frameSpeed;
+        draft.tileIndices.clear();
+
+        // Infer tile size from first frame, if any
+        if (!clip.frames.empty()) {
+          draft.tileSize = static_cast<int>(clip.frames[0].rect.width);
+        }
+
+        // Reconstruct tile indices from frame rectangles
+        if (def && !def->texturePath.empty() && draft.tileSize > 0) {
+          auto tex =
+              criogenio::AssetManager::instance().load<criogenio::TextureResource>(
+                  def->texturePath);
+          if (tex) {
+            int sheetCols = tex->texture.width / draft.tileSize;
+            for (const auto &f : clip.frames) {
+              int x = static_cast<int>(f.rect.x) / draft.tileSize;
+              int y = static_cast<int>(f.rect.y) / draft.tileSize;
+              int idx = y * sheetCols + x;
+              draft.tileIndices.push_back(idx);
+            }
+          }
+        }
+
+        // Track which clip we are editing so Save overwrites it
+        editingClipName[entity] = clip.name;
+      }
+      ImGui::SameLine();
+      std::string deleteLabel = "Delete##" + clip.name;
+      if (ImGui::SmallButton(deleteLabel.c_str())) {
+        criogenio::AnimationDatabase::instance().removeClip(
+            sprite->animationId, clip.name);
+        if (sprite->currentClipName == clip.name) {
+          sprite->currentClipName.clear();
+        }
+        if (editingClipName[entity] == clip.name) {
+          editingClipName[entity].clear();
+        }
+        break; // clips vector changed, break out of loop
       }
     }
   }
@@ -1501,24 +1897,8 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
     }
     ImGui::SameLine();
     if (ImGui::Button("Browse")) {
-      namespace fs = std::filesystem;
-      auto root = fs::path("editor") / "assets";
-      fileBrowserEntries.clear();
-      try {
-        if (fs::exists(root)) {
-          for (auto &p : fs::recursive_directory_iterator(root)) {
-            if (p.is_regular_file())
-              fileBrowserEntries.push_back(p.path().string());
-          }
-          std::sort(fileBrowserEntries.begin(), fileBrowserEntries.end());
-        }
-      } catch (...) {
-      }
-      fileBrowserFilter.clear();
-      fileBrowserTargetEntity = entity;
-      fileBrowserForTerrain = false;
-      fileBrowserVisible = true;
-      ImGui::OpenPopup("File Browser");
+      const char *path = DrawFileBrowserPopup();
+      tmp = path;
     }
     ImGui::SameLine();
     if (ImGui::Button("Reload")) {
@@ -1536,8 +1916,61 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
       // nothing to do
     }
   }
-  // File browser popup is now in DrawFileBrowserPopup() - removed
-  // from here
+}
+
+void EditorApp::DrawSpriteInspector(int entity) {
+  ImGui::PushID("Sprite");
+  ImGui::BeginGroup();
+  bool headerOpen = ImGui::CollapsingHeader("Sprite");
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+
+  if (ImGui::SmallButton("X")) {
+    auto *sp = GetWorld().GetComponent<criogenio::Sprite>(entity);
+    GetWorld().RemoveComponent<criogenio::Sprite>(entity);
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return;
+  }
+
+  ImGui::EndGroup();
+  ImGui::PopID();
+
+  if (!headerOpen)
+    return;
+
+  auto *sprite = GetWorld().GetComponent<criogenio::Sprite>(entity);
+  if (!sprite)
+    return;
+
+  ImGui::Separator();
+  char buf[512] = {0};
+  auto &tmp = sprite->atlasPath;
+  strncpy(buf, tmp.c_str(), sizeof(buf) - 1);
+  if (ImGui::InputText("Texture Path", buf, sizeof(buf))) {
+    tmp = std::string(buf);
+  }
+  if (ImGui::Button("Browse")) {
+    const char *path = DrawFileBrowserPopup();
+    sprite->SetTexture(path);
+  }
+
+  ImGui::Separator();
+
+  ImGui::InputInt("##sprite size", &sprite->spriteSize);
+
+  ImGui::InputInt("##sprite X", &sprite->spriteX);
+
+  ImGui::InputInt("##sprite Y", &sprite->spriteY);
+
+  if (ImGui::BeginPopupContextItem("SpriteContext")) {
+    if (ImGui::MenuItem("Remove Component")) {
+      // decrement usage if this component owned an animation asset
+      auto *sp = GetWorld().GetComponent<criogenio::Sprite>(entity);
+      GetWorld().RemoveComponent<criogenio::AnimatedSprite>(entity);
+    }
+    ImGui::Separator();
+    ImGui::EndPopup();
+  }
 }
 
 void EditorApp::DrawControllerInspector(int entity) {
@@ -1653,6 +2086,10 @@ void EditorApp::DrawAddComponentMenu(int entity) {
     if (!GetWorld().HasComponent<criogenio::AnimatedSprite>(entity)) {
       if (ImGui::MenuItem("Animated Sprite")) {
         GetWorld().AddComponent<criogenio::AnimatedSprite>(entity);
+        // Auto-create AnimationState when adding an AnimatedSprite
+        if (!GetWorld().HasComponent<criogenio::AnimationState>(entity)) {
+          GetWorld().AddComponent<criogenio::AnimationState>(entity);
+        }
       }
     }
 
@@ -1672,6 +2109,12 @@ void EditorApp::DrawAddComponentMenu(int entity) {
     if (!GetWorld().HasComponent<criogenio::AnimationState>(entity)) {
       if (ImGui::MenuItem("Animation State")) {
         GetWorld().AddComponent<criogenio::AnimationState>(entity);
+      }
+    }
+
+    if (!GetWorld().HasComponent<criogenio::Sprite>(entity)) {
+      if (ImGui::MenuItem("Sprite")) {
+        GetWorld().AddComponent<criogenio::Sprite>(entity);
       }
     }
     ImGui::EndPopup();

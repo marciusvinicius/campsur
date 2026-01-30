@@ -81,3 +81,5 @@ filter("configurations:Release")
 optimize("On")
 
 filter({})
+
+links({"enet"})

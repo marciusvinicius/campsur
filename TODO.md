@@ -1,8 +1,16 @@
 # TODO
 
+## AssetManager
+
+  [ ] Check how my assetmanager is integrating with the entity component
+  [ ] For now each entity has their our atlas, should be possible to set one globaly and set the region
+  configuration for each sprite component
+
 ## Editor
 
   [ ] Fixing issue with editor grid when editing a terrain
+  [ ] Remove component is not working
+  [ ] Sprite component don't have a load texture option
   [√] Issue when selecting on editor a animation state that does not exist
   [ ] New entities should have the id in the name
   [ ] Entity selected drawing before tileset
@@ -33,6 +41,7 @@
   [ ] Working on tileset map editor
   [ ] Working on animation tool
   [ ] Move all UI to a new file
+
 
 ## Engine
 

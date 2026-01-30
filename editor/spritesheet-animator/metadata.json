@@ -1,0 +1,5 @@
+
+{
+  "name": "SpriteSheet Animator",
+  "description": "A professional tool for creating and exporting sprite animations from sheets. Upload an image, define frame sizes, pick frames visually, and export to C++ compatible JSON format."
+}

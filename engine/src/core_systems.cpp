@@ -197,4 +197,27 @@ void GravitySystem::Update(float dt) {
 
 void GravitySystem::Render(Renderer &renderer) {}
 
+void SpriteSystem::Update(float dt) {}
+
+void SpriteSystem::Render(Renderer &renderer) {
+  auto ids = world.GetEntitiesWith<Sprite>();
+  for (ecs::EntityId id : ids) {
+    auto *sprite = world.GetComponent<Sprite>(id);
+    auto *tr = world.GetComponent<Transform>(id);
+
+    // Load texture from asset manager
+    if (!sprite->atlas)
+      continue;
+
+    auto texture = sprite->atlas;
+
+    Rectangle src = {sprite->spriteX, sprite->spriteY, sprite->spriteSize,
+                     sprite->spriteSize};
+    Rectangle dest = {tr->x, tr->y, (float)(src.width * sprite->spriteSize),
+                      (float)(src.height * sprite->spriteSize)};
+
+    renderer.DrawTexturePro(texture->texture, src, dest, {0, 0}, 0.0f, WHITE);
+  }
+}
+
 } // namespace criogenio

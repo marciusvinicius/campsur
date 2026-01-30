@@ -64,6 +64,9 @@ json ToJson(const SerializedWorld &world) {
       json jc;
       jc["name"] = clip.name;
       jc["frameSpeed"] = clip.frameSpeed;
+      // Optional AnimState / Direction links for this clip
+      jc["state"] = clip.state;
+      jc["direction"] = clip.direction;
 
       for (const auto &frame : clip.frames) {
         json jf;
@@ -117,6 +120,12 @@ SerializedWorld FromJson(const json &j) {
           SerializedAnimationClip clip;
           clip.name = jc.at("name").get<std::string>();
           clip.frameSpeed = jc.at("frameSpeed").get<float>();
+          if (jc.contains("state")) {
+            clip.state = jc.at("state").get<int>();
+          }
+          if (jc.contains("direction")) {
+            clip.direction = jc.at("direction").get<int>();
+          }
 
           if (jc.contains("frames")) {
             for (const auto &jf : jc.at("frames")) {
@@ -132,7 +141,6 @@ SerializedWorld FromJson(const json &j) {
           anim.clips.push_back(clip);
         }
       }
-
       world.animations.push_back(anim);
     }
   }

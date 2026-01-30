@@ -3,6 +3,7 @@
 #pragma once
 
 #include "engine.h"
+#include "animation_database.h"
 #include "raylib.h"
 #include "world.h"
 #include <optional>
@@ -67,6 +68,7 @@ private:
   void DrawTransformInspector(int entity);
   void DrawAnimationStateInspector(int entity);
   void DrawAnimatedSpriteInspector(int entity);
+  void DrawSpriteInspector(int entity);
   void DrawControllerInspector(int entity);
   void DrawAIControllerInspector(int entity);
   void DrawAddComponentMenu(int entity);
@@ -113,6 +115,22 @@ private:
   std::string fileBrowserPreviewPath;
   std::shared_ptr<criogenio::TextureResource> fileBrowserPreviewTex;
 
+  // Per-entity draft data for building animation clips in the editor
+  struct AnimationClipDraft {
+    std::string name = "idle";
+    float frameSpeed = 0.1f;
+    int tileSize = 32;
+    // Linked animation state for this clip
+    criogenio::AnimState state = criogenio::AnimState::IDLE;
+    // Linked facing direction for this clip
+    criogenio::Direction direction = criogenio::Direction::DOWN;
+    std::vector<int> tileIndices; // indices into the sprite sheet grid
+  };
+
+  std::unordered_map<int, AnimationClipDraft> animationClipDrafts;
+  // Name of the clip currently being edited for a given entity (empty = new)
+  std::unordered_map<int, std::string> editingClipName;
+
   // Terrain editor state
   bool terrainEditMode = false;
   int terrainSelectedTile = 0;
@@ -123,5 +141,11 @@ private:
   void DrawTerrainGridOverlay(const criogenio::Terrain2D &terrain,
                               const Camera2D &camera);
   // Draw file browser popup (called every frame)
-  void DrawFileBrowserPopup();
+  const char *DrawFileBrowserPopup();
+
+  // Animation authoring helpers
+  // Draw animation editor content for a given entity
+  void DrawAnimationEditor(int entity);
+  // Top-level Animation Editor window (docked like Inspector/Terrain)
+  void DrawAnimationEditorWindow();
 };
