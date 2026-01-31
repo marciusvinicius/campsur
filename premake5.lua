@@ -212,6 +212,14 @@ if os.isdir("editor") then
 	include("editor")
 end
 
+if os.isdir("tiled_walk") then
+	include("tiled_walk")
+end
+
+if os.isdir("enet-1.3.18") then
+	include("enet-1.3.18")
+end
+
 folders = os.matchdirs("*")
 
 for _, folderName in ipairs(folders) do

@@ -1,11 +1,9 @@
 project("enet")
-kind("SharedLib")
+kind("StaticLib")
 language("C")
 
 files({ "*.c" })
 includedirs({ "include/" })
-
-defines({ "ENET_DLL=1" })
 
 filter("configurations:Debug")
 defines({ "DEBUG" })

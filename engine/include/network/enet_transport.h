@@ -20,6 +20,8 @@ public:
 
   std::vector<NetworkMessage> PollMessages() override;
 
+  std::vector<ConnectionId> GetConnectionIds() const override;
+
 private:
   ENetHost *host = nullptr;
   ENetPeer *serverPeer = nullptr;

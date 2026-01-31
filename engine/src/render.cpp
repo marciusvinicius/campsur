@@ -34,6 +34,10 @@ void Renderer::DrawRect(float x, float y, float w, float h, Color color) {
   ::DrawRectangle((int)x, (int)y, (int)w, (int)h, color);
 }
 
+void Renderer::DrawCircle(float x, float y, float r, Color color) {
+  ::DrawCircle((int)x, (int)y, r, color);
+}
+
 void Renderer::DrawTextString(const std::string &text, int x, int y, int size,
                               Color color) {
   ::DrawText(text.c_str(), x, y, size, color);

@@ -51,6 +51,7 @@ includedirs({
 -----------------------------------------
 links({
 	"engine",
+	"enet",
 })
 
 link_raylib()
@@ -81,5 +82,3 @@ filter("configurations:Release")
 optimize("On")
 
 filter({})
-
-links({"enet"})

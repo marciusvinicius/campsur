@@ -24,6 +24,9 @@ public:
                     bool reliable) = 0;
 
   virtual std::vector<NetworkMessage> PollMessages() = 0;
+
+  /** Returns all current connection IDs (for server broadcast). */
+  virtual std::vector<ConnectionId> GetConnectionIds() const = 0;
 };
 
 } // namespace criogenio

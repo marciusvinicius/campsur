@@ -17,5 +17,8 @@ files({ "**.hpp", "**.h", "**.cpp", "**.c" })
 includedirs({ "./" })
 includedirs({ "./src" })
 includedirs({ "./include" })
+includedirs({ "../enet-1.3.18/include" })
+
+links({ "enet" })
 
 include_raylib()

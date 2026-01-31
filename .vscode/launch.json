@@ -1,6 +1,7 @@
 {
   "version": "0.2.0",
   "configurations": [
+
     {
       "type": "cppdbg",
       "request": "launch",
@@ -22,6 +23,14 @@
       "request": "launch",
       "name": "Snake Game",
       "program": "${workspaceRoot}/bin/Debug/camp_sur_cppsnakegame",
+      "preLaunchTask": "Build",
+      "cwd": "${workspaceRoot}"
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Tiled Walk",
+      "program": "${workspaceRoot}/bin/Debug/camp_sur_cpp_tiled_walk",
       "preLaunchTask": "Build",
       "cwd": "${workspaceRoot}"
     },

@@ -1,9 +1,13 @@
 #include "engine.h"
 #include "asset_manager.h"
 #include "component_factory.h"
+#include "network/net_messages.h"
+#include "network/replication_client.h"
 #include "raylib.h"
 #include "raymath.h"
 #include "resources.h"
+#include <cstring>
+#include <vector>
 
 namespace criogenio {
 
@@ -32,21 +36,15 @@ Engine::Engine(int width, int height, const char *title) : width(width) {
 }
 
 Engine::~Engine() {
-  // Clear animation database first to remove references
+  replicationClient.reset();
+  replicationServer.reset();
+  transport.reset();
   criogenio::AnimationDatabase::instance().clear();
-
-  // Delete world - its destructor will clean up systems and ECS
-  // Do this BEFORE deleting renderer so GPU resources exist during cleanup
   if (world) {
     delete world;
     world = nullptr;
   }
-
-  // Clear AssetManager cache BEFORE closing window (while OpenGL context is
-  // active) This will properly call glDeleteTextures before CloseWindow()
   criogenio::AssetManager::instance().clear();
-
-  // Delete renderer last (calls CloseWindow())
   if (renderer) {
     delete renderer;
     renderer = nullptr;
@@ -57,16 +55,79 @@ World &Engine::GetWorld() { return *world; }
 EventBus &Engine::GetEventBus() { return eventBus; }
 Renderer &Engine::GetRenderer() { return *renderer; }
 
+bool Engine::StartServer(uint16_t port) {
+  if (networkMode != NetworkMode::Off)
+    return false;
+  transport = std::make_unique<ENetTransport>();
+  if (!transport->StartServer(port)) {
+    transport.reset();
+    return false;
+  }
+  replicationServer =
+      std::make_unique<ReplicationServer>(*world, *transport);
+  networkMode = NetworkMode::Server;
+  return true;
+}
+
+bool Engine::ConnectToServer(const char *host, uint16_t port) {
+  if (networkMode != NetworkMode::Off)
+    return false;
+  transport = std::make_unique<ENetTransport>();
+  if (!transport->ConnectToServer(host, port)) {
+    transport.reset();
+    return false;
+  }
+  replicationClient = std::make_unique<ReplicationClient>(*world);
+  networkMode = NetworkMode::Client;
+  return true;
+}
+
+INetworkTransport *Engine::GetTransport() {
+  return transport.get();
+}
+
+void Engine::SendInputAsClient(const PlayerInput &input) {
+  if (networkMode != NetworkMode::Client || !transport)
+    return;
+  std::vector<ConnectionId> ids = transport->GetConnectionIds();
+  if (ids.empty())
+    return;
+  std::vector<uint8_t> buf;
+  buf.push_back(static_cast<uint8_t>(MsgType::Input));
+  buf.resize(1 + sizeof(PlayerInput));
+  std::memcpy(buf.data() + 1, &input, sizeof(PlayerInput));
+  transport->Send(ids[0], buf.data(), buf.size(), true);
+}
+
 void Engine::Run() {
   previousTime = GetTime();
   while (!renderer->WindowShouldClose()) {
     float now = GetTime();
     float dt = now - previousTime;
     previousTime = now;
+
+    OnFrame(dt);
+
+    if (networkMode == NetworkMode::Server && transport && replicationServer) {
+      transport->Update();
+      replicationServer->Update();
+    } else if (networkMode == NetworkMode::Client && transport &&
+               replicationClient) {
+      transport->Update();
+      auto msgs = transport->PollMessages();
+      for (const auto &msg : msgs) {
+        if (msg.data.size() >= 1u &&
+            static_cast<MsgType>(msg.data[0]) == MsgType::Snapshot) {
+          Snapshot snap = ParseSnapshotFromWire(msg.data.data(), msg.data.size());
+          replicationClient->ApplySnapshot(snap);
+        }
+      }
+      replicationClient->UpdateInterpolation(dt);
+    }
+
     world->Update(dt);
     renderer->BeginFrame();
     world->Render(*renderer);
-    // Just call GUI hook — unused in game runtime
     OnGUI();
     renderer->EndFrame();
   }
@@ -96,5 +157,8 @@ void Engine::RegisterCoreComponents() {
 
   ComponentFactory::Register(
       "Name", [](World &w, int e) { return &w.AddComponent<Name>(e, ""); });
+  ComponentFactory::Register("NetReplicated", [](World &w, int e) {
+    return &w.AddComponent<NetReplicated>(e);
+  });
 }
-} // namespace criogenio
+}  // namespace criogenio
