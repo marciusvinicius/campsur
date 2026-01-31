@@ -44,5 +44,6 @@ includedirs({ "include" })
 -----------------------------------------
 
 link_to("engine")
+links("enet")
 link_raylib()
 -- To link to a lib use link_to("LIB_FOLDER_NAME")

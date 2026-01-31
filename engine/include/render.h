@@ -15,6 +15,7 @@ public:
 
   void DrawTexture(::Texture2D texture, float x, float y);
   void DrawRect(float x, float y, float w, float h, ::Color color);
+  void DrawCircle(float x, float y, float r, ::Color color);
   void DrawTextString(const std::string &text, int x, int y, int size,
                       ::Color color);
   void DrawTexturePro(::Texture2D texture, ::Rectangle source, ::Rectangle dest,

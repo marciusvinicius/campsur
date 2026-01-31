@@ -2,13 +2,20 @@
 
 #include "core_systems.h"
 #include "event.h"
+#include "network/enet_transport.h"
+#include "network/replication_client.h"
+#include "network/replication_server.h"
+#include "network/transport.h"
 #include "raylib.h"
 #include "render.h"
 #include "world.h"
+#include <memory>
 
 namespace criogenio {
 
 Texture2D CriogenioLoadTexture(const char *file_name);
+
+enum class NetworkMode { Off, Server, Client };
 
 class Engine {
 public:
@@ -24,17 +31,32 @@ public:
   Renderer &GetRenderer();
   Vector2 GetMouseWorld();
 
+  /** Start as network server; returns false if bind failed. */
+  bool StartServer(uint16_t port);
+  /** Connect as client; returns false if connect failed. */
+  bool ConnectToServer(const char *host, uint16_t port);
+  NetworkMode GetNetworkMode() const { return networkMode; }
+  INetworkTransport *GetTransport();
+  /** Send input to server (call from client each frame). */
+  void SendInputAsClient(const PlayerInput &input);
+
   void RegisterCoreComponents();
 
 protected:
-  virtual void OnGUI() {} // Editor overrides this
+  virtual void OnGUI() {}
+  /** Called each frame before network and world update; override to e.g. send client input. */
+  virtual void OnFrame(float dt) { (void)dt; }
 
 private:
-  // TODO:(maraujo) use smartpointer
-  Renderer *renderer;
-  World *world;
+  Renderer *renderer = nullptr;
+  World *world = nullptr;
   EventBus eventBus;
   float previousTime = 0;
+
+  NetworkMode networkMode = NetworkMode::Off;
+  std::unique_ptr<ENetTransport> transport;
+  std::unique_ptr<ReplicationServer> replicationServer;
+  std::unique_ptr<ReplicationClient> replicationClient;
 };
 
-} // namespace criogenio
+}  // namespace criogenio

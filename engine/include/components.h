@@ -256,4 +256,14 @@ public:
   }
 };
 
-} // namespace criogenio
+/** Tag component: entities with this are replicated over the network. */
+class NetReplicated : public Component {
+public:
+  std::string TypeName() const override { return "NetReplicated"; }
+  SerializedComponent Serialize() const override {
+    return {"NetReplicated", {}};
+  }
+  void Deserialize(const SerializedComponent &) override {}
+};
+
+}  // namespace criogenio

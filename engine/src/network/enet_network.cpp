@@ -26,19 +26,25 @@ void EnetNetwork::Update() {
   ENetEvent event;
   while (enet_host_service(host, &event, 0) > 0) {
     switch (event.type) {
-    case ENET_EVENT_TYPE_RECEIVE:
-      // Dispatch packet here
+    case ENET_EVENT_TYPE_CONNECT: {
+      ConnectionId id = nextId++;
+      peerToId[event.peer] = id;
+      break;
+    }
+    case ENET_EVENT_TYPE_RECEIVE: {
+      auto it = peerToId.find(event.peer);
+      if (it != peerToId.end()) {
+        const uint8_t *data = event.packet->data;
+        size_t len = event.packet->dataLength;
+        inbox.push_back(
+            {it->second, std::vector<uint8_t>(data, data + len)});
+      }
       enet_packet_destroy(event.packet);
       break;
-
-    case ENET_EVENT_TYPE_CONNECT:
-      // Handle connect
-      break;
-
+    }
     case ENET_EVENT_TYPE_DISCONNECT:
-      // Handle disconnect
+      peerToId.erase(event.peer);
       break;
-
     default:
       break;
     }

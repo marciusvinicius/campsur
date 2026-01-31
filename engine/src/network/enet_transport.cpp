@@ -80,4 +80,12 @@ std::vector<NetworkMessage> ENetTransport::PollMessages() {
   inbox.clear();
   return msgs;
 }
-} // namespace criogenio
+
+std::vector<ConnectionId> ENetTransport::GetConnectionIds() const {
+  std::vector<ConnectionId> ids;
+  ids.reserve(idToPeer.size());
+  for (const auto &p : idToPeer)
+    ids.push_back(p.first);
+  return ids;
+}
+}  // namespace criogenio

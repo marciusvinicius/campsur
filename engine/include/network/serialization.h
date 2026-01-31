@@ -58,7 +58,15 @@ public:
     return s;
   }
 
+  void ReadBytes(uint8_t *out, size_t count) {
+    if (offset + count > size)
+      throw std::runtime_error("NetReader overflow");
+    std::memcpy(out, data + offset, count);
+    offset += count;
+  }
+
   bool End() const { return offset >= size; }
+  size_t Tell() const { return offset; }
 
 private:
   const uint8_t *data;

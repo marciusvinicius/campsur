@@ -1,6 +1,7 @@
 #pragma once
 #include "enet/enet.h"
 #include "network/inetwork.h"
+#include <unordered_map>
 
 namespace criogenio {
 
@@ -14,7 +15,9 @@ public:
 
 private:
   ENetHost *host = nullptr;
+  std::unordered_map<ENetPeer *, ConnectionId> peerToId;
+  ConnectionId nextId = 1;
   std::vector<NetworkMessage> inbox;
 };
 
-} // namespace criogenio
+}  // namespace criogenio

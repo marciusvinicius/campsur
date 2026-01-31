@@ -1,16 +1,14 @@
-#include "animation_database.h"
-#include "components.h"
-#include "criogenio_io.h"
 #include "game.h"
 #include "raylib.h"
 #include <cstdlib>
 #include <cstring>
 
 using namespace criogenio;
+using namespace tiled;
 
 int main(int argc, char **argv) {
-  GameEngine engine(InitialWidth, InitialHeight, "Ways of the Truth");
-  uint16_t port = DefaultNetPort;
+  GameEngine engine(ScreenWidth, ScreenHeight, "Tiled Walk - Multiplayer");
+  uint16_t port = DefaultPort;
   const char *clientHost = nullptr;
 
   for (int i = 1; i < argc; ++i) {
@@ -37,28 +35,18 @@ int main(int argc, char **argv) {
     }
   }
 
-  auto &World = engine.GetWorld();
-
-  if (!LoadWorldFromFile(World, "world.json")) {
-    TraceLog(LOG_ERROR, "Failed to load world from world.json");
-    return 1;
-  }
-
+  World &world = engine.GetWorld();
   engine.RegisterCoreComponents();
-  World.AddSystem<MovementSystem>(World);
-  World.AddSystem<AnimationSystem>(World);
-  World.AddSystem<RenderSystem>(World);
-  World.AddSystem<AIMovementSystem>(World);
 
-  Camera2D maincamera = {};
-  maincamera.target = {0.0f, 0.0f};
-  maincamera.offset = {InitialWidth / 2.0f, InitialHeight / 2.0f};
-  maincamera.zoom = 1.0f;
-  World.AttachCamera2D(maincamera);
+  world.AddSystem<TileMapSystem>(world);
+  world.AddSystem<VelocityMovementSystem>(world);
+  world.AddSystem<PlayerRenderSystem>(world);
 
-  static_assert(std::is_base_of_v<ISystem, MySystem>);
-  static_assert(!std::is_abstract_v<MySystem>);
-  World.AddSystem<MySystem>(World);
+  Camera2D cam = {};
+  cam.offset = {ScreenWidth / 2.f, ScreenHeight / 2.f};
+  cam.target = {MapWidthTiles * TileSize / 2.f, MapHeightTiles * TileSize / 2.f};
+  cam.zoom = 1.f;
+  world.AttachCamera2D(cam);
 
   engine.Run();
   return 0;
