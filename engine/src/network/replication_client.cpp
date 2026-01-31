@@ -48,6 +48,7 @@ void ReplicationClient::ApplySnapshot(const Snapshot &snap) {
       eid = world.CreateEntity("");
       world.AddComponent<NetReplicated>(eid);
       world.AddComponent<Transform>(eid, 0.f, 0.f);
+      world.AddComponent<ReplicatedNetId>(eid, ReplicatedNetId(sent.id));
       netToEntity[sent.id] = Entity{static_cast<int>(eid)};
     } else {
       eid = static_cast<ecs::EntityId>(it->second.id);

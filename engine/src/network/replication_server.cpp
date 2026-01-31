@@ -35,6 +35,20 @@ ReplicationServer::ReplicationServer(World &world, INetworkTransport &net)
     : world(world), net(net) {}
 
 void ReplicationServer::Update() {
+  // Spawn a player for any newly connected client; use connection id as net id (connection order = color order)
+  for (ConnectionId conn : net.GetConnectionIds()) {
+    if (connectionToEntity.find(conn) != connectionToEntity.end())
+      continue;
+    ecs::EntityId entityId = world.CreateEntity("player");
+    world.AddComponent<NetReplicated>(entityId);
+    world.AddComponent<Transform>(entityId, 0.f, 0.f);
+    world.AddComponent<Controller>(entityId, Vector2{0, 0});
+    NetEntityId netId = static_cast<NetEntityId>(conn);
+    entityToNetId[entityId] = netId;
+    netToEntity[netId] = Entity{static_cast<int>(entityId)};
+    connectionToEntity[conn] = entityId;
+  }
+
   auto msgs = net.PollMessages();
   for (const auto &msg : msgs) {
     if (msg.data.size() < 1u)
@@ -51,19 +65,9 @@ void ReplicationServer::Update() {
 
 void ReplicationServer::HandleInput(ConnectionId conn, const PlayerInput &input) {
   auto it = connectionToEntity.find(conn);
-  ecs::EntityId entityId;
-  if (it == connectionToEntity.end()) {
-    entityId = world.CreateEntity("player");
-    world.AddComponent<NetReplicated>(entityId);
-    world.AddComponent<Transform>(entityId, 0.f, 0.f);
-    world.AddComponent<Controller>(entityId, Vector2{0, 0});
-    NetEntityId netId = nextNetId++;
-    entityToNetId[entityId] = netId;
-    netToEntity[netId] = Entity{static_cast<int>(entityId)};
-    connectionToEntity[conn] = entityId;
-  } else {
-    entityId = it->second;
-  }
+  if (it == connectionToEntity.end())
+    return;  // Player created on connect; should exist by first input
+  ecs::EntityId entityId = it->second;
   Controller *ctrl = world.GetComponent<Controller>(entityId);
   if (ctrl) {
     ctrl->velocity.x = input.move_x;

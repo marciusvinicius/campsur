@@ -2,6 +2,7 @@
 #include "animation_database.h"
 #include "animation_state.h"
 #include "asset_manager.h"
+#include "network/net_entity.h"
 #include "json.hpp"
 #include "raylib.h"
 #include "resources.h"
@@ -263,6 +264,16 @@ public:
   SerializedComponent Serialize() const override {
     return {"NetReplicated", {}};
   }
+  void Deserialize(const SerializedComponent &) override {}
+};
+
+/** Client-only: net entity id for this replicated entity (e.g. for connection-order color). */
+struct ReplicatedNetId : public Component {
+  NetEntityId id = INVALID_NET_ENTITY;
+  ReplicatedNetId() = default;
+  explicit ReplicatedNetId(NetEntityId i) : id(i) {}
+  std::string TypeName() const override { return "ReplicatedNetId"; }
+  SerializedComponent Serialize() const override { return {"ReplicatedNetId", {}}; }
   void Deserialize(const SerializedComponent &) override {}
 };
 

@@ -50,14 +50,25 @@ void VelocityMovementSystem::Render(criogenio::Renderer &) {}
 void PlayerRenderSystem::Update(float /*dt*/) {}
 
 void PlayerRenderSystem::Render(criogenio::Renderer &renderer) {
-  auto ids = world.GetEntitiesWith<criogenio::NetReplicated, criogenio::Transform>();
-  const Color playerColor = {0x22, 0x66, 0xdd, 255};
+  auto ids = world.GetEntitiesWith<criogenio::ReplicatedNetId, criogenio::Transform>();
+  // Connection order colors: first = blue, second = red, third = green, etc.
+  static const Color kPlayerColors[] = {
+    {0x22, 0x66, 0xdd, 255},  // blue
+    {0xdd, 0x44, 0x44, 255},  // red
+    {0x44, 0xbb, 0x44, 255},  // green
+    {0xee, 0xcc, 0x22, 255},  // yellow
+    {0xdd, 0x44, 0xaa, 255},  // magenta
+    {0xff, 0x88, 0x22, 255},  // orange
+  };
+  constexpr int kNumColors = sizeof(kPlayerColors) / sizeof(kPlayerColors[0]);
   for (criogenio::ecs::EntityId id : ids) {
-    (void)id;
+    auto *netIdComp = world.GetComponent<criogenio::ReplicatedNetId>(id);
     auto *tr = world.GetComponent<criogenio::Transform>(id);
-    if (!tr) continue;
+    if (!netIdComp || !tr) continue;
+    int colorIndex = (netIdComp->id == 0) ? 0 : (static_cast<int>(netIdComp->id) - 1) % kNumColors;
+    if (colorIndex < 0) colorIndex = 0;
     renderer.DrawCircle(tr->x + TileSize / 2.f, tr->y + TileSize / 2.f,
-                       PlayerRadius, playerColor);
+                        PlayerRadius, kPlayerColors[colorIndex]);
   }
 }
 

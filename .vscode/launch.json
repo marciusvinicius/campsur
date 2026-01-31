@@ -30,7 +30,7 @@
       "type": "cppdbg",
       "request": "launch",
       "name": "Tiled Walk",
-      "program": "${workspaceRoot}/bin/Debug/camp_sur_cpp_tiled_walk",
+      "program": "${workspaceRoot}/bin/Debug/camp_sur_cpp_tiled_walk --client 127.0.0.1",
       "preLaunchTask": "Build",
       "cwd": "${workspaceRoot}"
     },
