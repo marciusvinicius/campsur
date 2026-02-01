@@ -50,8 +50,8 @@ void VelocityMovementSystem::Render(criogenio::Renderer &) {}
 void PlayerRenderSystem::Update(float /*dt*/) {}
 
 void PlayerRenderSystem::Render(criogenio::Renderer &renderer) {
-  auto ids = world.GetEntitiesWith<criogenio::ReplicatedNetId, criogenio::Transform>();
-  // Connection order colors: first = blue, second = red, third = green, etc.
+  // Query NetReplicated + Transform so server draws all players (server + clients); clients already have both from snapshots
+  auto ids = world.GetEntitiesWith<criogenio::NetReplicated, criogenio::Transform>();
   static const Color kPlayerColors[] = {
     {0x22, 0x66, 0xdd, 255},  // blue
     {0xdd, 0x44, 0x44, 255},  // red
@@ -62,10 +62,12 @@ void PlayerRenderSystem::Render(criogenio::Renderer &renderer) {
   };
   constexpr int kNumColors = sizeof(kPlayerColors) / sizeof(kPlayerColors[0]);
   for (criogenio::ecs::EntityId id : ids) {
-    auto *netIdComp = world.GetComponent<criogenio::ReplicatedNetId>(id);
     auto *tr = world.GetComponent<criogenio::Transform>(id);
-    if (!netIdComp || !tr) continue;
-    int colorIndex = (netIdComp->id == 0) ? 0 : (static_cast<int>(netIdComp->id) - 1) % kNumColors;
+    if (!tr) continue;
+    // Color from ReplicatedNetId when present (connection order: 0=blue, 1=red, ...); else blue
+    int colorIndex = 0;
+    if (auto *netIdComp = world.GetComponent<criogenio::ReplicatedNetId>(id))
+      colorIndex = static_cast<int>(netIdComp->id) % kNumColors;
     if (colorIndex < 0) colorIndex = 0;
     renderer.DrawCircle(tr->x + TileSize / 2.f, tr->y + TileSize / 2.f,
                         PlayerRadius, kPlayerColors[colorIndex]);
@@ -73,13 +75,17 @@ void PlayerRenderSystem::Render(criogenio::Renderer &renderer) {
 }
 
 void GameEngine::OnFrame(float /*dt*/) {
-  if (GetNetworkMode() != criogenio::NetworkMode::Client) return;
   criogenio::PlayerInput input = {};
   if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) input.move_x += 1.f;
   if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) input.move_x -= 1.f;
   if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) input.move_y -= 1.f;
   if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) input.move_y += 1.f;
-  SendInputAsClient(input);
+
+  if (GetNetworkMode() == criogenio::NetworkMode::Client) {
+    SendInputAsClient(input);
+  } else if (GetNetworkMode() == criogenio::NetworkMode::Server) {
+    SetServerPlayerInput(input);
+  }
 }
 
 }  // namespace tiled

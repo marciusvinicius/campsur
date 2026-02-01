@@ -39,6 +39,8 @@ public:
   INetworkTransport *GetTransport();
   /** Send input to server (call from client each frame). */
   void SendInputAsClient(const PlayerInput &input);
+  /** Apply input for the server's local player (call from server each frame when server is also a player). */
+  void SetServerPlayerInput(const PlayerInput &input);
 
   void RegisterCoreComponents();
 

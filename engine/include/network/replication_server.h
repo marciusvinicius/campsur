@@ -20,6 +20,9 @@ public:
   void Update();
   void HandleInput(ConnectionId, const PlayerInput &);
 
+  /** Apply input for the server's local player (when server is also a player). */
+  void SetServerPlayerInput(const PlayerInput &input);
+
 private:
   void BuildAndSendSnapshot();
 
@@ -27,6 +30,8 @@ private:
   INetworkTransport &net;
   std::unordered_map<ecs::EntityId, NetEntityId> entityToNetId;
   std::unordered_map<ConnectionId, ecs::EntityId> connectionToEntity;
+  ecs::EntityId serverPlayerEntityId = ecs::NULL_ENTITY;  // create once; use NULL_ENTITY so id 0 is never "not created"
+  static constexpr NetEntityId kServerPlayerNetId = 0;
   NetEntityId nextNetId = 1;
   uint32_t serverTick = 0;
 };

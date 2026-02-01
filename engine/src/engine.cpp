@@ -99,6 +99,12 @@ void Engine::SendInputAsClient(const PlayerInput &input) {
   transport->Send(ids[0], buf.data(), buf.size(), true);
 }
 
+void Engine::SetServerPlayerInput(const PlayerInput &input) {
+  if (networkMode != NetworkMode::Server || !replicationServer)
+    return;
+  replicationServer->SetServerPlayerInput(input);
+}
+
 void Engine::Run() {
   previousTime = GetTime();
   while (!renderer->WindowShouldClose()) {
@@ -107,6 +113,9 @@ void Engine::Run() {
     previousTime = now;
 
     OnFrame(dt);
+
+    // Run world update first so server snapshot contains current positions after movement
+    world->Update(dt);
 
     if (networkMode == NetworkMode::Server && transport && replicationServer) {
       transport->Update();
@@ -124,8 +133,6 @@ void Engine::Run() {
       }
       replicationClient->UpdateInterpolation(dt);
     }
-
-    world->Update(dt);
     renderer->BeginFrame();
     world->Render(*renderer);
     OnGUI();

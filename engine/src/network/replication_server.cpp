@@ -35,6 +35,17 @@ ReplicationServer::ReplicationServer(World &world, INetworkTransport &net)
     : world(world), net(net) {}
 
 void ReplicationServer::Update() {
+  // Ensure server has its own player entity (net id 0); created once
+  if (serverPlayerEntityId == ecs::NULL_ENTITY) {
+    serverPlayerEntityId = world.CreateEntity("server_player");
+    world.AddComponent<NetReplicated>(serverPlayerEntityId);
+    world.AddComponent<Transform>(serverPlayerEntityId, 0.f, 0.f);
+    world.AddComponent<Controller>(serverPlayerEntityId, Vector2{0, 0});
+    world.AddComponent<ReplicatedNetId>(serverPlayerEntityId, ReplicatedNetId(kServerPlayerNetId));
+    entityToNetId[serverPlayerEntityId] = kServerPlayerNetId;
+    netToEntity[kServerPlayerNetId] = Entity{static_cast<int>(serverPlayerEntityId)};
+  }
+
   // Spawn a player for any newly connected client; use connection id as net id (connection order = color order)
   for (ConnectionId conn : net.GetConnectionIds()) {
     if (connectionToEntity.find(conn) != connectionToEntity.end())
@@ -44,6 +55,7 @@ void ReplicationServer::Update() {
     world.AddComponent<Transform>(entityId, 0.f, 0.f);
     world.AddComponent<Controller>(entityId, Vector2{0, 0});
     NetEntityId netId = static_cast<NetEntityId>(conn);
+    world.AddComponent<ReplicatedNetId>(entityId, ReplicatedNetId(netId));
     entityToNetId[entityId] = netId;
     netToEntity[netId] = Entity{static_cast<int>(entityId)};
     connectionToEntity[conn] = entityId;
@@ -75,22 +87,21 @@ void ReplicationServer::HandleInput(ConnectionId conn, const PlayerInput &input)
   }
 }
 
+void ReplicationServer::SetServerPlayerInput(const PlayerInput &input) {
+  if (serverPlayerEntityId == ecs::NULL_ENTITY)
+    return;
+  Controller *ctrl = world.GetComponent<Controller>(serverPlayerEntityId);
+  if (ctrl) {
+    ctrl->velocity.x = input.move_x;
+    ctrl->velocity.y = input.move_y;
+  }
+}
+
 void ReplicationServer::BuildAndSendSnapshot() {
   Snapshot snap;
   snap.tick = serverTick++;
 
-  auto entities = world.GetEntitiesWith<NetReplicated, Transform>();
-  for (ecs::EntityId eid : entities) {
-    NetEntityId netId;
-    auto it = entityToNetId.find(eid);
-    if (it == entityToNetId.end()) {
-      netId = nextNetId++;
-      entityToNetId[eid] = netId;
-      netToEntity[netId] = Entity{static_cast<int>(eid)};
-    } else {
-      netId = it->second;
-    }
-
+  auto addEntityToSnapshot = [this, &snap](ecs::EntityId eid, NetEntityId netId) {
     SnapshotEntity sent;
     sent.id = netId;
     sent.componentMask = COMPONENT_MASK_TRANSFORM;
@@ -105,6 +116,27 @@ void ReplicationServer::BuildAndSendSnapshot() {
       sent.data = w.Data();
     }
     snap.entities.push_back(std::move(sent));
+  };
+
+  // Always send server player first (net id 0) so clients see the server's character
+  if (serverPlayerEntityId != ecs::NULL_ENTITY) {
+    addEntityToSnapshot(serverPlayerEntityId, kServerPlayerNetId);
+  }
+
+  auto entities = world.GetEntitiesWith<NetReplicated, Transform>();
+  for (ecs::EntityId eid : entities) {
+    if (eid == serverPlayerEntityId)
+      continue;  // already added above
+    NetEntityId netId;
+    auto it = entityToNetId.find(eid);
+    if (it == entityToNetId.end()) {
+      netId = nextNetId++;
+      entityToNetId[eid] = netId;
+      netToEntity[netId] = Entity{static_cast<int>(eid)};
+    } else {
+      netId = it->second;
+    }
+    addEntityToSnapshot(eid, netId);
   }
 
   NetWriter buf;
