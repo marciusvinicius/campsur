@@ -85,6 +85,25 @@ function check_raygui()
 	end
 end
 
+-- ENet: same pattern as raylib - download from GitHub if folder missing
+function check_enet()
+	local enet_dir = "enet-1.3.18"
+	local enet_zip = "enet-1.3.18.zip"
+	local enet_url = "https://github.com/lsalzman/enet/archive/refs/tags/v1.3.18.zip"
+	if not os.isdir(enet_dir) then
+		if not os.isfile(enet_zip) then
+			print("ENet not found, downloading from github")
+			http.download(enet_url, enet_zip, {
+				progress = download_progress,
+				headers = { "From: Premake", "Referer: Premake" },
+			})
+		end
+		print("Unzipping ENet to " .. os.getcwd())
+		zip.extract(enet_zip, os.getcwd())
+		os.remove(enet_zip)
+	end
+end
+
 function use_library(libraryName, githubFolder, repoHead)
 	libFolder = libraryName .. "-" .. repoHead
 	zipFile = libFolder .. ".zip"
@@ -195,6 +214,7 @@ end
 cdialect("C23")
 cppdialect("C++23")
 check_raylib()
+check_enet()
 --check_raygui()
 
 include("raylib_premake5.lua")

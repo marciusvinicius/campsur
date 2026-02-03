@@ -73,7 +73,7 @@ function link_raylib()
 	libdirs({ "../bin/%{cfg.buildcfg}" })
 
 	filter("system:linux")
-	links({ "pthread", "m", "dl", "rt", "X11" })
+	links({ "GL", "pthread", "m", "dl", "rt", "X11" })
 
 	filter("system:macosx")
 	links({

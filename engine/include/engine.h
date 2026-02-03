@@ -6,7 +6,16 @@
 #include "network/replication_client.h"
 #include "network/replication_server.h"
 #include "network/transport.h"
+
 #include "raylib.h"
+#if defined(_WIN32)
+#ifdef CloseWindow
+#undef CloseWindow  // Windows winuser.h conflicts with raylib's CloseWindow()
+#endif
+#ifdef ShowCursor
+#undef ShowCursor   // Windows winuser.h conflicts with raylib's ShowCursor()
+#endif
+#endif
 #include "render.h"
 #include "world.h"
 #include <memory>

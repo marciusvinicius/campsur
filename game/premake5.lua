@@ -35,9 +35,7 @@ buildaction("Embed")
 
 filter({})
 
-includedirs({ "./" })
-includedirs({ "src" })
-includedirs({ "include" })
+includedirs({ "./", "src", "include", "../enet-1.3.18/include" })
 
 -----------------------------------------
 -- LINKS
@@ -46,4 +44,15 @@ includedirs({ "include" })
 link_to("engine")
 links("enet")
 link_raylib()
+
+-----------------------------------------
+-- PLATFORM (cross-platform: Windows + Linux)
+-----------------------------------------
+filter("system:linux")
+links({ "GL", "pthread", "m", "dl", "X11" })
+
+filter("system:windows")
+systemversion("latest")
+
+filter({})
 -- To link to a lib use link_to("LIB_FOLDER_NAME")

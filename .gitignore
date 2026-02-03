@@ -1,24 +1,40 @@
+# Build output
 out/
 bin/
 bin-int/
 build/
-.vs
+obj/
+*/obj/
 
+# Downloaded dependencies (premake fetches these when missing)
+raylib/
+raylib-master/
+raygui-master/
+imgui-master/
+enet-1.3.18/
+
+# IDE / editor
+.vs/
 .idea/
+.cursor/
 CMakeSettings.json
 Makefile
 logs.txt
-raygui-master
-raylib-master
-imgui-master
-*/obj
-*.sln
-*.filters
-*.zip
-*.vcxproj
-*.user
 .vscode/*.log
 
+# Generated project files (premake can regenerate)
+*.sln
+*.slnx
+*.vcxproj
+*.vcxproj.filters
+*.user
+
+# Archives (e.g. premake download cache)
+*.zip
+
+# Assets
 */assets/*
 
+# App / runtime
 imgui.ini
+node_modules/

@@ -1,6 +1,16 @@
 #pragma once
 
 #include "raylib.h"
+
+#if defined(_WIN32)
+#ifdef CloseWindow
+#undef CloseWindow  // Windows winuser.h conflicts with raylib's CloseWindow()
+#endif
+#ifdef ShowCursor
+#undef ShowCursor   // Windows winuser.h conflicts with raylib's ShowCursor()
+#endif
+#endif
+
 #include <string>
 
 namespace criogenio {

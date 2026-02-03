@@ -1,5 +1,6 @@
+-- Editor: cross-platform (Windows + Linux). Use premake5 gmake2 for Linux, VS for Windows.
 project(workspaceName .. "_editor")
-kind("ConsoleApp") -- or WindowedApp
+kind("ConsoleApp")
 language("C++")
 cppdialect("C++23")
 staticruntime("off")
@@ -37,6 +38,7 @@ includedirs({
 	"include",
 
 	"../engine/include",
+	"../enet-1.3.18/include",
 
 	-- tinyfiledialogs
 	"thirdpart",
