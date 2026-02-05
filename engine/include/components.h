@@ -2,9 +2,9 @@
 #include "animation_database.h"
 #include "animation_state.h"
 #include "asset_manager.h"
+#include "graphics_types.h"
 #include "network/net_entity.h"
 #include "json.hpp"
-#include "raylib.h"
 #include "resources.h"
 #include "serialization.h"
 #include <memory>
@@ -96,17 +96,17 @@ public:
 };
 
 struct Animation {
-  std::vector<Rectangle> frames;
+  std::vector<Rect> frames;
   float frameTime = 0.1f;
 };
 
 class Controller : public Component {
 public:
-  Vector2 velocity = {0, 0};
+  Vec2 velocity = {0, 0};
 
   Direction direction = Direction::UP;
   Controller() = default;
-  Controller(Vector2 velocity) : velocity(velocity) {}
+  Controller(Vec2 velocity) : velocity(velocity) {}
 
   std::string TypeName() const override { return "Controller"; }
 
@@ -129,13 +129,13 @@ public:
 
 class AIController : public Component {
 public:
-  Vector2 velocity = {0, 0};
+  Vec2 velocity = {0, 0};
   Direction direction = Direction::UP;
   AIBrainState brainState = FRIENDLY;
   int entityTarget = -1;
 
   AIController() = default;
-  AIController(Vector2 velocity, int entityTarget)
+  AIController(Vec2 velocity, int entityTarget)
       : velocity(velocity), entityTarget(entityTarget) {}
 
   std::string TypeName() const override { return "AIController"; }

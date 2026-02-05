@@ -1,6 +1,7 @@
 #include "network/replication_server.h"
 #include "components.h"
 #include "ecs_registry.h"
+#include "graphics_types.h"
 #include "network/replication_client.h"
 #include "network/net_messages.h"
 #include "network/serialization.h"
@@ -40,7 +41,7 @@ void ReplicationServer::Update() {
     serverPlayerEntityId = world.CreateEntity("server_player");
     world.AddComponent<NetReplicated>(serverPlayerEntityId);
     world.AddComponent<Transform>(serverPlayerEntityId, 0.f, 0.f);
-    world.AddComponent<Controller>(serverPlayerEntityId, Vector2{0, 0});
+    world.AddComponent<Controller>(serverPlayerEntityId, Vec2{0, 0});
     world.AddComponent<ReplicatedNetId>(serverPlayerEntityId, ReplicatedNetId(kServerPlayerNetId));
     entityToNetId[serverPlayerEntityId] = kServerPlayerNetId;
     netToEntity[kServerPlayerNetId] = Entity{static_cast<int>(serverPlayerEntityId)};
@@ -53,7 +54,7 @@ void ReplicationServer::Update() {
     ecs::EntityId entityId = world.CreateEntity("player");
     world.AddComponent<NetReplicated>(entityId);
     world.AddComponent<Transform>(entityId, 0.f, 0.f);
-    world.AddComponent<Controller>(entityId, Vector2{0, 0});
+    world.AddComponent<Controller>(entityId, Vec2{0, 0});
     NetEntityId netId = static_cast<NetEntityId>(conn);
     world.AddComponent<ReplicatedNetId>(entityId, ReplicatedNetId(netId));
     entityToNetId[entityId] = netId;

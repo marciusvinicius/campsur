@@ -1,7 +1,7 @@
 #pragma once
 
-#include "raylib.h"
 #include "animation_state.h"
+#include "graphics_types.h"
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -15,7 +15,7 @@ using AssetId = uint32_t;
 constexpr AssetId INVALID_ASSET_ID = 0;
 
 struct AnimationFrame {
-  Rectangle rect;
+  Rect rect;
 };
 
 struct AnimationClip {

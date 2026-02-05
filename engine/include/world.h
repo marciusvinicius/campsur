@@ -4,7 +4,7 @@
 #include "components.h"
 #include "ecs_core.h"
 #include "ecs_registry.h"
-#include "raylib.h"
+#include "graphics_types.h"
 #include "render.h"
 #include "systems.h"
 #include "terrain.h"

@@ -72,6 +72,16 @@ struct SerializedTileLayer {
   std::vector<int> tiles;
 };
 
+struct SerializedChunk {
+  int chunkX;
+  int chunkY;
+  std::vector<int> tiles;
+};
+
+struct SerializedChunkedLayer {
+  std::vector<SerializedChunk> chunks;
+};
+
 struct SerializedTileSet {
   std::string tilesetPath;
   int tileSize;
@@ -80,7 +90,9 @@ struct SerializedTileSet {
 };
 
 struct SerializedTerrain2D {
-  std::vector<SerializedTileLayer> layers;
+  int chunkSize = 0; // 0 = legacy (flat layers), >0 = chunked
+  std::vector<SerializedTileLayer> layers;       // legacy format
+  std::vector<SerializedChunkedLayer> chunkedLayers; // chunked format when chunkSize > 0
   SerializedTileSet tileset;
 };
 

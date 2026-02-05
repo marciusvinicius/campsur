@@ -43,7 +43,7 @@ includedirs({ "./", "src", "include", "../enet-1.3.18/include" })
 
 link_to("engine")
 links("enet")
-link_raylib()
+link_sdl3()
 
 -----------------------------------------
 -- PLATFORM (cross-platform: Windows + Linux)

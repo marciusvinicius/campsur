@@ -1,5 +1,6 @@
 #include "game.h"
-#include "raylib.h"
+#include "input.h"
+#include "keys.h"
 
 void MySystem::Update(float dt) { (void)dt; }
 
@@ -10,13 +11,14 @@ void GameEngine::OnFrame(float dt) {
   if (GetNetworkMode() != criogenio::NetworkMode::Client)
     return;
   criogenio::PlayerInput input = {};
-  if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D))
+  using namespace criogenio;
+  if (Input::IsKeyDown(static_cast<int>(Key::Right)) || Input::IsKeyDown(static_cast<int>(Key::D)))
     input.move_x += 1.f;
-  if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
+  if (Input::IsKeyDown(static_cast<int>(Key::Left)) || Input::IsKeyDown(static_cast<int>(Key::A)))
     input.move_x -= 1.f;
-  if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W))
+  if (Input::IsKeyDown(static_cast<int>(Key::Up)) || Input::IsKeyDown(static_cast<int>(Key::W)))
     input.move_y -= 1.f;
-  if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S))
+  if (Input::IsKeyDown(static_cast<int>(Key::Down)) || Input::IsKeyDown(static_cast<int>(Key::S)))
     input.move_y += 1.f;
   SendInputAsClient(input);
 }

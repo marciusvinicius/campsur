@@ -104,6 +104,33 @@ function check_enet()
 	end
 end
 
+-- SDL3: download from GitHub release if SDL3 folder missing (engine + editor use SDL3)
+function check_sdl3()
+	local sdl_dir = "SDL3"
+	local sdl_version = "3.4.0"
+	local sdl_zip = "SDL3-" .. sdl_version .. ".zip"
+	local sdl_url = "https://github.com/libsdl-org/SDL/releases/download/release-" .. sdl_version .. "/SDL3-" .. sdl_version .. ".zip"
+	if not os.isdir(sdl_dir) then
+		if not os.isfile(sdl_zip) then
+			print("SDL3 not found, downloading from GitHub (release-" .. sdl_version .. ")")
+			http.download(sdl_url, sdl_zip, {
+				progress = download_progress,
+				headers = { "From: Premake", "Referer: Premake" },
+			})
+		end
+		if os.isfile(sdl_zip) then
+			print("Unzipping SDL3 to " .. os.getcwd())
+			zip.extract(sdl_zip, os.getcwd())
+			os.remove(sdl_zip)
+			-- Zip extracts to "SDL3-3.4.0"; rename to "SDL3" for premake paths
+			local extracted = "SDL3-" .. sdl_version
+			if os.isdir(extracted) then
+				os.rename(extracted, sdl_dir)
+			end
+		end
+	end
+end
+
 function use_library(libraryName, githubFolder, repoHead)
 	libFolder = libraryName .. "-" .. repoHead
 	zipFile = libFolder .. ".zip"
@@ -215,6 +242,7 @@ cdialect("C23")
 cppdialect("C++23")
 check_raylib()
 check_enet()
+check_sdl3()
 --check_raygui()
 
 include("raylib_premake5.lua")

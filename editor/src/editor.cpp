@@ -3,16 +3,21 @@
 #include "animation_state.h"
 #include "asset_manager.h"
 #include "criogenio_io.h"
+#include "graphics_types.h"
 #include "input.h"
-#include "raymath.h"
+#include "keys.h"
 #include "resources.h"
 #include "terrain.h"
 
 #include "imgui.h"
 #include "imgui_internal.h"
-#include "rlImGui.h"
+#include "backends/imgui_impl_sdl3.h"
+#include "backends/imgui_impl_sdlrenderer3.h"
 
+#include <SDL3/SDL.h>
 #include <algorithm>
+#include <chrono>
+#include <cmath>
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,110 +45,127 @@ void EditorApp::EditorAppReset() {
 }
 
 void EditorApp::InitImGUI() {
-  rlImGuiSetup(true); // creates context + renderer + backend
-
   IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
-
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
   ImGui::StyleColorsDark();
 
-  // ---- Fonts (base font FIRST) ----
-  ImFont *baseFont = io.Fonts->AddFontFromFileTTF(
+  SDL_Window* window = (SDL_Window*)GetRenderer().GetWindowHandle();
+  SDL_Renderer* sdlRenderer = (SDL_Renderer*)GetRenderer().GetRendererHandle();
+  if (window && sdlRenderer) {
+    ImGui_ImplSDL3_InitForSDLRenderer(window, sdlRenderer);
+    ImGui_ImplSDLRenderer3_Init(sdlRenderer);
+  }
+
+  ImFont* baseFont = io.Fonts->AddFontFromFileTTF(
       "editor/assets/fonts/Poppins-Black.ttf", 16.0f);
-
   IM_ASSERT(baseFont != nullptr);
-
   io.Fonts->Build();
 }
 
 void EditorApp::Run() {
-
-  Camera2D &cam = GetWorld().maincamera;
-  cam.offset = {sceneRT.texture.width * 0.5f, sceneRT.texture.height * 0.5f};
-  cam.target = {0.0f, 0.0f};
-  cam.rotation = 0.0f;
-  cam.zoom = 1.0f;
-
   InitImGUI();
-  bool firstFrame = false;
-  // TODO:(maraujo) clean this code dude
-  while (!WindowShouldClose()) {
-    if (firstFrame == false) {
-      firstFrame = true;
-      sceneRT = LoadRenderTexture(width, height);
-    }
 
-    float dt = GetFrameTime();
+  criogenio::Renderer& ren = GetRenderer();
+  int vpW = ren.GetViewportWidth();
+  int vpH = ren.GetViewportHeight();
+  if (vpW > 0 && vpH > 0) {
+    GetWorld().maincamera.offset = {vpW * 0.5f, vpH * 0.5f};
+  }
+  GetWorld().maincamera.target = {0.0f, 0.0f};
+  GetWorld().maincamera.rotation = 0.0f;
+  GetWorld().maincamera.zoom = 1.0f;
 
-    HandleInput();
-    HandleEntityDrag();
+  auto prevTime = std::chrono::steady_clock::now();
+  bool firstFrame = true;
+
+  while (!ren.WindowShouldClose()) {
+    auto now = std::chrono::steady_clock::now();
+    float dt = std::chrono::duration<float>(now - prevTime).count();
+    prevTime = now;
+
+    Vec2 mousePos = GetMousePosition();
+    Vec2 mouseDelta = {mousePos.x - lastMousePos.x, mousePos.y - lastMousePos.y};
+    lastMousePos = mousePos;
+
+    std::function<void(const void*)> passEventToImGui = [](const void* ev) {
+      ImGui_ImplSDL3_ProcessEvent((const SDL_Event*)ev);
+    };
+    ren.ProcessEvents(&passEventToImGui);
+
+    ImGui_ImplSDL3_NewFrame();
+    ImGui_ImplSDLRenderer3_NewFrame();
+    ImGui::NewFrame();
+
+    HandleInput(dt, mouseDelta);
+    HandleEntityDrag(mouseDelta);
     HandleScenePicking();
 
     GetWorld().Update(dt);
 
-    // TODO:(maraujo) I need this?
-    //  === DRAW ===
     RenderSceneToTexture();
-    BeginDrawing();
-    ClearBackground(BLUE);
+
+    ren.BeginFrame();
+    ren.DrawRect(0, 0, (float)ren.GetViewportWidth(), (float)ren.GetViewportHeight(), criogenio::Colors::Blue);
     OnGUI();
-    EndDrawing();
+    ImGui::Render();
+    ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), (SDL_Renderer*)ren.GetRendererHandle());
+    ren.EndFrame();
+    Input::EndFrame();
   }
+
+  if (sceneRT.valid())
+    GetRenderer().DestroyRenderTarget(&sceneRT);
+  ImGui_ImplSDLRenderer3_Shutdown();
+  ImGui_ImplSDL3_Shutdown();
+  ImGui::DestroyContext();
 }
 
 void EditorApp::DrawButton(int x, int y, int w, int h, const char *label,
                            std::function<void()> onClick) {
-  Rectangle rect = {(float)x, (float)y, (float)w, (float)h};
-  bool hovered = CheckCollisionPointRec(GetMousePosition(), rect);
+  criogenio::Rect rect = {(float)x, (float)y, (float)w, (float)h};
+  bool hovered = criogenio::PointInRect(GetMousePosition(), rect);
 
-  Color color = hovered ? LIGHTGRAY : GRAY;
-  DrawRectangleRec(rect, color);
-  DrawText(label, x + 10, y + 6, 18, BLACK);
+  criogenio::Color color = hovered ? criogenio::Colors::Gray : criogenio::Colors::DarkGray;
+  GetRenderer().DrawRect((float)x, (float)y, (float)w, (float)h, color);
+  GetRenderer().DrawTextString(label, x + 10, y + 6, 18, criogenio::Colors::Black);
 
-  if (hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+  if (hovered && Input::IsMouseDown(0))
     onClick();
 }
 
-// Simple input box (non-functional, just for display)
 void EditorApp::DrawInput(int x, int y, int w, int h, const char *label) {
-  Rectangle rect = {(float)x, (float)y, (float)w, (float)h};
-  bool hovered = CheckCollisionPointRec(GetMousePosition(), rect);
+  criogenio::Rect rect = {(float)x, (float)y, (float)w, (float)h};
+  bool hovered = criogenio::PointInRect(GetMousePosition(), rect);
 
-  // Draw input box
-  Color color = hovered ? LIGHTGRAY : GRAY;
-  DrawRectangleRec(rect, color);
-  DrawText(label, x + 10, y + 6, 18, BLACK);
+  criogenio::Color color = hovered ? criogenio::Colors::Gray : criogenio::Colors::DarkGray;
+  GetRenderer().DrawRect((float)x, (float)y, (float)w, (float)h, color);
+  GetRenderer().DrawTextString(label, x + 10, y + 6, 18, criogenio::Colors::Black);
 }
 
 void EditorApp::DrawWorldView() {
-  Rectangle WorldRect = {
+  int vpW = GetRenderer().GetViewportWidth();
+  int vpH = GetRenderer().GetViewportHeight();
+  criogenio::Rect worldRect = {
       (float)leftPanelWidth, 0,
-      (float)(GetScreenWidth() - leftPanelWidth - rightPanelWidth),
-      (float)GetScreenHeight()};
+      (float)(vpW - leftPanelWidth - rightPanelWidth),
+      (float)vpH};
 
-  // Background for World view
-  DrawRectangleRec(WorldRect, BLACK);
-  Camera2D cam = Camera2D();
+  GetRenderer().DrawRect(worldRect.x, worldRect.y, worldRect.width, worldRect.height, criogenio::Colors::Black);
 
-  GetWorld().maincamera.offset = {sceneRT.texture.width * 0.5f,
-                                  sceneRT.texture.height * 0.5f};
+  if (sceneRT.valid()) {
+    GetWorld().maincamera.offset = {sceneRT.width * 0.5f, sceneRT.height * 0.5f};
+  }
+  criogenio::Camera2D cam;
   cam.target = {0.0f, 0.0f};
   cam.rotation = 0.0f;
   cam.zoom = 1.0f;
-
-  // Update camera offset to the center of the World view (important!)
   GetWorld().AttachCamera2D(cam);
 
-  // Let engine render inside
-  BeginScissorMode(leftPanelWidth, 0, WorldRect.width, WorldRect.height);
-
-  // Debug: draw grid and origin so you can see things are visible
-  GetWorld().Render(GetRenderer()); // expose renderer getter
-
-  EndScissorMode();
+  GetWorld().Render(GetRenderer());
 }
 
 void EditorApp::DrawGlobalComponentsPanel() {
@@ -266,17 +288,15 @@ void EditorApp::DrawHierarchyPanel() {
   if (ImGui::Begin("Viewport")) {
     ImVec2 avail = ImGui::GetContentRegionAvail();
 
-    // Resize render texture if needed
     static ImVec2 lastSize = {0, 0};
     if ((int)avail.x != (int)lastSize.x || (int)avail.y != (int)lastSize.y) {
-      if (sceneRT.id != 0)
-        UnloadRenderTexture(sceneRT);
+      if (sceneRT.valid())
+        GetRenderer().DestroyRenderTarget(&sceneRT);
       if (avail.x > 0 && avail.y > 0)
-        sceneRT = LoadRenderTexture((int)avail.x, (int)avail.y);
+        sceneRT = GetRenderer().CreateRenderTarget((int)avail.x, (int)avail.y);
       lastSize = avail;
     }
 
-    // ---- Compute viewport rect ----
     ImVec2 vMin = ImGui::GetWindowContentRegionMin();
     ImVec2 vMax = ImGui::GetWindowContentRegionMax();
     ImVec2 wPos = ImGui::GetWindowPos();
@@ -286,9 +306,8 @@ void EditorApp::DrawHierarchyPanel() {
     viewportHovered =
         ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
 
-    // ---- Draw texture ONCE ----
-    if (sceneRT.id != 0 && viewportSize.x > 0 && viewportSize.y > 0) {
-      ImGui::Image((ImTextureID)(intptr_t)sceneRT.texture.id, viewportSize,
+    if (sceneRT.valid() && viewportSize.x > 0 && viewportSize.y > 0) {
+      ImGui::Image((ImTextureID)(intptr_t)sceneRT.opaque, viewportSize,
                    ImVec2(0, 1), ImVec2(1, 0));
     }
 
@@ -304,35 +323,29 @@ void EditorApp::DrawHierarchyPanel() {
 }
 
 bool EditorApp::IsMouseInWorldView() {
-  Vector2 mouse = GetMousePosition();
-  // Use the actual ImGui viewport rectangle instead of fixed panel widths
-  return mouse.x >= viewportPos.x &&
-         mouse.x <= viewportPos.x + viewportSize.x &&
-         mouse.y >= viewportPos.y &&
-         mouse.y <= viewportPos.y + viewportSize.y;
+  Vec2 mouse = GetMousePosition();
+  criogenio::Rect viewRect = {(float)viewportPos.x, (float)viewportPos.y, (float)viewportSize.x, (float)viewportSize.y};
+  return criogenio::PointInRect(mouse, viewRect);
 }
 
-void EditorApp::HandleEntityDrag() {
+void EditorApp::HandleEntityDrag(Vec2 mouseDelta) {
   if (!selectedEntityId.has_value())
     return;
   if (!IsMouseInWorldView())
     return;
 
-  if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
-    // Convert previous and current mouse positions to world coordinates,
-    // so drag works correctly under zoom and pan.
-    Vector2 mouseScreen = GetMousePosition();
-    Vector2 prevMouseScreen = {mouseScreen.x - GetMouseDelta().x,
-                               mouseScreen.y - GetMouseDelta().y};
+  if (Input::IsMouseDown(0)) {
+    Vec2 mouseScreen = GetMousePosition();
+    Vec2 prevMouseScreen = {mouseScreen.x - mouseDelta.x, mouseScreen.y - mouseDelta.y};
 
-    // TODO:(maraujo) Do I need a editor camera here?
-    Vector2 prevWorld =
-        GetScreenToWorld2D(prevMouseScreen, GetWorld().maincamera);
-    Vector2 currWorld = GetScreenToWorld2D(mouseScreen, GetWorld().maincamera);
+    float vpW = (float)GetRenderer().GetViewportWidth();
+    float vpH = (float)GetRenderer().GetViewportHeight();
+    Vec2 prevWorld = ScreenToWorld2D(prevMouseScreen, GetWorld().maincamera, vpW, vpH);
+    Vec2 currWorld = ScreenToWorld2D(mouseScreen, GetWorld().maincamera, vpW, vpH);
 
-    Vector2 drag = Vector2Subtract(currWorld, prevWorld);
+    Vec2 drag = {currWorld.x - prevWorld.x, currWorld.y - prevWorld.y};
 
-    auto *transform =
+    auto* transform =
         GetWorld().GetComponent<criogenio::Transform>(selectedEntityId.value());
     if (transform) {
       transform->x += drag.x;
@@ -341,19 +354,13 @@ void EditorApp::HandleEntityDrag() {
   }
 }
 
-void EditorApp::HandleInput() {
+void EditorApp::HandleInput(float dt, Vec2 mouseDelta) {
   if (selectedEntityId.has_value())
     return;
-
   if (!viewportHovered)
     return;
 
-  float dt = GetFrameTime();
-
-  // ------------------------------------------
-  // ZOOM (scroll wheel)
-  // ------------------------------------------
-  float wheel = GetMouseWheelMove();
+  float wheel = ImGui::GetIO().MouseWheel;
   if (wheel != 0) {
     float zoomSpeed = 0.1f;
     GetWorld().maincamera.zoom += wheel * zoomSpeed;
@@ -363,51 +370,32 @@ void EditorApp::HandleInput() {
       GetWorld().maincamera.zoom = 8.0f;
   }
 
-  // ------------------------------------------
-  // PAN WITH MIDDLE MOUSE BUTTON
-  // ------------------------------------------
-  if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) {
-    Vector2 delta = GetMouseDelta();
-    GetWorld().maincamera.target.x -= delta.x / GetWorld().maincamera.zoom;
-    GetWorld().maincamera.target.y -= delta.y / GetWorld().maincamera.zoom;
+  if (Input::IsMouseDown(1)) {
+    GetWorld().maincamera.target.x -= mouseDelta.x / GetWorld().maincamera.zoom;
+    GetWorld().maincamera.target.y -= mouseDelta.y / GetWorld().maincamera.zoom;
+  }
+  if (Input::IsMouseDown(2)) {
+    GetWorld().maincamera.target.x -= mouseDelta.x / GetWorld().maincamera.zoom;
+    GetWorld().maincamera.target.y -= mouseDelta.y / GetWorld().maincamera.zoom;
   }
 
-  // ------------------------------------------
-  // RIGHT MOUSE DRAG ALSO PANS
-  // ------------------------------------------
-  if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
-    Vector2 delta = GetMouseDelta();
-    GetWorld().maincamera.target.x -= delta.x / GetWorld().maincamera.zoom;
-    GetWorld().maincamera.target.y -= delta.y / GetWorld().maincamera.zoom;
-  }
-
-  // ------------------------------------------
-  // WASD MOVEMENT
-  // ------------------------------------------
   float speed = 500.0f * dt;
-  if (IsKeyDown(KEY_W))
+  using namespace criogenio;
+  if (Input::IsKeyDown(static_cast<int>(Key::W)))
     GetWorld().maincamera.target.y -= speed;
-  if (IsKeyDown(KEY_S))
+  if (Input::IsKeyDown(static_cast<int>(Key::S)))
     GetWorld().maincamera.target.y += speed;
-  if (IsKeyDown(KEY_A))
+  if (Input::IsKeyDown(static_cast<int>(Key::A)))
     GetWorld().maincamera.target.x -= speed;
-  if (IsKeyDown(KEY_D))
+  if (Input::IsKeyDown(static_cast<int>(Key::D)))
     GetWorld().maincamera.target.x += speed;
 }
 
 void EditorApp::OnGUI() {
-
-  rlImGuiBegin(); // creates ImGui frame
-
   DrawDockSpace();
   DrawTerrainEditor();
   DrawAnimationEditorWindow();
-  //  DrawToolbar();
   DrawMainMenuBar();
-
-  rlImGuiEnd(); // renders ImGui
-
-  // Grid overlay is drawn inside RenderSceneToTexture() in world space
 }
 
 void EditorApp::DrawDockSpace() {
@@ -469,54 +457,48 @@ void EditorApp::DrawDockSpace() {
   ImGui::End();
 }
 
-Vector2 GetTerrainTileUnderMouse(const Terrain2D &terrain,
-                                 const Camera2D &camera) {
-  Vector2 mouseScreen = GetMousePosition();
-  Vector2 worldPos = GetScreenToWorld2D(mouseScreen, camera);
-
-  int tileSize = terrain.tileset.tileSize;
-  float outTileX = floor(worldPos.x / (float)tileSize);
-  float outTileY = floor(worldPos.y / (float)tileSize);
-  return {outTileX, outTileY};
+static criogenio::Vec2 TerrainWorldToTile(criogenio::Vec2 worldPos,
+                                         const criogenio::Terrain2D &terrain) {
+  float ts = static_cast<float>(terrain.tileset.tileSize);
+  float tx = std::floor((worldPos.x - terrain.origin.x) / ts);
+  float ty = std::floor((worldPos.y - terrain.origin.y) / ts);
+  return {tx, ty};
 }
 
-void DrawTileHighlight(const Terrain2D &terrain, Vector2 tile,
-                       const Camera2D &camera) {
+void DrawTileHighlight(criogenio::Renderer& renderer, const criogenio::Terrain2D &terrain,
+                      criogenio::Vec2 tileWorld, const criogenio::Camera2D &camera) {
   if (terrain.layers.empty())
     return;
-
   int ts = terrain.tileset.tileSize;
-
-  float lineWidth = 2.0f / camera.zoom;
-
-  Rectangle r{terrain.origin.x + tile.x * ts, terrain.origin.y + tile.y * ts,
-              (float)ts, (float)ts};
-
-  DrawRectangleLinesEx(r, lineWidth, YELLOW);
+  float x = terrain.origin.x + tileWorld.x * ts;
+  float y = terrain.origin.y + tileWorld.y * ts;
+  renderer.DrawRectOutline(x, y, (float)ts, (float)ts, criogenio::Colors::Yellow);
 }
 
 void EditorApp::RenderSceneToTexture() {
-  BeginTextureMode(sceneRT);
-  ClearBackground(BLACK);
-  BeginMode2D(GetWorld().maincamera);
+  if (!sceneRT.valid())
+    return;
+  criogenio::Renderer& ren = GetRenderer();
+  ren.SetRenderTarget(sceneRT);
+  ren.DrawRect(0, 0, (float)sceneRT.width, (float)sceneRT.height, criogenio::Colors::Black);
+  ren.BeginCamera2D(GetWorld().maincamera);
+
   if (selectedEntityId.has_value()) {
-    if (auto *t = GetWorld().GetComponent<criogenio::Transform>(
-            selectedEntityId.value())) {
-      DrawRectangleLines(t->x, t->y, 64, 64, YELLOW);
-    }
+    if (auto* t = GetWorld().GetComponent<criogenio::Transform>(selectedEntityId.value()))
+      ren.DrawRectOutline(t->x, t->y, 64, 64, criogenio::Colors::Yellow);
   }
 
-  GetWorld().Render(GetRenderer());
+  GetWorld().Render(ren);
 
-  EndMode2D();
-  // Draw terrain grid overlay (editor-only, in world space)
-  if (terrainEditMode) {
-    auto tile = GetTerrainTileUnderMouse(*GetWorld().GetTerrain(),
-                                         GetWorld().maincamera);
+  if (terrainEditMode && GetWorld().GetTerrain()) {
+    criogenio::Vec2 worldPos = ScreenToWorldPosition(GetMousePosition());
+    criogenio::Vec2 tile = TerrainWorldToTile(worldPos, *GetWorld().GetTerrain());
     DrawTerrainGridOverlay(*GetWorld().GetTerrain(), GetWorld().maincamera);
-    DrawTileHighlight(*GetWorld().GetTerrain(), tile, GetWorld().maincamera);
+    DrawTileHighlight(ren, *GetWorld().GetTerrain(), tile, GetWorld().maincamera);
   }
-  EndTextureMode();
+
+  ren.EndCamera2D();
+  ren.UnsetRenderTarget();
 }
 
 void EditorApp::DrawMainMenuBar() {
@@ -592,36 +574,34 @@ void EditorApp::DrawMainMenuBar() {
         }
 
         /// Make this data-driven later
-        std::vector<Rectangle> idleDown = {
+        std::vector<criogenio::Rect> idleDown = {
             {0, 0, 64, 128},   {64, 0, 64, 128},  {128, 0, 64, 128},
             {192, 0, 64, 128}, {256, 0, 64, 128}, {320, 0, 64, 128},
             {384, 0, 64, 128}, {448, 0, 64, 128}, {512, 0, 64, 128},
         };
 
-        std::vector<Rectangle> idleLeft = {
+        std::vector<criogenio::Rect> idleLeft = {
             {0, 128, 64, 128},   {64, 128, 64, 128},  {128, 128, 64, 128},
             {192, 128, 64, 128}, {256, 128, 64, 128}, {320, 128, 64, 128},
             {384, 128, 64, 128}, {448, 128, 64, 128}, {512, 128, 64, 128},
         };
 
-        std::vector<Rectangle> idleRight = {
+        std::vector<criogenio::Rect> idleRight = {
             {0, 256, 64, 128},   {64, 256, 64, 128},  {128, 256, 64, 128},
             {192, 256, 64, 128}, {256, 256, 64, 128}, {320, 256, 64, 128},
             {384, 256, 64, 128}, {448, 256, 64, 128}, {512, 256, 64, 128},
         };
 
-        std::vector<Rectangle> idleUp = {
+        std::vector<criogenio::Rect> idleUp = {
             {0, 384, 64, 128},   {64, 384, 64, 128},  {128, 384, 64, 128},
             {192, 384, 64, 128}, {256, 384, 64, 128}, {320, 384, 64, 128},
             {384, 384, 64, 128}, {448, 384, 64, 128}, {512, 384, 64, 128},
-
         };
 
-        // Build an animation definition in the central AnimationDatabase
         auto animId = AnimationDatabase::instance().createAnimation(path);
 
         auto makeClip = [](const std::string &name,
-                           const std::vector<Rectangle> &rects, float speed) {
+                           const std::vector<criogenio::Rect> &rects, float speed) {
           criogenio::AnimationClip clip;
           clip.name = name;
           clip.frameSpeed = speed;
@@ -643,8 +623,7 @@ void EditorApp::DrawMainMenuBar() {
         AnimationDatabase::instance().addClip(
             animId, makeClip("idle_right", idleRight, 0.10f));
 
-        // Add walking animation, should start after 64 pixels in y axis
-        std::vector<Rectangle> walkDown = {
+        std::vector<criogenio::Rect> walkDown = {
             {0, 512, 64, 128},   {64, 512, 64, 128},  {128, 512, 64, 128},
             {192, 512, 64, 128}, {256, 512, 64, 128}, {320, 512, 64, 128},
             {384, 512, 64, 128}, {448, 512, 64, 128}, {512, 512, 64, 128},
@@ -652,21 +631,21 @@ void EditorApp::DrawMainMenuBar() {
 
         AnimationDatabase::instance().addClip(
             animId, makeClip("walk_down", walkDown, 0.10f));
-        std::vector<Rectangle> walkLeft = {
+        std::vector<criogenio::Rect> walkLeft = {
             {0, 640, 64, 128},   {64, 640, 64, 128},  {128, 640, 64, 128},
             {192, 640, 64, 128}, {256, 640, 64, 128}, {320, 640, 64, 128},
             {384, 640, 64, 128}, {448, 640, 64, 128}, {512, 640, 64, 128},
         };
         AnimationDatabase::instance().addClip(
             animId, makeClip("walk_left", walkLeft, 0.10f));
-        std::vector<Rectangle> walkRight = {
+        std::vector<criogenio::Rect> walkRight = {
             {0, 768, 64, 128},   {64, 768, 64, 128},  {128, 768, 64, 128},
             {192, 768, 64, 128}, {256, 768, 64, 128}, {320, 768, 64, 128},
             {384, 768, 64, 128}, {448, 768, 64, 128}, {512, 768, 64, 128},
         };
         AnimationDatabase::instance().addClip(
             animId, makeClip("walk_right", walkRight, 0.10f));
-        std::vector<Rectangle> walkUp = {
+        std::vector<criogenio::Rect> walkUp = {
             {0, 896, 64, 128},   {64, 896, 64, 128},  {128, 896, 64, 128},
             {192, 896, 64, 128}, {256, 896, 64, 128}, {320, 896, 64, 128},
             {384, 896, 64, 128}, {448, 896, 64, 128}, {512, 896, 64, 128},
@@ -699,35 +678,24 @@ void EditorApp::DrawMainMenuBar() {
     ImGui::EndMainMenuBar();
   }
 
-  // Terrain painting mode
   if (terrainEditMode) {
-    Vector2 mouseScreen = GetMousePosition();
-
-    // Check if mouse is within viewport
-    if (mouseScreen.x >= viewportPos.x &&
-        mouseScreen.x <= viewportPos.x + viewportSize.x &&
-        mouseScreen.y >= viewportPos.y &&
-        mouseScreen.y <= viewportPos.y + viewportSize.y) {
-
-      if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
-        Vector2 worldPos = ScreenToWorldPosition(mouseScreen);
-
-        auto *terrain = GetWorld().GetTerrain();
-        if (terrain) {
-          int tileSize = terrain->tileset.tileSize;
-          int tx = static_cast<int>(floor(worldPos.x / (float)tileSize));
-          int ty = static_cast<int>(floor(worldPos.y / (float)tileSize));
-          terrain->SetTile(terrainSelectedLayer, tx, ty, terrainSelectedTile);
-        }
+    Vec2 mouseScreen = GetMousePosition();
+    criogenio::Rect viewRect = {(float)viewportPos.x, (float)viewportPos.y, (float)viewportSize.x, (float)viewportSize.y};
+    if (criogenio::PointInRect(mouseScreen, viewRect) && Input::IsMouseDown(0)) {
+      Vec2 worldPos = ScreenToWorldPosition(mouseScreen);
+      auto* terrain = GetWorld().GetTerrain();
+      if (terrain) {
+        float ts = static_cast<float>(terrain->tileset.tileSize);
+        int tx = static_cast<int>(std::floor((worldPos.x - terrain->origin.x) / ts));
+        int ty = static_cast<int>(std::floor((worldPos.y - terrain->origin.y) / ts));
+        terrain->SetTile(terrainSelectedLayer, tx, ty, terrainSelectedTile);
       }
     }
   }
 }
 
 void EditorApp::CreateEmptyEntityAtMouse() {
-  Vector2 mouseScreen = GetMousePosition();
-  Vector2 worldPos = GetScreenToWorld2D(mouseScreen, GetWorld().maincamera);
-
+  Vec2 worldPos = GetMouseWorld();
   int id = GetWorld().CreateEntity("New Entity");
   GetWorld().AddComponent<criogenio::Name>(id,
                                            "New Entity " + std::to_string(id));
@@ -772,20 +740,42 @@ void EditorApp::DrawTerrainEditor() {
     return;
   }
 
-  // Toggle edit mode
+  if (terrain->layers.empty()) {
+    if (ImGui::Button("Add Layer")) {
+      terrain->AddLayer();
+      terrainSelectedLayer = 0;
+    }
+    ImGui::End();
+    return;
+  }
+
+  if (terrainSelectedLayer < 0 ||
+      terrainSelectedLayer >= static_cast<int>(terrain->layers.size())) {
+    terrainSelectedLayer = static_cast<int>(terrain->layers.size()) - 1;
+  }
+
   ImGui::Checkbox("Terrain Edit Mode", &terrainEditMode);
   ImGui::SameLine();
   ImGui::Text("Layer:");
   ImGui::SameLine();
-  ImGui::InputInt("##layer", &terrainSelectedLayer);
+  ImGui::SetNextItemWidth(60);
+  ImGui::InputInt("##layer", &terrainSelectedLayer, 1, 1);
+  terrainSelectedLayer = std::max(
+      0, std::min(terrainSelectedLayer,
+                  static_cast<int>(terrain->layers.size()) - 1));
+  ImGui::SameLine();
+  if (ImGui::Button("Add Layer")) {
+    terrain->AddLayer();
+    terrainSelectedLayer = static_cast<int>(terrain->layers.size()) - 1;
+  }
 
-  // Show selected tile info
   ImGui::Separator();
+  ImGui::Text("Chunk size: %d x %d (infinite terrain)", terrain->GetChunkSize(),
+              terrain->GetChunkSize());
   ImGui::Text("Selected Tile: %d", terrainSelectedTile);
   ImGui::Text("Tile Size: %d x %d", terrain->tileset.tileSize,
               terrain->tileset.tileSize);
-  ImGui::Text("Instructions: Click tiles below to select, then paint on "
-              "terrain in viewport.");
+  ImGui::Text("Paint anywhere in viewport; chunks are created as you edit.");
 
   // Show tileset as selectable grid
   auto tex = terrain->tileset.atlas;
@@ -841,50 +831,43 @@ void EditorApp::DrawTerrainEditor() {
   ImGui::End();
 }
 
-std::optional<Vector2>
-EditorApp::WorldToTile(const criogenio::Terrain2D &terrain, Vector2 worldPos) {
-  Vector2 local = {worldPos.x - terrain.origin.x,
-                   worldPos.y - terrain.origin.y};
-
-  if (local.x < 0 || local.y < 0)
-    return std::nullopt;
-
-  float tx = local.x / terrain.tileset.tileSize;
-  float ty = local.y / terrain.tileset.tileSize;
-
-  // TODO:get the current layer
-  const auto &layer = terrain.layers[terrainSelectedLayer];
-
-  if (tx < 0 || ty < 0 || tx >= layer.width || ty >= layer.height)
-    return std::nullopt;
-
-  return Vector2{tx, ty};
+std::optional<criogenio::Vec2>
+EditorApp::WorldToTile(const criogenio::Terrain2D &terrain, criogenio::Vec2 worldPos) {
+  criogenio::Vec2 local = {worldPos.x - terrain.origin.x, worldPos.y - terrain.origin.y};
+  float ts = static_cast<float>(terrain.tileset.tileSize);
+  int tx = static_cast<int>(std::floor(local.x / ts));
+  int ty = static_cast<int>(std::floor(local.y / ts));
+  return criogenio::Vec2{static_cast<float>(tx), static_cast<float>(ty)};
 }
 
 void EditorApp::DrawTerrainGridOverlay(const criogenio::Terrain2D &terrain,
-                                       const Camera2D &cam) {
+                                       const criogenio::Camera2D &cam) {
   if (terrain.layers.empty())
     return;
+  float vpW = sceneRT.valid() ? (float)sceneRT.width : viewportSize.x;
+  float vpH = sceneRT.valid() ? (float)sceneRT.height : viewportSize.y;
 
-  // const auto &layer = terrain.layers[0];
-  const auto &layer = terrain.layers[terrainSelectedLayer];
   const int ts = terrain.tileset.tileSize;
+  int minTx, minTy, maxTx, maxTy;
+  terrain.GetVisibleTileRange(cam, vpW, vpH, minTx, minTy, maxTx, maxTy);
 
-  float startX = terrain.origin.x;
-  float startY = terrain.origin.y;
-  float endX = startX + layer.width * ts;
-  float endY = startY + layer.height * ts;
+  float startX = terrain.origin.x + minTx * ts;
+  float startY = terrain.origin.y + minTy * ts;
+  float endX = terrain.origin.x + (maxTx + 1) * ts;
+  float endY = terrain.origin.y + (maxTy + 1) * ts;
 
-  float lineWidth = 1.0f / cam.zoom;
+  int numX = maxTx - minTx + 2;
+  int numY = maxTy - minTy + 2;
+  criogenio::Color gridColor{128, 128, 128, 102};
 
-  for (int x = 0; x <= layer.width; ++x) {
+  criogenio::Renderer& ren = GetRenderer();
+  for (int x = 0; x <= numX; ++x) {
     float wx = startX + x * ts;
-    DrawLineEx({wx, startY}, {wx, endY}, lineWidth, Fade(GRAY, 0.4f));
+    ren.DrawLine(wx, startY, wx, endY, gridColor);
   }
-
-  for (int y = 0; y <= layer.height; ++y) {
+  for (int y = 0; y <= numY; ++y) {
     float wy = startY + y * ts;
-    DrawLineEx({startX, wy}, {endX, wy}, lineWidth, Fade(GRAY, 0.4f));
+    ren.DrawLine(startX, wy, endX, wy, gridColor);
   }
 }
 
@@ -974,53 +957,37 @@ name.name.c_str());
 }*/
 
 void EditorApp::HandleScenePicking() {
-
   if (!viewportHovered)
     return;
-
-  if (!IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+  if (!ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     return;
 
-  Vector2 mouse = GetMousePosition();
-
-  float vx = viewportPos.x;
-  float vy = viewportPos.y;
-  float vw = viewportSize.x;
-  float vh = viewportSize.y;
-
+  Vec2 mouse = GetMousePosition();
+  float vx = viewportPos.x, vy = viewportPos.y, vw = viewportSize.x, vh = viewportSize.y;
   if (mouse.x < vx || mouse.y < vy || mouse.x > vx + vw || mouse.y > vy + vh)
     return;
+  if (!sceneRT.valid())
+    return;
 
-  // Convert to viewport-local
-  Vector2 local;
-  local.x = mouse.x - vx;
-  local.y = mouse.y - vy;
+  Vec2 local = {mouse.x - vx, mouse.y - vy};
+  Vec2 tex = {local.x * ((float)sceneRT.width / vw), local.y * ((float)sceneRT.height / vh)};
 
-  // Normalize to render texture space
-  Vector2 tex;
-  tex.x = local.x * ((float)sceneRT.texture.width / vw);
-  tex.y = local.y * ((float)sceneRT.texture.height / vh);
-
-  // Convert to world
-  Vector2 world = GetScreenToWorld2D(tex, GetWorld().maincamera);
+  Vec2 world = criogenio::ScreenToWorld2D(tex, GetWorld().maincamera, (float)sceneRT.width, (float)sceneRT.height);
   PickEntityAt(world);
 }
 
-void EditorApp::PickEntityAt(Vector2 worldPos) {
-
+void EditorApp::PickEntityAt(criogenio::Vec2 worldPos) {
   selectedEntityId.reset();
-
+  criogenio::Rect bounds;
+  bounds.width = 64;
+  bounds.height = 128;
   for (int entity : GetWorld().GetEntitiesWith<criogenio::Transform>()) {
-
-    auto *t = GetWorld().GetComponent<criogenio::Transform>(entity);
+    auto* t = GetWorld().GetComponent<criogenio::Transform>(entity);
     if (!t)
       continue;
-
-    Rectangle bounds = {
-        t->x, t->y, 64, 128 // TODO: use sprite size
-    };
-
-    if (CheckCollisionPointRec(worldPos, bounds)) {
+    bounds.x = t->x;
+    bounds.y = t->y;
+    if (criogenio::PointInRect(worldPos, bounds)) {
       selectedEntityId = entity;
       return;
     }
@@ -1031,32 +998,21 @@ bool EditorApp::IsSceneInputAllowed() const {
          !ImGui::IsAnyItemHovered();
 }
 
-Vector2 EditorApp::ScreenToWorldPosition(Vector2 mouseScreen) {
-  // Check if mouse is within viewport
-  if (mouseScreen.x < viewportPos.x ||
-      mouseScreen.x > viewportPos.x + viewportSize.x ||
-      mouseScreen.y < viewportPos.y ||
-      mouseScreen.y > viewportPos.y + viewportSize.y) {
-    return {0, 0}; // Return invalid position if outside viewport
-  }
+criogenio::Vec2 EditorApp::ScreenToWorldPosition(criogenio::Vec2 mouseScreen) {
+  if (mouseScreen.x < viewportPos.x || mouseScreen.x > viewportPos.x + viewportSize.x ||
+      mouseScreen.y < viewportPos.y || mouseScreen.y > viewportPos.y + viewportSize.y)
+    return {0, 0};
+  if (!sceneRT.valid())
+    return {0, 0};
 
-  // Convert screen coordinates to viewport coordinates
-  Vector2 viewportMouse = {mouseScreen.x - viewportPos.x,
-                           mouseScreen.y - viewportPos.y};
+  Vec2 viewportMouse = {mouseScreen.x - viewportPos.x, mouseScreen.y - viewportPos.y};
+  Vec2 normalizedPos = {viewportMouse.x / viewportSize.x, viewportMouse.y / viewportSize.y};
+  Vec2 textureScreen = {normalizedPos.x * (float)sceneRT.width,
+                        (1.0f - normalizedPos.y) * (float)sceneRT.height};
 
-  // Convert viewport coordinates to normalized texture coordinates (0-1)
-  Vector2 normalizedPos = {viewportMouse.x / viewportSize.x,
-                           viewportMouse.y / viewportSize.y};
-
-  // Convert normalized coordinates to texture screen coordinates
-  // Note: Texture Y is flipped (0 at top in ImGui, 0 at bottom in
-  // texture)
-  Vector2 textureScreen = {normalizedPos.x * (float)sceneRT.texture.width,
-                           (1.0f - normalizedPos.y) *
-                               (float)sceneRT.texture.height};
-
-  // Convert texture screen coordinates to world coordinates using camera
-  return GetScreenToWorld2D(textureScreen, GetWorld().maincamera);
+  float vpW = (float)sceneRT.width;
+  float vpH = (float)sceneRT.height;
+  return criogenio::ScreenToWorld2D(textureScreen, GetWorld().maincamera, vpW, vpH);
 }
 
 void EditorApp::DrawEntityHeader(int entity) {
@@ -2096,14 +2052,14 @@ void EditorApp::DrawAddComponentMenu(int entity) {
     if (!GetWorld().HasComponent<criogenio::Controller>(entity)) {
       if (ImGui::MenuItem("Player Controller")) {
         GetWorld().AddComponent<criogenio::Controller>(entity,
-                                                       Vector2{200.0, 200.0});
+                                                       criogenio::Vec2{200.0f, 200.0f});
       }
     }
 
     if (!GetWorld().HasComponent<criogenio::AIController>(entity)) {
       if (ImGui::MenuItem("AI Controller")) {
         GetWorld().AddComponent<criogenio::AIController>(
-            entity, Vector2{200.0, 200.0}, entity);
+            entity, criogenio::Vec2{200.0f, 200.0f}, entity);
       }
     }
     if (!GetWorld().HasComponent<criogenio::AnimationState>(entity)) {

@@ -79,17 +79,14 @@ public:
     }
   }
 
-  Rectangle GetFrame() const {
+  Rect GetFrame() const {
     if (animationId == INVALID_ASSET_ID || currentClipName.empty())
       return {0, 0, 0, 0};
 
     const auto *clip =
         AnimationDatabase::instance().getClip(animationId, currentClipName);
-    if (!clip || clip->frames.empty()) {
-      TraceLog(LOG_ERROR, "AnimatedSprite: clip '%s' not found or empty",
-               currentClipName.c_str());
+    if (!clip || clip->frames.empty())
       return {0, 0, 0, 0};
-    }
     return clip->frames[frameIndex].rect;
   }
 
