@@ -277,4 +277,40 @@ struct ReplicatedNetId : public Component {
   void Deserialize(const SerializedComponent &) override {}
 };
 
+/** 2D camera as an entity component. When present on an entity, it can be used as the main camera. */
+class Camera : public Component {
+public:
+  Camera2D data;
+
+  Camera() = default;
+  explicit Camera(const Camera2D& cam) : data(cam) {}
+
+  std::string TypeName() const override { return "Camera"; }
+
+  SerializedComponent Serialize() const override {
+    return {"Camera",
+            {{"offset_x", data.offset.x},
+             {"offset_y", data.offset.y},
+             {"target_x", data.target.x},
+             {"target_y", data.target.y},
+             {"rotation", data.rotation},
+             {"zoom", data.zoom}}};
+  }
+
+  void Deserialize(const SerializedComponent& data_in) override {
+    if (auto it = data_in.fields.find("offset_x"); it != data_in.fields.end())
+      data.offset.x = std::get<float>(it->second);
+    if (auto it = data_in.fields.find("offset_y"); it != data_in.fields.end())
+      data.offset.y = std::get<float>(it->second);
+    if (auto it = data_in.fields.find("target_x"); it != data_in.fields.end())
+      data.target.x = std::get<float>(it->second);
+    if (auto it = data_in.fields.find("target_y"); it != data_in.fields.end())
+      data.target.y = std::get<float>(it->second);
+    if (auto it = data_in.fields.find("rotation"); it != data_in.fields.end())
+      data.rotation = std::get<float>(it->second);
+    if (auto it = data_in.fields.find("zoom"); it != data_in.fields.end())
+      data.zoom = std::get<float>(it->second);
+  }
+};
+
 }  // namespace criogenio

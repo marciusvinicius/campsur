@@ -79,11 +79,11 @@ void EditorApp::Run() {
   int vpW = ren.GetViewportWidth();
   int vpH = ren.GetViewportHeight();
   if (vpW > 0 && vpH > 0) {
-    GetWorld().maincamera.offset = {vpW * 0.5f, vpH * 0.5f};
+    GetWorld().GetActiveCamera()->offset = {vpW * 0.5f, vpH * 0.5f};
   }
-  GetWorld().maincamera.target = {0.0f, 0.0f};
-  GetWorld().maincamera.rotation = 0.0f;
-  GetWorld().maincamera.zoom = 1.0f;
+  GetWorld().GetActiveCamera()->target = {0.0f, 0.0f};
+  GetWorld().GetActiveCamera()->rotation = 0.0f;
+  GetWorld().GetActiveCamera()->zoom = 1.0f;
 
   auto prevTime = std::chrono::steady_clock::now();
   bool firstFrame = true;
@@ -166,7 +166,7 @@ void EditorApp::DrawWorldView() {
   GetRenderer().DrawRect(worldRect.x, worldRect.y, worldRect.width, worldRect.height, criogenio::Colors::Black);
 
   if (sceneRT.valid()) {
-    GetWorld().maincamera.offset = {sceneRT.width * 0.5f, sceneRT.height * 0.5f};
+    GetWorld().GetActiveCamera()->offset = {sceneRT.width * 0.5f, sceneRT.height * 0.5f};
   }
   criogenio::Camera2D cam;
   cam.target = {0.0f, 0.0f};
@@ -349,8 +349,8 @@ void EditorApp::HandleEntityDrag(Vec2 mouseDelta) {
 
     float vpW = (float)GetRenderer().GetViewportWidth();
     float vpH = (float)GetRenderer().GetViewportHeight();
-    Vec2 prevWorld = ScreenToWorld2D(prevMouseScreen, GetWorld().maincamera, vpW, vpH);
-    Vec2 currWorld = ScreenToWorld2D(mouseScreen, GetWorld().maincamera, vpW, vpH);
+    Vec2 prevWorld = ScreenToWorld2D(prevMouseScreen, *GetWorld().GetActiveCamera(), vpW, vpH);
+    Vec2 currWorld = ScreenToWorld2D(mouseScreen, *GetWorld().GetActiveCamera(), vpW, vpH);
 
     Vec2 drag = {currWorld.x - prevWorld.x, currWorld.y - prevWorld.y};
 
@@ -372,32 +372,32 @@ void EditorApp::HandleInput(float dt, Vec2 mouseDelta) {
   float wheel = ImGui::GetIO().MouseWheel;
   if (wheel != 0) {
     float zoomSpeed = 0.1f;
-    GetWorld().maincamera.zoom += wheel * zoomSpeed;
-    if (GetWorld().maincamera.zoom < 0.1f)
-      GetWorld().maincamera.zoom = 0.1f;
-    if (GetWorld().maincamera.zoom > 8.0f)
-      GetWorld().maincamera.zoom = 8.0f;
+    GetWorld().GetActiveCamera()->zoom += wheel * zoomSpeed;
+    if (GetWorld().GetActiveCamera()->zoom < 0.1f)
+      GetWorld().GetActiveCamera()->zoom = 0.1f;
+    if (GetWorld().GetActiveCamera()->zoom > 8.0f)
+      GetWorld().GetActiveCamera()->zoom = 8.0f;
   }
 
   if (Input::IsMouseDown(1)) {
-    GetWorld().maincamera.target.x -= mouseDelta.x / GetWorld().maincamera.zoom;
-    GetWorld().maincamera.target.y -= mouseDelta.y / GetWorld().maincamera.zoom;
+    GetWorld().GetActiveCamera()->target.x -= mouseDelta.x / GetWorld().GetActiveCamera()->zoom;
+    GetWorld().GetActiveCamera()->target.y -= mouseDelta.y / GetWorld().GetActiveCamera()->zoom;
   }
   if (Input::IsMouseDown(2)) {
-    GetWorld().maincamera.target.x -= mouseDelta.x / GetWorld().maincamera.zoom;
-    GetWorld().maincamera.target.y -= mouseDelta.y / GetWorld().maincamera.zoom;
+    GetWorld().GetActiveCamera()->target.x -= mouseDelta.x / GetWorld().GetActiveCamera()->zoom;
+    GetWorld().GetActiveCamera()->target.y -= mouseDelta.y / GetWorld().GetActiveCamera()->zoom;
   }
 
   float speed = 500.0f * dt;
   using namespace criogenio;
   if (Input::IsKeyDown(static_cast<int>(Key::W)))
-    GetWorld().maincamera.target.y -= speed;
+    GetWorld().GetActiveCamera()->target.y -= speed;
   if (Input::IsKeyDown(static_cast<int>(Key::S)))
-    GetWorld().maincamera.target.y += speed;
+    GetWorld().GetActiveCamera()->target.y += speed;
   if (Input::IsKeyDown(static_cast<int>(Key::A)))
-    GetWorld().maincamera.target.x -= speed;
+    GetWorld().GetActiveCamera()->target.x -= speed;
   if (Input::IsKeyDown(static_cast<int>(Key::D)))
-    GetWorld().maincamera.target.x += speed;
+    GetWorld().GetActiveCamera()->target.x += speed;
 }
 
 void EditorApp::OnGUI() {
@@ -490,7 +490,7 @@ void EditorApp::RenderSceneToTexture() {
   criogenio::Renderer& ren = GetRenderer();
   ren.SetRenderTarget(sceneRT);
   ren.DrawRect(0, 0, (float)sceneRT.width, (float)sceneRT.height, criogenio::Colors::Black);
-  ren.BeginCamera2D(GetWorld().maincamera);
+  ren.BeginCamera2D(*GetWorld().GetActiveCamera());
 
   if (selectedEntityId.has_value()) {
     if (auto* t = GetWorld().GetComponent<criogenio::Transform>(selectedEntityId.value()))
@@ -502,8 +502,8 @@ void EditorApp::RenderSceneToTexture() {
   if (terrainEditMode && GetWorld().GetTerrain()) {
     criogenio::Vec2 worldPos = ScreenToWorldPosition(GetMousePosition());
     criogenio::Vec2 tile = TerrainWorldToTile(worldPos, *GetWorld().GetTerrain());
-    DrawTerrainGridOverlay(*GetWorld().GetTerrain(), GetWorld().maincamera);
-    DrawTileHighlight(ren, *GetWorld().GetTerrain(), tile, GetWorld().maincamera);
+    DrawTerrainGridOverlay(*GetWorld().GetTerrain(), *GetWorld().GetActiveCamera());
+    DrawTileHighlight(ren, *GetWorld().GetTerrain(), tile, *GetWorld().GetActiveCamera());
   }
 
   ren.EndCamera2D();
@@ -981,7 +981,7 @@ void EditorApp::HandleScenePicking() {
   Vec2 local = {mouse.x - vx, mouse.y - vy};
   Vec2 tex = {local.x * ((float)sceneRT.width / vw), local.y * ((float)sceneRT.height / vh)};
 
-  Vec2 world = criogenio::ScreenToWorld2D(tex, GetWorld().maincamera, (float)sceneRT.width, (float)sceneRT.height);
+  Vec2 world = criogenio::ScreenToWorld2D(tex, *GetWorld().GetActiveCamera(), (float)sceneRT.width, (float)sceneRT.height);
   PickEntityAt(world);
 }
 
@@ -1021,7 +1021,7 @@ criogenio::Vec2 EditorApp::ScreenToWorldPosition(criogenio::Vec2 mouseScreen) {
 
   float vpW = (float)sceneRT.width;
   float vpH = (float)sceneRT.height;
-  return criogenio::ScreenToWorld2D(textureScreen, GetWorld().maincamera, vpW, vpH);
+  return criogenio::ScreenToWorld2D(textureScreen, *GetWorld().GetActiveCamera(), vpW, vpH);
 }
 
 void EditorApp::DrawEntityHeader(int entity) {

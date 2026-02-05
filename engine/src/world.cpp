@@ -48,7 +48,7 @@ void World::Update(float dt) {
 }
 
 void World::Render(Renderer& renderer) {
-  renderer.BeginCamera2D(maincamera);
+  renderer.BeginCamera2D(*GetActiveCamera());
   renderer.DrawGrid(100, 32);
   renderer.DrawCircle(0, 0, 6, Colors::Red);
 
@@ -146,6 +146,10 @@ SerializedWorld World::Serialize() const {
       serialized_entity.components.push_back(nameComp->Serialize());
     }
 
+    if (auto cam = GetComponent<Camera>(entity_id)) {
+      serialized_entity.components.push_back(cam->Serialize());
+    }
+
     if (!serialized_entity.components.empty()) {
       world.entities.push_back(serialized_entity);
     }
@@ -156,6 +160,7 @@ SerializedWorld World::Serialize() const {
 
 void World::Deserialize(const SerializedWorld &data) {
   ecs::Registry::instance().clear();
+  mainCameraEntity = ecs::NULL_ENTITY;
   terrain = nullptr;
   AnimationDatabase::instance().clear();
 
@@ -304,6 +309,11 @@ void World::Deserialize(const SerializedWorld &data) {
       } else if (type_name == "Name") {
         auto &nameComp = AddComponent<Name>(entity_id);
         nameComp.Deserialize(serialized_component);
+      } else if (type_name == "Camera") {
+        auto &cam = AddComponent<Camera>(entity_id);
+        cam.Deserialize(serialized_component);
+        if (mainCameraEntity == ecs::NULL_ENTITY)
+          mainCameraEntity = entity_id;
       }
     }
   }
@@ -331,7 +341,29 @@ Terrain2D &World::CreateTerrain2D(const std::string &name,
   return *terrain;
 }
 
-void World::AttachCamera2D(criogenio::Camera2D cam) { maincamera = cam; }
+Camera2D* World::GetActiveCamera() {
+  if (mainCameraEntity != ecs::NULL_ENTITY) {
+    if (Camera* c = GetComponent<Camera>(mainCameraEntity))
+      return &c->data;
+  }
+  return &maincamera;
+}
+
+const Camera2D* World::GetActiveCamera() const {
+  if (mainCameraEntity != ecs::NULL_ENTITY) {
+    if (const Camera* c = GetComponent<Camera>(mainCameraEntity))
+      return &c->data;
+  }
+  return &maincamera;
+}
+
+void World::AttachCamera2D(criogenio::Camera2D cam) {
+  maincamera = cam;
+  ecs::EntityId e = CreateEntity("MainCamera");
+  AddComponent<Camera>(e, Camera(cam));
+  AddComponent<Name>(e, "MainCamera");
+  mainCameraEntity = e;
+}
 
 Terrain2D *World::GetTerrain() { return terrain.get(); }
 

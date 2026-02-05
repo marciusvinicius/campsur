@@ -103,14 +103,18 @@ Suggestions based on a review of the Criogenio engine. Ordered by impact vs effo
 
 ---
 
-## 10. **Camera as a component**
+## 10. **Camera as a component** ✅ DONE
 
-**Current:** Camera is global on `World` (`maincamera`, `AttachCamera2D`).
+**Implemented:**  
+- **`Camera` component** (`engine/include/components.h`): Entity component holding `Camera2D data`; implements `Serialize`/`Deserialize` (offset, target, rotation, zoom).  
+- **World:** `mainCameraEntity` (ecs::EntityId) points to the entity with the active `Camera` component; `maincamera` remains as fallback when no camera entity exists.  
+- **`GetActiveCamera()`** / **`GetActiveCamera() const`**: Return a pointer to the active camera (from the main camera entity’s component or `&maincamera`); never null.  
+- **`AttachCamera2D(cam)`**: Creates an entity `"MainCamera"`, adds `Camera(cam)` and `Name("MainCamera")`, and sets it as `mainCameraEntity`.  
+- **Rendering:** `World::Render()` and editor use `GetActiveCamera()`; pan/zoom in the editor modify the camera component.  
+- **Serialize/Deserialize:** Camera components are saved/loaded; the first entity with a `Camera` when deserializing becomes the main camera entity.  
+- **ComponentFactory:** `"Camera"` is registered so the editor can add the component by type name.  
 
-**Improvement:**  
-- Add a `Camera2D` component (or tag + data component).  
-- One entity with the camera component is “active”; systems that need the camera take it from that entity.  
-- Enables multiple cameras, camera per scene, or camera following an entity without special-case code in `World`.
+**Enables:** Multiple cameras (set main via `SetMainCameraEntity`), camera per scene, and camera as an entity in the hierarchy without special-case code in `World`.
 
 ---
 
@@ -151,7 +155,7 @@ Suggestions based on a review of the Criogenio engine. Ordered by impact vs effo
 | Raylib behind interfaces | Swap backend later, easier testing |
 | Optional/error returns for asset loading | Predictable failure handling |
 | System phases or priorities | Deterministic, understandable order |
-| Camera as component | More flexible scenes and cameras |
+| ~~Camera as component~~ | ✅ Done (see §10) |
 
 ## Larger refactors
 

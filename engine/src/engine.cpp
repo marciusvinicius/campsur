@@ -60,7 +60,7 @@ Vec2 Engine::GetMouseWorld() const {
   if (!renderer || !world)
     return Vec2{0, 0};
   Vec2 screen = renderer->GetMousePosition();
-  return ScreenToWorld2D(screen, world->maincamera,
+  return ScreenToWorld2D(screen, *world->GetActiveCamera(),
                         (float)renderer->GetViewportWidth(),
                         (float)renderer->GetViewportHeight());
 }
@@ -175,6 +175,9 @@ void Engine::RegisterCoreComponents() {
       "Name", [](World& w, int e) { return &w.AddComponent<Name>(e, ""); });
   ComponentFactory::Register("NetReplicated", [](World& w, int e) {
     return &w.AddComponent<NetReplicated>(e);
+  });
+  ComponentFactory::Register("Camera", [](World& w, int e) {
+    return &w.AddComponent<Camera>(e);
   });
 }
 

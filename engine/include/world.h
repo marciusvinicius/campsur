@@ -123,8 +123,14 @@ public:
   // Access terrain (may be null)
   Terrain2D *GetTerrain();
 
-  // Camera
+  // Camera: component on an entity, or fallback maincamera
   void AttachCamera2D(Camera2D cam);
+  /** Pointer to the active camera (from main camera entity component, or &maincamera). Never null. */
+  Camera2D* GetActiveCamera();
+  const Camera2D* GetActiveCamera() const;
+  /** Entity that holds the main Camera component; ecs::NULL_ENTITY if using maincamera fallback. */
+  ecs::EntityId GetMainCameraEntity() const { return mainCameraEntity; }
+  void SetMainCameraEntity(ecs::EntityId id) { mainCameraEntity = id; }
   Camera2D maincamera;
 
   // Get all entities
@@ -133,6 +139,7 @@ public:
   }
 
 private:
+  ecs::EntityId mainCameraEntity = ecs::NULL_ENTITY;
   std::unordered_map<size_t, std::unique_ptr<GlobalComponent>> globalComponents;
   std::vector<std::unique_ptr<ISystem>> systems;
   std::unique_ptr<Terrain2D> terrain;
