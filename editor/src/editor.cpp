@@ -379,10 +379,7 @@ void EditorApp::HandleInput(float dt, Vec2 mouseDelta) {
       GetWorld().GetActiveCamera()->zoom = 8.0f;
   }
 
-  if (Input::IsMouseDown(1)) {
-    GetWorld().GetActiveCamera()->target.x -= mouseDelta.x / GetWorld().GetActiveCamera()->zoom;
-    GetWorld().GetActiveCamera()->target.y -= mouseDelta.y / GetWorld().GetActiveCamera()->zoom;
-  }
+  // Pan only on middle mouse drag (button 2). Right-click stays for context menu; left for selection/terrain.
   if (Input::IsMouseDown(2)) {
     GetWorld().GetActiveCamera()->target.x -= mouseDelta.x / GetWorld().GetActiveCamera()->zoom;
     GetWorld().GetActiveCamera()->target.y -= mouseDelta.y / GetWorld().GetActiveCamera()->zoom;
@@ -1017,7 +1014,7 @@ criogenio::Vec2 EditorApp::ScreenToWorldPosition(criogenio::Vec2 mouseScreen) {
   Vec2 viewportMouse = {mouseScreen.x - viewportPos.x, mouseScreen.y - viewportPos.y};
   Vec2 normalizedPos = {viewportMouse.x / viewportSize.x, viewportMouse.y / viewportSize.y};
   Vec2 textureScreen = {normalizedPos.x * (float)sceneRT.width,
-                        (1.0f - normalizedPos.y) * (float)sceneRT.height};
+                        normalizedPos.y * (float)sceneRT.height};
 
   float vpW = (float)sceneRT.width;
   float vpH = (float)sceneRT.height;
