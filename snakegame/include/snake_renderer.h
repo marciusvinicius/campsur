@@ -1,5 +1,6 @@
 #pragma once
 #include "components.h"
+#include "graphics_types.h"
 #include "systems.h"
 #include "world.h"
 #include <iostream>
@@ -28,19 +29,19 @@ public:
         if (n && n->name == "Food") {
           std::cout << "  Drawing food at (" << tr->x << ", " << tr->y << ")"
                     << std::endl;
-          renderer.DrawRect(tr->x, tr->y, 20, 20, GREEN);
+          renderer.DrawRect(tr->x, tr->y, 20, 20, criogenio::Colors::Green);
           continue;
         }
         if (n && n->name == "SnakePart") {
           std::cout << "  Drawing snake at (" << tr->x << ", " << tr->y << ")"
                     << std::endl;
-          renderer.DrawRect(tr->x, tr->y, 20, 20, YELLOW);
+          renderer.DrawRect(tr->x, tr->y, 20, 20, criogenio::Colors::Yellow);
           continue;
         }
       }
 
       // Default
-      renderer.DrawRect(tr->x, tr->y, 20, 20, WHITE);
+      renderer.DrawRect(tr->x, tr->y, 20, 20, criogenio::Colors::White);
     }
   }
 

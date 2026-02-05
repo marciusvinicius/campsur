@@ -11,6 +11,11 @@ public:
   Renderer(int width, int height, const std::string& title);
   ~Renderer();
 
+  /** False if SDL window/renderer creation failed; Run() will exit immediately otherwise. */
+  bool IsValid() const;
+  /** If IsValid() is false, returns the SDL error string from init failure. */
+  const char* GetInitError() const;
+
   void BeginFrame();
   void EndFrame();
 

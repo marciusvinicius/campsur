@@ -1,4 +1,5 @@
 /* Minimal tinyfiledialogs.c for open/save dialogs. For full version, see official repo. */
+#define _POSIX_C_SOURCE 200809L
 #include "tinyfiledialogs.h"
 #include <stdio.h>
 #include <stdlib.h>

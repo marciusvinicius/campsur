@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,6 +59,7 @@ void EditorApp::InitImGUI() {
   if (window && sdlRenderer) {
     ImGui_ImplSDL3_InitForSDLRenderer(window, sdlRenderer);
     ImGui_ImplSDLRenderer3_Init(sdlRenderer);
+    imguiBackendsInitialized = true;
   }
 
   ImFont* baseFont = io.Fonts->AddFontFromFileTTF(
@@ -67,9 +69,13 @@ void EditorApp::InitImGUI() {
 }
 
 void EditorApp::Run() {
+  criogenio::Renderer& ren = GetRenderer();
+  if (!ren.IsValid()) {
+    std::fprintf(stderr, "Renderer failed to initialize: %s\n", ren.GetInitError());
+    return;
+  }
   InitImGUI();
 
-  criogenio::Renderer& ren = GetRenderer();
   int vpW = ren.GetViewportWidth();
   int vpH = ren.GetViewportHeight();
   if (vpW > 0 && vpH > 0) {
@@ -119,8 +125,11 @@ void EditorApp::Run() {
 
   if (sceneRT.valid())
     GetRenderer().DestroyRenderTarget(&sceneRT);
-  ImGui_ImplSDLRenderer3_Shutdown();
-  ImGui_ImplSDL3_Shutdown();
+  if (imguiBackendsInitialized) {
+    ImGui_ImplSDLRenderer3_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
+    imguiBackendsInitialized = false;
+  }
   ImGui::DestroyContext();
 }
 
@@ -308,7 +317,7 @@ void EditorApp::DrawHierarchyPanel() {
 
     if (sceneRT.valid() && viewportSize.x > 0 && viewportSize.y > 0) {
       ImGui::Image((ImTextureID)(intptr_t)sceneRT.opaque, viewportSize,
-                   ImVec2(0, 1), ImVec2(1, 0));
+                   ImVec2(0, 0), ImVec2(1, 1));
     }
 
     // Context menu
@@ -568,7 +577,7 @@ void EditorApp::DrawMainMenuBar() {
         auto path = "/home/marcius/Workspace/criogenio/camp_sur_cpp/editor/"
                     "assets/raw/world.png";
         auto texture = LoadTexture(path);
-        if (!texture.id) {
+        if (!texture.valid()) {
           printf("Failed to load texture for animated sprite\n");
           return;
         }
@@ -805,7 +814,7 @@ void EditorApp::DrawTerrainEditor() {
 
         ImGui::PushID(idx);
         ImVec2 size(32, 32);
-        ImTextureID id = (ImTextureID)(intptr_t)tex->texture.id;
+        ImTextureID id = (ImTextureID)(intptr_t)tex->texture.opaque;
         // ImGui 1.89+ requires an explicit string ID first; we use an empty
         // label and rely on PushID/PopID for uniqueness.
         bool selected = (terrainSelectedTile == idx);
@@ -1292,7 +1301,7 @@ const char *EditorApp::DrawFileBrowserPopup() {
             float maxW = 240.0f, maxH = 240.0f;
             float scale = std::min(maxW / tw, maxH / th);
             ImGui::Image(
-                (ImTextureID)(intptr_t)fileBrowserPreviewTex->texture.id,
+                (ImTextureID)(intptr_t)fileBrowserPreviewTex->texture.opaque,
                 ImVec2(tw * scale, th * scale));
           } else {
             ImGui::TextDisabled("No preview");
@@ -1540,7 +1549,7 @@ void EditorApp::DrawAnimationEditor(int entity) {
   } else {
     ImGui::Text("Click tiles to toggle them as frames (order = click order).");
 
-    ImTextureID id = (ImTextureID)(intptr_t)tex->texture.id;
+    ImTextureID id = (ImTextureID)(intptr_t)tex->texture.opaque;
     ImVec2 buttonSize(32, 32);
 
     for (int y = 0; y < rows; ++y) {
@@ -1863,8 +1872,8 @@ void EditorApp::DrawAnimatedSpriteInspector(int entity) {
         auto res = AssetManager::instance().load<criogenio::TextureResource>(
             def2->texturePath);
         if (!res)
-          TraceLog(LOG_WARNING, "Editor: failed to reload texture %s",
-                   def2->texturePath.c_str());
+          std::fprintf(stderr, "Editor: failed to reload texture %s\n",
+                       def2->texturePath.c_str());
       }
     }
   } else {

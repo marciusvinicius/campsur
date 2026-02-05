@@ -47,6 +47,7 @@ private:
 
   criogenio::Vec2 lastMousePos{0, 0};
   std::optional<int> selectedEntityId;
+  bool imguiBackendsInitialized = false;
 
   void InitImGUI();
   void RenderSceneToTexture();
@@ -140,7 +141,7 @@ private:
   void DrawTerrainEditor();
   // Draw grid overlay on terrain in viewport
   void DrawTerrainGridOverlay(const criogenio::Terrain2D &terrain,
-                              const Camera2D &camera);
+                              const criogenio::Camera2D &camera);
   // Draw file browser popup (called every frame)
   const char *DrawFileBrowserPopup();
 

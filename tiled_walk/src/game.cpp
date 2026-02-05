@@ -1,5 +1,7 @@
 #include "game.h"
 #include "graphics_types.h"
+#include "input.h"
+#include "keys.h"
 
 namespace tiled {
 

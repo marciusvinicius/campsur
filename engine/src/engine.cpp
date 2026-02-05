@@ -7,6 +7,7 @@
 #include "resources.h"
 #include "world.h"
 #include <chrono>
+#include <cstdio>
 #include <cstring>
 #include <vector>
 
@@ -115,6 +116,11 @@ void Engine::SetServerPlayerInput(const PlayerInput& input) {
 }
 
 void Engine::Run() {
+  if (!renderer || !renderer->IsValid()) {
+    std::fprintf(stderr, "Renderer failed to initialize: %s\n",
+                 renderer ? renderer->GetInitError() : "no renderer");
+    return;
+  }
   previousTime = GetTimeSeconds();
   while (!renderer->WindowShouldClose()) {
     renderer->ProcessEvents();

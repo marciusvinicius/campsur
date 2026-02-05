@@ -4,7 +4,9 @@
 #include <SDL3/SDL_render.h>
 #include <SDL3/SDL_surface.h>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
+#include <string>
 
 namespace criogenio {
 
@@ -22,24 +24,39 @@ struct RendererImpl {
 };
 
 static RendererImpl* s_impl = nullptr;
+static std::string s_rendererInitError;
 
-// World to screen when camera is active
+// World to screen when camera is active. flipY: when rendering to a texture (e.g. editor scene RT), flip Y so the texture is not upside down when displayed.
 void WorldToScreen(float worldX, float worldY, const Camera2D& cam, int vpW,
-                   int vpH, float& outX, float& outY) {
+                   int vpH, float& outX, float& outY, bool flipY = false) {
   float halfW = vpW * 0.5f;
   float halfH = vpH * 0.5f;
   outX = (worldX - cam.target.x) * cam.zoom + cam.offset.x + halfW;
   outY = (worldY - cam.target.y) * cam.zoom + cam.offset.y + halfH;
+  if (flipY)
+    outY = static_cast<float>(vpH) - outY;
 }
 
 void SDL_SetRenderDrawColorFromColor(SDL_Renderer* r, Color c) {
   SDL_SetRenderDrawColor(r, c.r, c.g, c.b, c.a);
 }
 
+void SetRendererInitError(const char* fallback) {
+  const char* sdlErr = SDL_GetError();
+  if (sdlErr && sdlErr[0] != '\0')
+    s_rendererInitError = std::string(fallback) + ": " + sdlErr;
+  else
+    s_rendererInitError = fallback;
+}
+
 } // namespace
 
 Renderer::Renderer(int width, int height, const std::string& title) {
-  if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+  s_rendererInitError.clear();
+  if (SDL_Init(SDL_INIT_VIDEO) != true) {
+    const char* err = SDL_GetError();
+    std::fprintf(stderr, "SDL_Init(VIDEO) failed: %s\n", err && err[0] ? err : "(no message)");
+    SetRendererInitError("SDL_Init(SDL_INIT_VIDEO) failed");
     return;
   }
   s_impl = new RendererImpl();
@@ -48,12 +65,14 @@ Renderer::Renderer(int width, int height, const std::string& title) {
   s_impl->window =
       SDL_CreateWindow(title.c_str(), width, height, SDL_WINDOW_RESIZABLE);
   if (!s_impl->window) {
+    SetRendererInitError("SDL_CreateWindow failed");
     delete s_impl;
     s_impl = nullptr;
     return;
   }
   s_impl->renderer = SDL_CreateRenderer(s_impl->window, nullptr);
   if (!s_impl->renderer) {
+    SetRendererInitError("SDL_CreateRenderer failed");
     SDL_DestroyWindow(s_impl->window);
     delete s_impl;
     s_impl = nullptr;
@@ -105,12 +124,12 @@ void Renderer::EndFrame() {
 
 static void drawRectImpl(SDL_Renderer* r, float x, float y, float w, float h,
                          Color color, bool fill, int vpW, int vpH,
-                         bool cameraActive, const Camera2D* cam) {
+                         bool cameraActive, const Camera2D* cam, bool flipY) {
   float x1 = x, y1 = y, x2 = x + w, y2 = y + h;
   if (cameraActive && cam) {
     float sx1, sy1, sx2, sy2;
-    WorldToScreen(x, y, *cam, vpW, vpH, sx1, sy1);
-    WorldToScreen(x + w, y + h, *cam, vpW, vpH, sx2, sy2);
+    WorldToScreen(x, y, *cam, vpW, vpH, sx1, sy1, flipY);
+    WorldToScreen(x + w, y + h, *cam, vpW, vpH, sx2, sy2, flipY);
     x1 = sx1;
     y1 = sy1;
     x2 = sx2;
@@ -127,27 +146,30 @@ static void drawRectImpl(SDL_Renderer* r, float x, float y, float w, float h,
 void Renderer::DrawRect(float x, float y, float w, float h, Color color) {
   if (!s_impl || !s_impl->renderer)
     return;
+  bool flipY = (s_impl->currentRenderTarget != nullptr);
   drawRectImpl(s_impl->renderer, x, y, w, h, color, true, s_impl->viewportW,
                s_impl->viewportH, s_impl->cameraActive,
-               s_impl->cameraActive ? &s_impl->camera : nullptr);
+               s_impl->cameraActive ? &s_impl->camera : nullptr, flipY);
 }
 
 void Renderer::DrawRectOutline(float x, float y, float w, float h, Color color) {
   if (!s_impl || !s_impl->renderer)
     return;
+  bool flipY = (s_impl->currentRenderTarget != nullptr);
   drawRectImpl(s_impl->renderer, x, y, w, h, color, false, s_impl->viewportW,
                s_impl->viewportH, s_impl->cameraActive,
-               s_impl->cameraActive ? &s_impl->camera : nullptr);
+               s_impl->cameraActive ? &s_impl->camera : nullptr, flipY);
 }
 
 void Renderer::DrawCircle(float x, float y, float r, Color color) {
   if (!s_impl || !s_impl->renderer)
     return;
   float cx = x, cy = y;
+  bool flipY = (s_impl->currentRenderTarget != nullptr);
   if (s_impl->cameraActive) {
     float sx, sy;
     WorldToScreen(x, y, s_impl->camera, s_impl->viewportW, s_impl->viewportH, sx,
-                  sy);
+                  sy, flipY);
     cx = sx;
     cy = sy;
     r *= s_impl->camera.zoom;
@@ -210,14 +232,15 @@ void Renderer::DrawTexture(TextureHandle texture, float x, float y) {
   if (!s_impl || !s_impl->renderer || !texture.valid())
     return;
   SDL_Texture* tex = (SDL_Texture*)texture.opaque;
-  int w = 0, h = 0;
-  SDL_QueryTexture(tex, nullptr, nullptr, &w, &h);
+  float w = 0, h = 0;
+  SDL_GetTextureSize(tex, &w, &h);
   float dx = x, dy = y;
+  bool flipY = (s_impl->currentRenderTarget != nullptr);
   if (s_impl->cameraActive) {
     WorldToScreen(x, y, s_impl->camera, s_impl->viewportW, s_impl->viewportH, dx,
-                  dy);
+                  dy, flipY);
   }
-  SDL_FRect dst = {dx, dy, (float)w, (float)h};
+  SDL_FRect dst = {dx, dy, w, h};
   SDL_RenderTexture(s_impl->renderer, tex, nullptr, &dst);
 }
 
@@ -228,16 +251,17 @@ void Renderer::DrawTextureRec(TextureHandle texture, Rect source, Vec2 position,
   SDL_Texture* tex = (SDL_Texture*)texture.opaque;
   SDL_FRect src = {source.x, source.y, source.width, source.height};
   float dx = position.x, dy = position.y;
+  bool flipY = (s_impl->currentRenderTarget != nullptr);
   if (s_impl->cameraActive) {
     WorldToScreen(position.x, position.y, s_impl->camera, s_impl->viewportW,
-                  s_impl->viewportH, dx, dy);
+                  s_impl->viewportH, dx, dy, flipY);
   }
   SDL_FRect dst = {dx, dy, source.width, source.height};
-  SDL_SetRenderTextureColorMod(tex, tint.r, tint.g, tint.b);
-  SDL_SetRenderTextureAlphaMod(tex, tint.a);
+  SDL_SetTextureColorMod(tex, tint.r, tint.g, tint.b);
+  SDL_SetTextureAlphaMod(tex, tint.a);
   SDL_RenderTexture(s_impl->renderer, tex, &src, &dst);
-  SDL_SetRenderTextureColorMod(tex, 255, 255, 255);
-  SDL_SetRenderTextureAlphaMod(tex, 255);
+  SDL_SetTextureColorMod(tex, 255, 255, 255);
+  SDL_SetTextureAlphaMod(tex, 255);
 }
 
 void Renderer::DrawTexturePro(TextureHandle texture, Rect source, Rect dest,
@@ -250,16 +274,17 @@ void Renderer::DrawTexturePro(TextureHandle texture, Rect source, Rect dest,
   SDL_Texture* tex = (SDL_Texture*)texture.opaque;
   SDL_FRect src = {source.x, source.y, source.width, source.height};
   float dx = dest.x, dy = dest.y;
+  bool flipY = (s_impl->currentRenderTarget != nullptr);
   if (s_impl->cameraActive) {
     WorldToScreen(dest.x, dest.y, s_impl->camera, s_impl->viewportW,
-                  s_impl->viewportH, dx, dy);
+                  s_impl->viewportH, dx, dy, flipY);
   }
   SDL_FRect dst = {dx, dy, dest.width, dest.height};
-  SDL_SetRenderTextureColorMod(tex, tint.r, tint.g, tint.b);
-  SDL_SetRenderTextureAlphaMod(tex, tint.a);
+  SDL_SetTextureColorMod(tex, tint.r, tint.g, tint.b);
+  SDL_SetTextureAlphaMod(tex, tint.a);
   SDL_RenderTexture(s_impl->renderer, tex, &src, &dst);
-  SDL_SetRenderTextureColorMod(tex, 255, 255, 255);
-  SDL_SetRenderTextureAlphaMod(tex, 255);
+  SDL_SetTextureColorMod(tex, 255, 255, 255);
+  SDL_SetTextureAlphaMod(tex, 255);
 }
 
 void Renderer::ProcessEvents(std::function<void(const void*)>* onEvent) {
@@ -278,6 +303,16 @@ void Renderer::ProcessEvents(std::function<void(const void*)>* onEvent) {
       s_impl->viewportH = h;
     }
   }
+}
+
+bool Renderer::IsValid() const {
+  return s_impl != nullptr;
+}
+
+const char* Renderer::GetInitError() const {
+  if (!s_rendererInitError.empty())
+    return s_rendererInitError.c_str();
+  return "window or renderer creation failed (no SDL error reported)";
 }
 
 bool Renderer::WindowShouldClose() const {
@@ -375,11 +410,11 @@ TextureHandle Renderer::LoadTexture(const std::string& path) {
   SDL_DestroySurface(surf);
   if (!tex)
     return out;
-  int w = 0, h = 0;
-  SDL_QueryTexture(tex, nullptr, nullptr, &w, &h);
+  float w = 0, h = 0;
+  SDL_GetTextureSize(tex, &w, &h);
   out.opaque = tex;
-  out.width = w;
-  out.height = h;
+  out.width = static_cast<int>(w);
+  out.height = static_cast<int>(h);
   return out;
 }
 

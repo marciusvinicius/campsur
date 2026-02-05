@@ -2,7 +2,7 @@
 #include "components.h"
 #include "criogenio_io.h"
 #include "game.h"
-#include "raylib.h"
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -18,10 +18,10 @@ int main(int argc, char **argv) {
       if (i + 1 < argc && argv[i + 1][0] != '-')
         port = static_cast<uint16_t>(std::atoi(argv[++i]));
       if (!engine.StartServer(port)) {
-        TraceLog(LOG_ERROR, "Failed to start server on port %u", port);
+        std::fprintf(stderr, "Failed to start server on port %u\n", port);
         return 1;
       }
-      TraceLog(LOG_INFO, "Server listening on port %u", port);
+      std::printf("Server listening on port %u\n", port);
       break;
     }
     if (std::strcmp(argv[i], "--client") == 0 && i + 1 < argc) {
@@ -29,10 +29,10 @@ int main(int argc, char **argv) {
       if (i + 1 < argc && argv[i + 1][0] != '-')
         port = static_cast<uint16_t>(std::atoi(argv[++i]));
       if (!engine.ConnectToServer(clientHost, port)) {
-        TraceLog(LOG_ERROR, "Failed to connect to %s:%u", clientHost, port);
+        std::fprintf(stderr, "Failed to connect to %s:%u\n", clientHost, port);
         return 1;
       }
-      TraceLog(LOG_INFO, "Connected to %s:%u", clientHost, port);
+      std::printf("Connected to %s:%u\n", clientHost, port);
       break;
     }
   }
@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
   auto &World = engine.GetWorld();
 
   if (!LoadWorldFromFile(World, "world.json")) {
-    TraceLog(LOG_ERROR, "Failed to load world from world.json");
+    std::fprintf(stderr, "Failed to load world from world.json\n");
     return 1;
   }
 
