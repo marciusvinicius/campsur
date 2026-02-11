@@ -13,6 +13,7 @@
 #include "rlImGui.h"
 
 #include <algorithm>
+#include <filesystem>
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,10 +52,16 @@ void EditorApp::InitImGUI() {
   ImGui::StyleColorsDark();
 
   // ---- Fonts (base font FIRST) ----
-  ImFont *baseFont = io.Fonts->AddFontFromFileTTF(
-      "editor/assets/fonts/Poppins-Black.ttf", 16.0f);
-
-  IM_ASSERT(baseFont != nullptr);
+  const char *fontPath = "editor/assets/fonts/Poppins-Black.ttf";
+  ImFont *baseFont = nullptr;
+  if (fs::exists(fontPath)) {
+    baseFont = io.Fonts->AddFontFromFileTTF(fontPath, 16.0f);
+  }
+  if (!baseFont) {
+    ImFontConfig cfg;
+    cfg.SizePixels = 16.0f;
+    baseFont = io.Fonts->AddFontDefault(&cfg);
+  }
 
   io.Fonts->Build();
 }

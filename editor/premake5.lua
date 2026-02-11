@@ -37,6 +37,7 @@ includedirs({
 	"include",
 
 	"../engine/include",
+	"../enet-1.3.18/include",
 
 	-- tinyfiledialogs
 	"thirdpart",

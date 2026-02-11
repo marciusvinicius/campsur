@@ -1,10 +1,10 @@
 build:
-	make
+	make config=debug_arm64
 
 run-editor:build
-	./bin/Debug/camp_sur_cpp_editor
+	./bin/Debug/camp_sur_editor
 
 run-game:build
-	./bin/Debug/camp_sur_cpp_game
+	./bin/Debug/camp_sur_game
 
 run:run-editor
