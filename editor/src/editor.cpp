@@ -19,6 +19,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,9 +63,18 @@ void EditorApp::InitImGUI() {
     imguiBackendsInitialized = true;
   }
 
-  ImFont* baseFont = io.Fonts->AddFontFromFileTTF(
-      "editor/assets/fonts/Poppins-Black.ttf", 16.0f);
-  IM_ASSERT(baseFont != nullptr);
+  // ---- Fonts (base font FIRST) ----
+  const char *fontPath = "editor/assets/fonts/Poppins-Black.ttf";
+  ImFont *baseFont = nullptr;
+  if (fs::exists(fontPath)) {
+    baseFont = io.Fonts->AddFontFromFileTTF(fontPath, 16.0f);
+  }
+  if (!baseFont) {
+    ImFontConfig cfg;
+    cfg.SizePixels = 16.0f;
+    baseFont = io.Fonts->AddFontDefault(&cfg);
+  }
+
   io.Fonts->Build();
 }
 

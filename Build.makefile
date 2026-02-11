@@ -3,12 +3,12 @@
 # Windows: build in Visual Studio, then run bin\Debug\campsur_editor.exe
 
 build:
-	$(MAKE)
+	make config=debug_arm64
 
-run-editor: build
-	./bin/Debug/campsur_editor
+run-editor:build
+	./bin/Debug/camp_sur_editor
 
-run-game: build
-	./bin/Debug/campsur_game
-
+run-game:build
+	./bin/Debug/camp_sur_game
+ 
 run: run-editor

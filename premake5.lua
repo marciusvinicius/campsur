@@ -44,6 +44,9 @@ function link_to(lib)
 	links(lib)
 	includedirs("../" .. lib .. "/include")
 	includedirs("../" .. lib .. "/")
+	if lib == "engine" then
+		includedirs("../enet-1.3.18/include")
+	end
 end
 
 function download_progress(total, current)
@@ -219,7 +222,7 @@ optimize("On")
 filter({ "platforms:x64" })
 architecture("x86_64")
 
-filter({ "platforms:Arm64" })
+filter({ "platforms:ARM64" })
 architecture("ARM64")
 
 filter({})
