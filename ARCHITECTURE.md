@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Criogenio Engine is a 2D game engine built in C++ using an Entity Component System (ECS) architecture. It provides a modular, data-driven approach to game development with support for animations, terrain rendering, serialization, and asset management.
+The Criogenio Engine is a 2D game engine built in C++ using an Entity Component System (ECS) architecture. It provides a modular, data-driven approach to game development with support for animations, terrain rendering, serialization, asset management, and **server-authoritative multiplayer** over ENet.
 
 ## Core Architecture
 
@@ -15,19 +15,26 @@ Engine
 ├── Renderer (handles window and rendering)
 ├── World (ECS container and game state)
 ├── EventBus (event system)
-└── AssetManager (resource loading)
+├── AssetManager (resource loading)
+└── Network (optional)
+    ├── INetworkTransport (e.g. ENetTransport)
+    ├── ReplicationServer (when server)
+    └── ReplicationClient (when client)
 ```
 
 **Key Responsibilities:**
 - Initializes subsystems (Renderer, World, AssetManager)
-- Runs the main game loop
+- Runs the main game loop (with optional network step)
 - Manages component registration
-- Provides access to subsystems
+- Provides access to subsystems and network APIs (`StartServer`, `ConnectToServer`, `SendInputAsClient`, `SetServerPlayerInput`)
 
 **Lifecycle:**
 1. Constructor: Initializes renderer, world, and registers texture loader
-2. `Run()`: Main game loop (Update → Render → GUI)
-3. Destructor: Cleans up resources in proper order (animations → world → assets → renderer)
+2. Optional: `StartServer(port)` or `ConnectToServer(host, port)` to enter network mode
+3. `Run()`: Main game loop (see [Main Loop Order](#main-loop-order))
+4. Destructor: Cleans up resources in proper order (replication client/server → transport → animations → world → assets → renderer)
+
+**Network Modes:** `NetworkMode::Off`, `NetworkMode::Server`, `NetworkMode::Client`. The server can act as a player (local input applied via `SetServerPlayerInput`).
 
 ### World Class
 
@@ -138,6 +145,15 @@ class Component {
 6. **Name**
    - Entity name string
 
+7. **NetReplicated**
+   - Marks an entity for network replication (server-authoritative snapshots).
+
+8. **ReplicatedNetId**
+   - Network entity ID (e.g. for connection-order coloring). Server assigns; client receives in snapshots.
+
+9. **Controller** (network usage)
+   - `velocity` (Vector2) driven by `PlayerInput` on server (client input messages) or `SetServerPlayerInput` for the server’s local player.
+
 ## System Architecture
 
 ### System Interface
@@ -179,8 +195,27 @@ class ISystem {
 
 ### System Execution Order
 
-1. **Update Phase**: All systems' `Update()` called
-2. **Render Phase**: All systems' `Render()` called
+Systems run in **registration order** (order in which they are added to the world):
+
+1. **Update Phase**: All systems' `Update(dt)` called
+2. **Render Phase**: All systems' `Render(renderer)` called
+
+There is no explicit priority or phases; document or enforce order in game code if dependencies matter (e.g. movement before collision before render).
+
+---
+
+## Main Loop Order
+
+The engine run loop is ordered so that **server snapshots contain current-frame positions** after movement:
+
+1. **OnFrame(dt)** – Game override: e.g. read input, call `SendInputAsClient(input)` (client) or `SetServerPlayerInput(input)` (server).
+2. **world->Update(dt)** – All systems' `Update(dt)` run (e.g. `VelocityMovementSystem` updates transforms).
+3. **Network step**
+   - **Server:** `transport->Update()` (receive client input), `replicationServer->Update()` (apply input, build snapshot, send to all connections).
+   - **Client:** `transport->Update()`, poll messages, `ApplySnapshot` for each snapshot, `UpdateInterpolation(dt)`.
+4. **Render** – `BeginFrame()`, `world->Render(renderer)` (terrain + all systems' `Render()`), `OnGUI()`, `EndFrame()`.
+
+Replicated entities on the client have no `Controller`; their position comes only from snapshots.
 
 ## Asset Management
 
@@ -254,6 +289,46 @@ Abstraction layer over Raylib rendering:
 2. Systems render (terrain, entities, etc.)
 3. GUI rendering (if in editor)
 4. `EndFrame()`: Swap buffers
+
+### Input
+
+The engine provides an `Input` abstraction (wrapping Raylib) for key/mouse state: `IsKeyDown`, `IsKeyPressed`, `IsMouseDown`, `GetMousePosition`. Games use this or Raylib directly for input.
+
+---
+
+## Network / Multiplayer
+
+Multiplayer is **server-authoritative**: the server runs the simulation and sends state snapshots; clients send input and apply snapshots.
+
+### Transport
+
+- **INetworkTransport**: Interface for start server, connect, send, poll messages, get connection IDs.
+- **ENetTransport**: ENet-based implementation (UDP, reliable/unreliable channels). Used for `camp_sur_cpp_tiled_walk` and other networked projects.
+
+### Replication Server
+
+- **ReplicationServer**: Uses a single `World` and `INetworkTransport`.
+- **Server player**: Creates one local player entity (net id `0`) and applies `SetServerPlayerInput` each frame.
+- **Client players**: For each connection in `GetConnectionIds()`, creates an entity with `NetReplicated`, `Transform`, `Controller`, `ReplicatedNetId(conn)`.
+- **Input**: Receives `MsgType::Input` messages, applies `PlayerInput` to the corresponding entity’s `Controller`.
+- **Snapshot**: Each frame builds a snapshot of all entities with `NetReplicated` + `Transform` (server player first with net id `0`, then others). Serializes transform (x, y, rotation, scale) and sends to every connection.
+
+### Replication Client
+
+- **ReplicationClient**: Applies received snapshots to the local `World`.
+- For each snapshot entity: create or find entity by `NetEntityId`, set `NetReplicated`, `Transform`, `ReplicatedNetId(id)`; overwrite transform from snapshot data.
+- **netToEntity**: Global map `NetEntityId → Entity` used by client (and written by server for consistency); see ENGINE_IMPROVEMENTS.md for moving this into the client.
+
+### Message Types
+
+- **Snapshot**: Full state tick + list of entities (id, component mask, serialized transform).
+- **Input**: `PlayerInput` (move_x, move_y) from client to server.
+
+### Game Responsibilities
+
+- **Client**: Each frame, gather input and call `SendInputAsClient(input)`.
+- **Server**: Each frame, gather local input and call `SetServerPlayerInput(input)` if the server is a player.
+- **Rendering**: Query `NetReplicated` + `Transform` (and optionally `ReplicatedNetId` for color) so both server and clients draw all replicated players.
 
 ## Serialization System
 
@@ -354,31 +429,46 @@ eventBus.Emit(EntityCreatedEvent(...));
 ```
 engine/
 ├── include/
-│   ├── engine.h              # Main engine class
+│   ├── engine.h              # Main engine class, network mode, Run loop
 │   ├── world.h               # World/ECS container
 │   ├── ecs_core.h            # Core ECS types (SparseSet, EntityManager)
 │   ├── ecs_registry.h        # Registry implementation
-│   ├── components.h          # Component definitions
+│   ├── components.h          # Component definitions (incl. NetReplicated, ReplicatedNetId)
 │   ├── animated_component.h  # Animation-related components
-│   ├── systems.h             # System interface
-│   ├── core_systems.h        # Built-in systems
-│   ├── render.h              # Renderer abstraction
+│   ├── systems.h             # System interface (ISystem)
+│   ├── core_systems.h        # Built-in systems (Movement, AI, Animation, Render)
+│   ├── render.h              # Renderer abstraction (Raylib)
+│   ├── input.h               # Input abstraction (keys, mouse)
 │   ├── asset_manager.h       # Asset loading system
 │   ├── animation_database.h  # Animation management
-│   ├── event.h               # Event system
+│   ├── event.h               # Event system (EventBus)
 │   ├── serialization.h       # Serialization types
 │   ├── json_serialization.h  # JSON conversion
 │   ├── terrain.h             # Terrain system
-│   └── resources.h           # Resource types
+│   ├── resources.h           # Resource types
+│   └── network/
+│       ├── transport.h       # INetworkTransport interface
+│       ├── enet_transport.h  # ENet implementation
+│       ├── net_messages.h    # MsgType, PlayerInput, snapshot masks
+│       ├── net_entity.h      # NetEntityId
+│       ├── snapshot.h        # Snapshot, SnapshotEntity
+│       ├── replication_server.h
+│       ├── replication_client.h
+│       └── serialization.h    # NetWriter, NetReader
 └── src/
     ├── engine.cpp
     ├── world.cpp
     ├── core_systems.cpp
     ├── render.cpp
+    ├── input.cpp
     ├── asset_manager.cpp
     ├── animation_database.cpp
     ├── json_serialization.cpp
-    └── terrain.cpp
+    ├── terrain.cpp
+    └── network/
+        ├── enet_transport.cpp
+        ├── replication_server.cpp
+        └── replication_client.cpp
 ```
 
 ## Design Patterns
@@ -400,6 +490,9 @@ engine/
 
 ### Factory Pattern
 - `ComponentFactory` for runtime component creation
+
+### Server-Authoritative Replication
+- Server owns simulation; clients send input and receive snapshots. `ReplicationServer` builds snapshots from `World`; `ReplicationClient` applies them to local `World`.
 
 ## Data Flow
 
@@ -423,6 +516,16 @@ Update(dt) → Query Entities → Get Components → Process Logic
 Render() → Query Entities → Get Components → Load Assets → Draw
 ```
 
+### Multiplayer (server)
+```
+Receive Input → Apply to Controller → World->Update() (movement) → Build Snapshot → Send to connections
+```
+
+### Multiplayer (client)
+```
+Send Input → Receive Snapshot → ApplySnapshot (create/update entities, set Transform) → Render
+```
+
 ## Best Practices
 
 1. **Components**: Keep components as pure data, no logic
@@ -431,6 +534,7 @@ Render() → Query Entities → Get Components → Load Assets → Draw
 4. **Assets**: Always load via `AssetManager` for caching
 5. **Serialization**: Ensure all components implement `Serialize()`/`Deserialize()`
 6. **Animation IDs**: Use `AssetId` references, not direct texture paths
+7. **Network rendering**: Query `NetReplicated` + `Transform` (and `ReplicatedNetId` for color) so server and clients draw all replicated players
 
 ## Extension Points
 
@@ -452,5 +556,11 @@ Render() → Query Entities → Get Components → Load Assets → Draw
 ## Dependencies
 
 - **Raylib**: Rendering, window management, input
+- **ENet**: UDP networking (used by `ENetTransport` for multiplayer)
 - **nlohmann/json**: JSON serialization
 - **Standard Library**: STL containers, threading, memory management
+
+## Related Documentation
+
+- **ENGINE_IMPROVEMENTS.md**: Suggested improvements (global state, ECS scope, system order, network, testing, etc.).
+- **TODO.md**: Project and editor task list.

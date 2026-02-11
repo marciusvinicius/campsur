@@ -48,6 +48,48 @@ function get_raylib_dir()
 	return "raylib"
 end
 
+-- SDL3 only: for apps that use engine (no raylib). Use --backend=SDL3.
+function link_sdl3()
+	links({ "SDL3" })
+	filter("action:vs*")
+		defines({ "_WINSOCK_DEPRECATED_NO_WARNINGS", "_CRT_SECURE_NO_WARNINGS" })
+		characterset("MBCS")
+	filter("system:windows")
+		defines({ "_WIN32" })
+		links({ "winmm", "gdi32", "opengl32" })
+		libdirs({ "../bin/%{cfg.buildcfg}" })
+	filter("system:linux")
+		links({ "GL", "pthread", "m", "dl", "rt", "X11" })
+	filter("system:macosx")
+		links({
+			"OpenGL.framework",
+			"Cocoa.framework",
+			"IOKit.framework",
+			"CoreFoundation.framework",
+			"CoreVideo.framework",
+		})
+	filter({ "system:windows", "platforms:x64", "action:vs*" })
+		includedirs({ "../SDL3/include/SDL3", "../SDL3/include" })
+		libdirs({ "../SDL3/lib/x64" })
+		links({ "SDL3" })
+		files("../SDL3/lib/x64/SDL3.dll")
+	filter({ "system:windows", "platforms:x32", "action:vs*" })
+		includedirs({ "../SDL3/include/SDL3", "../SDL3/include" })
+		libdirs({ "../SDL3/lib/x32" })
+		links({ "SDL3" })
+		files("../SDL3/lib/x32/SDL3.dll")
+	filter({ "system:windows", "platforms:x64", "action:gmake*" })
+		includedirs({ "../SDL3/x86_64-w64-mingw32/include/SDL3", "../SDL3/x86_64-w64-mingw32/include" })
+		libdirs({ "../SDL3/x86_64-w64-mingw32/lib/", "../SDL3/x86_64-w64-mingw32/bin/" })
+		links({ "SDL3" })
+		files("../SDL3/x86_64-w64-mingw32/bin/SDL3.dll")
+	filter({ "system:*nix OR system:macosx" })
+		links({ "SDL3" })
+	filter("files:**.dll")
+		buildaction("Copy")
+	filter({})
+end
+
 function link_raylib()
 	links({ "raylib" })
 
@@ -73,7 +115,7 @@ function link_raylib()
 	libdirs({ "../bin/%{cfg.buildcfg}" })
 
 	filter("system:linux")
-	links({ "pthread", "m", "dl", "rt", "X11" })
+	links({ "GL", "pthread", "m", "dl", "rt", "X11" })
 
 	filter("system:macosx")
 	links({

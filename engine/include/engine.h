@@ -2,18 +2,16 @@
 
 #include "core_systems.h"
 #include "event.h"
+#include "graphics_types.h"
 #include "network/enet_transport.h"
 #include "network/replication_client.h"
 #include "network/replication_server.h"
 #include "network/transport.h"
-#include "raylib.h"
 #include "render.h"
 #include "world.h"
 #include <memory>
 
 namespace criogenio {
-
-Texture2D CriogenioLoadTexture(const char *file_name);
 
 enum class NetworkMode { Off, Server, Client };
 
@@ -21,37 +19,33 @@ class Engine {
 public:
   int width;
   int height;
-  Engine(int width, int height, const char *title);
+  Engine(int width, int height, const char* title);
   ~Engine();
 
   void Run();
 
-  World &GetWorld();
-  EventBus &GetEventBus();
-  Renderer &GetRenderer();
-  Vector2 GetMouseWorld();
+  World& GetWorld();
+  EventBus& GetEventBus();
+  Renderer& GetRenderer();
+  Vec2 GetMousePosition() const;
+  Vec2 GetMouseWorld() const;
 
-  /** Start as network server; returns false if bind failed. */
   bool StartServer(uint16_t port);
-  /** Connect as client; returns false if connect failed. */
-  bool ConnectToServer(const char *host, uint16_t port);
+  bool ConnectToServer(const char* host, uint16_t port);
   NetworkMode GetNetworkMode() const { return networkMode; }
-  INetworkTransport *GetTransport();
-  /** Send input to server (call from client each frame). */
-  void SendInputAsClient(const PlayerInput &input);
-  /** Apply input for the server's local player (call from server each frame when server is also a player). */
-  void SetServerPlayerInput(const PlayerInput &input);
+  INetworkTransport* GetTransport();
+  void SendInputAsClient(const PlayerInput& input);
+  void SetServerPlayerInput(const PlayerInput& input);
 
   void RegisterCoreComponents();
 
 protected:
   virtual void OnGUI() {}
-  /** Called each frame before network and world update; override to e.g. send client input. */
   virtual void OnFrame(float dt) { (void)dt; }
 
 private:
-  Renderer *renderer = nullptr;
-  World *world = nullptr;
+  Renderer* renderer = nullptr;
+  World* world = nullptr;
   EventBus eventBus;
   float previousTime = 0;
 
@@ -61,4 +55,4 @@ private:
   std::unique_ptr<ReplicationClient> replicationClient;
 };
 
-}  // namespace criogenio
+} // namespace criogenio

@@ -1,5 +1,6 @@
 #include "snakecontroller.h"
 #include "input.h"
+#include "keys.h"
 #include <cstdlib>
 
 using namespace criogenio;
@@ -35,13 +36,13 @@ void SnakeController::SpawnFood() {
 }
 
 void SnakeController::HandleInput() {
-  if (Input::IsKeyPressed(KEY_UP) && direction != DOWN)
+  if (Input::IsKeyPressed(static_cast<int>(Key::Up)) && direction != DOWN)
     direction = UP;
-  else if (Input::IsKeyPressed(KEY_DOWN) && direction != UP)
+  else if (Input::IsKeyPressed(static_cast<int>(Key::Down)) && direction != UP)
     direction = DOWN;
-  else if (Input::IsKeyPressed(KEY_LEFT) && direction != RIGHT)
+  else if (Input::IsKeyPressed(static_cast<int>(Key::Left)) && direction != RIGHT)
     direction = LEFT;
-  else if (Input::IsKeyPressed(KEY_RIGHT) && direction != LEFT)
+  else if (Input::IsKeyPressed(static_cast<int>(Key::Right)) && direction != LEFT)
     direction = RIGHT;
 }
 

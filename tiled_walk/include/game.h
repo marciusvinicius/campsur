@@ -2,10 +2,10 @@
 
 #include "components.h"
 #include "engine.h"
+#include "graphics_types.h"
 #include "network/net_messages.h"
 #include "systems.h"
 #include "world.h"
-#include "raylib.h"
 
 namespace tiled {
 

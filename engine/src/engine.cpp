@@ -1,37 +1,34 @@
 #include "engine.h"
 #include "asset_manager.h"
 #include "component_factory.h"
+#include "input.h"
 #include "network/net_messages.h"
 #include "network/replication_client.h"
-#include "raylib.h"
-#include "raymath.h"
 #include "resources.h"
+#include "world.h"
+#include <chrono>
+#include <cstdio>
 #include <cstring>
 #include <vector>
 
 namespace criogenio {
 
-Texture2D CriogenioLoadTexture(const char *file_name) {
-  return LoadTexture(file_name);
+static float GetTimeSeconds() {
+  using namespace std::chrono;
+  return duration<float>(steady_clock::now().time_since_epoch()).count();
 }
 
-Engine::Engine(int width, int height, const char *title) : width(width) {
-
+Engine::Engine(int width, int height, const char* title) : width(width), height(height) {
   RegisterCoreComponents();
   renderer = new Renderer(width, height, title);
   world = new World();
 
-  // Register a simple texture loader that wraps raylib's LoadTexture
   AssetManager::instance().registerLoader<TextureResource>(
-      [](const std::string &p) -> std::shared_ptr<TextureResource> {
-        Texture2D t = CriogenioLoadTexture(p.c_str());
-        if (t.id == 0) {
-          // Failed to load texture, log error
-          TraceLog(LOG_WARNING, "AssetManager: Failed to load texture: %s",
-                   p.c_str());
+      [this](const std::string& p) -> std::shared_ptr<TextureResource> {
+        TextureHandle h = renderer->LoadTexture(p);
+        if (!h.valid())
           return nullptr;
-        }
-        return std::make_shared<TextureResource>(p, t);
+        return std::make_shared<TextureResource>(p, h, renderer);
       });
 }
 
@@ -51,9 +48,22 @@ Engine::~Engine() {
   }
 }
 
-World &Engine::GetWorld() { return *world; }
-EventBus &Engine::GetEventBus() { return eventBus; }
-Renderer &Engine::GetRenderer() { return *renderer; }
+World& Engine::GetWorld() { return *world; }
+EventBus& Engine::GetEventBus() { return eventBus; }
+Renderer& Engine::GetRenderer() { return *renderer; }
+
+Vec2 Engine::GetMousePosition() const {
+  return renderer ? renderer->GetMousePosition() : Vec2{0, 0};
+}
+
+Vec2 Engine::GetMouseWorld() const {
+  if (!renderer || !world)
+    return Vec2{0, 0};
+  Vec2 screen = renderer->GetMousePosition();
+  return ScreenToWorld2D(screen, *world->GetActiveCamera(),
+                        (float)renderer->GetViewportWidth(),
+                        (float)renderer->GetViewportHeight());
+}
 
 bool Engine::StartServer(uint16_t port) {
   if (networkMode != NetworkMode::Off)
@@ -69,7 +79,7 @@ bool Engine::StartServer(uint16_t port) {
   return true;
 }
 
-bool Engine::ConnectToServer(const char *host, uint16_t port) {
+bool Engine::ConnectToServer(const char* host, uint16_t port) {
   if (networkMode != NetworkMode::Off)
     return false;
   transport = std::make_unique<ENetTransport>();
@@ -82,11 +92,11 @@ bool Engine::ConnectToServer(const char *host, uint16_t port) {
   return true;
 }
 
-INetworkTransport *Engine::GetTransport() {
+INetworkTransport* Engine::GetTransport() {
   return transport.get();
 }
 
-void Engine::SendInputAsClient(const PlayerInput &input) {
+void Engine::SendInputAsClient(const PlayerInput& input) {
   if (networkMode != NetworkMode::Client || !transport)
     return;
   std::vector<ConnectionId> ids = transport->GetConnectionIds();
@@ -99,22 +109,26 @@ void Engine::SendInputAsClient(const PlayerInput &input) {
   transport->Send(ids[0], buf.data(), buf.size(), true);
 }
 
-void Engine::SetServerPlayerInput(const PlayerInput &input) {
+void Engine::SetServerPlayerInput(const PlayerInput& input) {
   if (networkMode != NetworkMode::Server || !replicationServer)
     return;
   replicationServer->SetServerPlayerInput(input);
 }
 
 void Engine::Run() {
-  previousTime = GetTime();
+  if (!renderer || !renderer->IsValid()) {
+    std::fprintf(stderr, "Renderer failed to initialize: %s\n",
+                 renderer ? renderer->GetInitError() : "no renderer");
+    return;
+  }
+  previousTime = GetTimeSeconds();
   while (!renderer->WindowShouldClose()) {
-    float now = GetTime();
+    renderer->ProcessEvents();
+    float now = GetTimeSeconds();
     float dt = now - previousTime;
     previousTime = now;
 
     OnFrame(dt);
-
-    // Run world update first so server snapshot contains current positions after movement
     world->Update(dt);
 
     if (networkMode == NetworkMode::Server && transport && replicationServer) {
@@ -124,7 +138,7 @@ void Engine::Run() {
                replicationClient) {
       transport->Update();
       auto msgs = transport->PollMessages();
-      for (const auto &msg : msgs) {
+      for (const auto& msg : msgs) {
         if (msg.data.size() >= 1u &&
             static_cast<MsgType>(msg.data[0]) == MsgType::Snapshot) {
           Snapshot snap = ParseSnapshotFromWire(msg.data.data(), msg.data.size());
@@ -137,35 +151,34 @@ void Engine::Run() {
     world->Render(*renderer);
     OnGUI();
     renderer->EndFrame();
+    Input::EndFrame();
   }
 }
 
 void Engine::RegisterCoreComponents() {
-
-  ComponentFactory::Register("Transform", [](World &w, int e) {
+  ComponentFactory::Register("Transform", [](World& w, int e) {
     return &w.AddComponent<Transform>(e);
   });
-
-  ComponentFactory::Register("AnimatedSprite", [](World &w, int e) {
+  ComponentFactory::Register("AnimatedSprite", [](World& w, int e) {
     return &w.AddComponent<AnimatedSprite>(e);
   });
-
-  ComponentFactory::Register("Controller", [](World &w, int e) {
+  ComponentFactory::Register("Controller", [](World& w, int e) {
     return &w.AddComponent<Controller>(e);
   });
-
-  ComponentFactory::Register("AnimationState", [](World &w, int e) {
+  ComponentFactory::Register("AnimationState", [](World& w, int e) {
     return &w.AddComponent<AnimationState>(e);
   });
-
-  ComponentFactory::Register("AIController", [](World &w, int e) {
+  ComponentFactory::Register("AIController", [](World& w, int e) {
     return &w.AddComponent<AIController>(e);
   });
-
   ComponentFactory::Register(
-      "Name", [](World &w, int e) { return &w.AddComponent<Name>(e, ""); });
-  ComponentFactory::Register("NetReplicated", [](World &w, int e) {
+      "Name", [](World& w, int e) { return &w.AddComponent<Name>(e, ""); });
+  ComponentFactory::Register("NetReplicated", [](World& w, int e) {
     return &w.AddComponent<NetReplicated>(e);
   });
+  ComponentFactory::Register("Camera", [](World& w, int e) {
+    return &w.AddComponent<Camera>(e);
+  });
 }
-}  // namespace criogenio
+
+} // namespace criogenio

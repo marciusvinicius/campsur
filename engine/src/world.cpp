@@ -2,6 +2,7 @@
 #include "animated_component.h"
 #include "animation_database.h"
 #include "asset_manager.h"
+#include "log.h"
 #include "resources.h"
 #include <unordered_map>
 #include <unordered_set>
@@ -46,41 +47,26 @@ void World::Update(float dt) {
   }
 }
 
-void World::Render(Renderer &renderer) {
-  BeginMode2D(maincamera);
-  DrawGrid(100, 32);
-  DrawCircle(0, 0, 6, RED);
+void World::Render(Renderer& renderer) {
+  renderer.BeginCamera2D(*GetActiveCamera());
+  renderer.DrawGrid(100, 32);
+  renderer.DrawCircle(0, 0, 6, Colors::Red);
 
   if (terrain)
     terrain->Render(renderer);
 
-  // Render systems
-  for (auto &system : systems) {
+  for (auto& system : systems) {
     system->Render(renderer);
   }
 
-  EndMode2D();
+  renderer.EndCamera2D();
 }
 
 SerializedWorld World::Serialize() const {
   SerializedWorld world;
 
-  // Serialize terrain if it exists
   if (terrain) {
-    // Serialize tileset
-    world.terrain.tileset.tilesetPath = terrain->tileset.tilesetPath;
-    world.terrain.tileset.tileSize = terrain->tileset.tileSize;
-    world.terrain.tileset.columns = terrain->tileset.columns;
-    world.terrain.tileset.rows = terrain->tileset.rows;
-
-    // Serialize layers
-    for (const auto &layer : terrain->layers) {
-      SerializedTileLayer serialized_layer;
-      serialized_layer.width = layer.width;
-      serialized_layer.height = layer.height;
-      serialized_layer.tiles = layer.tiles;
-      world.terrain.layers.push_back(serialized_layer);
-    }
+    world.terrain = terrain->Serialize();
   }
 
   // Collect all animation IDs used by AnimatedSprite components
@@ -160,6 +146,10 @@ SerializedWorld World::Serialize() const {
       serialized_entity.components.push_back(nameComp->Serialize());
     }
 
+    if (auto cam = GetComponent<Camera>(entity_id)) {
+      serialized_entity.components.push_back(cam->Serialize());
+    }
+
     if (!serialized_entity.components.empty()) {
       world.entities.push_back(serialized_entity);
     }
@@ -170,6 +160,7 @@ SerializedWorld World::Serialize() const {
 
 void World::Deserialize(const SerializedWorld &data) {
   ecs::Registry::instance().clear();
+  mainCameraEntity = ecs::NULL_ENTITY;
   terrain = nullptr;
   AnimationDatabase::instance().clear();
 
@@ -181,8 +172,8 @@ void World::Deserialize(const SerializedWorld &data) {
   for (const auto &serializedAnim : data.animations) {
     // Validate texture path before creating animation
     if (serializedAnim.texturePath.empty()) {
-      TraceLog(LOG_WARNING, "Animation ID %u has empty texture path, skipping",
-               serializedAnim.id);
+      ENGINE_LOG(LOG_WARNING, "Animation ID %u has empty texture path, skipping",
+                 serializedAnim.id);
       continue;
     }
 
@@ -194,16 +185,16 @@ void World::Deserialize(const SerializedWorld &data) {
     auto texture = AssetManager::instance().load<TextureResource>(
         serializedAnim.texturePath);
     if (!texture) {
-      TraceLog(LOG_ERROR,
-               "Failed to load texture for animation ID %u (new ID: %u): %s",
-               serializedAnim.id, createdId,
-               serializedAnim.texturePath.c_str());
+      ENGINE_LOG(LOG_ERROR,
+                 "Failed to load texture for animation ID %u (new ID: %u): %s",
+                 serializedAnim.id, createdId,
+                 serializedAnim.texturePath.c_str());
       // Continue anyway - the animation will be created but texture won't be
       // available
     } else {
-      TraceLog(LOG_INFO, "Loaded texture for animation ID %u (new ID: %u): %s",
-               serializedAnim.id, createdId,
-               serializedAnim.texturePath.c_str());
+      ENGINE_LOG(LOG_INFO, "Loaded texture for animation ID %u (new ID: %u): %s",
+                 serializedAnim.id, createdId,
+                 serializedAnim.texturePath.c_str());
     }
 
     // Restore clips
@@ -247,35 +238,17 @@ void World::Deserialize(const SerializedWorld &data) {
     }
 
     if (hasAnimatedSprites) {
-      TraceLog(LOG_WARNING, "World contains AnimatedSprite components but no "
-                            "animation definitions were found. "
-                            "Textures will not be loaded. Make sure to save "
-                            "the world from the editor to include animations.");
+      ENGINE_LOG(LOG_WARNING,
+                 "World contains AnimatedSprite components but no "
+                 "animation definitions were found. "
+                 "Textures will not be loaded. Make sure to save "
+                 "the world from the editor to include animations.");
     }
   }
 
-  // Restore terrain if it exists
   if (!data.terrain.tileset.tilesetPath.empty()) {
     terrain = std::make_unique<Terrain2D>();
-
-    // Restore tileset
-    Tileset tileset{};
-    tileset.tilesetPath = data.terrain.tileset.tilesetPath;
-    tileset.atlas =
-        AssetManager::instance().load<TextureResource>(tileset.tilesetPath);
-    tileset.tileSize = data.terrain.tileset.tileSize;
-    tileset.columns = data.terrain.tileset.columns;
-    tileset.rows = data.terrain.tileset.rows;
-    terrain->tileset = tileset;
-
-    // Restore layers
-    for (const auto &serialized_layer : data.terrain.layers) {
-      terrain->AddLayer(serialized_layer.width, serialized_layer.height, 8);
-      // Restore tiles for this layer (assuming we add to the last layer)
-      if (!terrain->layers.empty()) {
-        terrain->layers.back().tiles = serialized_layer.tiles;
-      }
-    }
+    terrain->Deserialize(data.terrain);
   }
 
   for (const auto &serialized_entity : data.entities) {
@@ -307,11 +280,11 @@ void World::Deserialize(const SerializedWorld &data) {
           } else {
             // Animation ID not found in map - this means the animation wasn't
             // serialized Log a warning and invalidate the animation ID
-            TraceLog(LOG_WARNING,
-                     "AnimatedSprite component references animation ID %u "
-                     "which was not found in serialized data. "
-                     "The animation may not have been saved. Entity ID: %d",
-                     anim_sprite.animationId, entity_id);
+            ENGINE_LOG(LOG_WARNING,
+                       "AnimatedSprite component references animation ID %u "
+                       "which was not found in serialized data. "
+                       "The animation may not have been saved. Entity ID: %d",
+                       anim_sprite.animationId, entity_id);
             anim_sprite.animationId = INVALID_ASSET_ID;
           }
         }
@@ -325,17 +298,22 @@ void World::Deserialize(const SerializedWorld &data) {
             auto texture = AssetManager::instance().load<TextureResource>(
                 animDef->texturePath);
             if (!texture) {
-              TraceLog(LOG_ERROR,
-                       "Failed to load texture for animation ID %u: %s (Entity "
-                       "ID: %d)",
-                       anim_sprite.animationId, animDef->texturePath.c_str(),
-                       entity_id);
+              ENGINE_LOG(LOG_ERROR,
+                         "Failed to load texture for animation ID %u: %s (Entity "
+                         "ID: %d)",
+                         anim_sprite.animationId, animDef->texturePath.c_str(),
+                         entity_id);
             }
           }
         }
       } else if (type_name == "Name") {
         auto &nameComp = AddComponent<Name>(entity_id);
         nameComp.Deserialize(serialized_component);
+      } else if (type_name == "Camera") {
+        auto &cam = AddComponent<Camera>(entity_id);
+        cam.Deserialize(serialized_component);
+        if (mainCameraEntity == ecs::NULL_ENTITY)
+          mainCameraEntity = entity_id;
       }
     }
   }
@@ -345,7 +323,6 @@ Terrain2D &World::CreateTerrain2D(const std::string &name,
                                   const std::string &texture_path) {
   terrain = std::make_unique<Terrain2D>();
 
-  // Initialize tileset similarly to World::CreateTerrain2D
   Tileset tileset{};
   tileset.tilesetPath = texture_path;
   tileset.atlas = AssetManager::instance().load<TextureResource>(texture_path);
@@ -353,14 +330,40 @@ Terrain2D &World::CreateTerrain2D(const std::string &name,
   tileset.columns = 10;
   tileset.rows = 8;
   terrain->tileset = tileset;
+  terrain->SetChunkSize(Terrain2D::kDefaultChunkSize);
 
-  // Create a default layer so something is visible
-  terrain->AddLayer(10, 10, 8);
+  terrain->AddLayer();
+  // Seed one chunk at (0,0) so there is something to paint
+  for (int y = 0; y < terrain->GetChunkSize(); y++)
+    for (int x = 0; x < terrain->GetChunkSize(); x++)
+      terrain->SetTile(0, x, y, 8);
 
   return *terrain;
 }
 
-void World::AttachCamera2D(Camera2D cam) { maincamera = cam; }
+Camera2D* World::GetActiveCamera() {
+  if (mainCameraEntity != ecs::NULL_ENTITY) {
+    if (Camera* c = GetComponent<Camera>(mainCameraEntity))
+      return &c->data;
+  }
+  return &maincamera;
+}
+
+const Camera2D* World::GetActiveCamera() const {
+  if (mainCameraEntity != ecs::NULL_ENTITY) {
+    if (const Camera* c = GetComponent<Camera>(mainCameraEntity))
+      return &c->data;
+  }
+  return &maincamera;
+}
+
+void World::AttachCamera2D(criogenio::Camera2D cam) {
+  maincamera = cam;
+  ecs::EntityId e = CreateEntity("MainCamera");
+  AddComponent<Camera>(e, Camera(cam));
+  AddComponent<Name>(e, "MainCamera");
+  mainCameraEntity = e;
+}
 
 Terrain2D *World::GetTerrain() { return terrain.get(); }
 

@@ -1,32 +1,34 @@
 #pragma once
 
 #include "asset_manager.h"
-#include "raylib.h"
+#include "graphics_types.h"
+#include "render.h"
 #include <memory>
 #include <string>
 
 namespace criogenio {
 
 struct TextureResource : public Resource {
-  Texture2D texture{};
+  TextureHandle texture{};
   std::string path;
+  Renderer* renderer = nullptr; // for UnloadTexture in dtor
+
   TextureResource() = default;
-  TextureResource(const std::string &p, const Texture2D &t)
-      : texture(t), path(p) {}
+  TextureResource(const std::string& p, TextureHandle t, Renderer* r)
+      : texture(t), path(p), renderer(r) {}
   ~TextureResource() override {
-    if (texture.id)
-      UnloadTexture(texture);
+    if (renderer && texture.valid()) {
+      renderer->UnloadTexture(&texture);
+    }
   }
 };
 
 struct ModelResource : public Resource {
-  Model model{};
+  void* modelOpaque = nullptr; // placeholder for future 3D
   std::string path;
   ModelResource() = default;
-  ModelResource(const std::string &p, const Model &m) : model(m), path(p) {}
-  ~ModelResource() override {
-    // UnloadModel is available in raylib; leave for future
-  }
+  ModelResource(const std::string& p, void* m) : modelOpaque(m), path(p) {}
+  ~ModelResource() override {}
 };
 
 } // namespace criogenio

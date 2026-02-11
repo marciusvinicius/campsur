@@ -1,6 +1,7 @@
 #include "criogenio_io.h"
 #include "json_serialization.h"
 #include "asset_manager.h"
+#include "log.h"
 #include "resources.h"
 #include <fstream>
 
@@ -145,9 +146,9 @@ AssetId LoadAnimationFromFile(const std::string &path) {
   auto texture =
       AssetManager::instance().load<TextureResource>(anim.texturePath);
   if (!texture) {
-    TraceLog(LOG_ERROR,
-             "Failed to load texture for animation from file: %s (new ID: %u)",
-             anim.texturePath.c_str(), createdId);
+    ENGINE_LOG(LOG_ERROR,
+               "Failed to load texture for animation from file: %s (new ID: %u)",
+               anim.texturePath.c_str(), createdId);
   }
 
   for (const auto &serializedClip : anim.clips) {

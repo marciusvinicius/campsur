@@ -3,6 +3,9 @@
 #include "animation_database.h"
 #include "asset_manager.h"
 #include "components.h"
+#include "graphics_types.h"
+#include "input.h"
+#include "keys.h"
 #include "math.h"
 #include "resources.h"
 
@@ -21,19 +24,19 @@ void MovementSystem::Update(float dt) {
 
     float dx = 0, dy = 0;
 
-    if (IsKeyDown(KEY_RIGHT)) {
+    if (Input::IsKeyDown(static_cast<int>(Key::Right))) {
       dx += 1;
       anim->facing = Direction::RIGHT;
     }
-    if (IsKeyDown(KEY_LEFT)) {
+    if (Input::IsKeyDown(static_cast<int>(Key::Left))) {
       dx -= 1;
       anim->facing = Direction::LEFT;
     }
-    if (IsKeyDown(KEY_UP)) {
+    if (Input::IsKeyDown(static_cast<int>(Key::Up))) {
       dy -= 1;
       anim->facing = Direction::UP;
     }
-    if (IsKeyDown(KEY_DOWN)) {
+    if (Input::IsKeyDown(static_cast<int>(Key::Down))) {
       dy += 1;
       anim->facing = Direction::DOWN;
     }
@@ -175,10 +178,11 @@ void RenderSystem::Render(Renderer &renderer) {
     if (!texture)
       continue;
 
-    Rectangle src = animSprite->GetFrame();
-    Rectangle dest = {tr->x, tr->y, (float)src.width, (float)src.height};
+    Rect src = animSprite->GetFrame();
+    Rect dest = {tr->x, tr->y, src.width, src.height};
 
-    renderer.DrawTexturePro(texture->texture, src, dest, {0, 0}, 0.0f, WHITE);
+    renderer.DrawTexturePro(texture->texture, src, dest, {0, 0}, 0.0f,
+                            Colors::White);
   }
 }
 
@@ -211,12 +215,13 @@ void SpriteSystem::Render(Renderer &renderer) {
 
     auto texture = sprite->atlas;
 
-    Rectangle src = {sprite->spriteX, sprite->spriteY, sprite->spriteSize,
-                     sprite->spriteSize};
-    Rectangle dest = {tr->x, tr->y, (float)(src.width * sprite->spriteSize),
-                      (float)(src.height * sprite->spriteSize)};
+    Rect src = {sprite->spriteX, sprite->spriteY, (float)sprite->spriteSize,
+                (float)sprite->spriteSize};
+    Rect dest = {tr->x, tr->y, src.width * (float)sprite->spriteSize,
+                 src.height * (float)sprite->spriteSize};
 
-    renderer.DrawTexturePro(texture->texture, src, dest, {0, 0}, 0.0f, WHITE);
+    renderer.DrawTexturePro(texture->texture, src, dest, {0, 0}, 0.0f,
+                            Colors::White);
   }
 }
 

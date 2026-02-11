@@ -1,50 +1,114 @@
 {
   "version": "0.2.0",
   "configurations": [
-
     {
       "type": "cppdbg",
       "request": "launch",
-      "name": "Editor",
-      "program": "${workspaceRoot}/bin/Debug/camp_sur_cpp_editor",
-      "preLaunchTask": "Build",
-      "cwd": "${workspaceRoot}"
-    },
-    {
-      "type": "cppdbg",
-      "request": "launch",
-      "name": "Game",
-      "program": "${workspaceRoot}/bin/Debug/camp_sur_cpp_game",
-      "preLaunchTask": "Build",
-      "cwd": "${workspaceRoot}"
-    },
-    {
-      "type": "cppdbg",
-      "request": "launch",
-      "name": "Snake Game",
-      "program": "${workspaceRoot}/bin/Debug/camp_sur_cppsnakegame",
-      "preLaunchTask": "Build",
-      "cwd": "${workspaceRoot}"
-    },
-    {
-      "type": "cppdbg",
-      "request": "launch",
-      "name": "Tiled Walk",
-      "program": "${workspaceRoot}/bin/Debug/camp_sur_cpp_tiled_walk --client 127.0.0.1",
-      "preLaunchTask": "Build",
-      "cwd": "${workspaceRoot}"
-    },
-    {
-      "name": "C/C++ Runner: Debug Session",
-      "type": "cppdbg",
-      "request": "launch",
+      "name": "Editor (Windows)",
+      "program": "${workspaceFolderBaseName}/bin/Debug/campsur_editor.exe",
       "args": [],
+      "preLaunchTask": "Build",
+      "cwd": "${workspaceFolder}",
       "stopAtEntry": false,
-      "externalConsole": false,
-      "cwd": "/home/marcius/Workspace/criogenio/camp_sur_cpp",
-      "program": "/home/marcius/Workspace/criogenio/camp_sur_cpp/build/Debug/outDebug",
+      "externalConsole": false
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Editor (Linux)",
+      "program": "${workspaceFolder}/bin/Debug/camp_sur_cpp_editor",
+      "args": [],
+      "preLaunchTask": "Build",
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
       "MIMode": "gdb",
-      "miDebuggerPath": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Game (Windows)",
+      "program": "${workspaceFolderBaseName}/bin/Debug/campsur_game.exe",
+      "args": [],
+      "preLaunchTask": "Build",
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "externalConsole": false
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Game (Linux)",
+      "program": "${workspaceFolderBase}/bin/Debug/camp_sur_cpp_game",
+      "args": [],
+      "preLaunchTask": "Build",
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Snake Game (Windows)",
+      "program": "${workspaceFolderBase}/bin/Debug/camp_sur_cpp_snakegame.exe",
+      "args": [],
+      "preLaunchTask": "Build",
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "externalConsole": false
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Snake Game (Linux)",
+      "program": "${workspaceFolderBase}/bin/Debug/camp_sur_cpp_snakegame",
+      "args": [],
+      "preLaunchTask": "Build",
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Tiled Walk (Windows)",
+      "program": "${workspaceFolderBase}/bin/Debug/camp_sur_cpp_tiled_walk.exe",
+      "args": ["--client", "127.0.0.1"],
+      "preLaunchTask": "Build",
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "externalConsole": false
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Tiled Walk (Linux)",
+      "program": "${workspaceFolderBase}/bin/Debug/camp_sur_cpp_tiled_walk",
+      "args": ["--client", "127.0.0.1"],
+      "preLaunchTask": "Build",
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "MIMode": "gdb",
       "setupCommands": [
         {
           "description": "Enable pretty-printing for gdb",

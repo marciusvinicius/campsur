@@ -2,9 +2,9 @@
 #include "animation_database.h"
 #include "animation_state.h"
 #include "asset_manager.h"
+#include "graphics_types.h"
 #include "network/net_entity.h"
 #include "json.hpp"
-#include "raylib.h"
 #include "resources.h"
 #include "serialization.h"
 #include <memory>
@@ -96,17 +96,17 @@ public:
 };
 
 struct Animation {
-  std::vector<Rectangle> frames;
+  std::vector<Rect> frames;
   float frameTime = 0.1f;
 };
 
 class Controller : public Component {
 public:
-  Vector2 velocity = {0, 0};
+  Vec2 velocity = {0, 0};
 
   Direction direction = Direction::UP;
   Controller() = default;
-  Controller(Vector2 velocity) : velocity(velocity) {}
+  Controller(Vec2 velocity) : velocity(velocity) {}
 
   std::string TypeName() const override { return "Controller"; }
 
@@ -129,13 +129,13 @@ public:
 
 class AIController : public Component {
 public:
-  Vector2 velocity = {0, 0};
+  Vec2 velocity = {0, 0};
   Direction direction = Direction::UP;
   AIBrainState brainState = FRIENDLY;
   int entityTarget = -1;
 
   AIController() = default;
-  AIController(Vector2 velocity, int entityTarget)
+  AIController(Vec2 velocity, int entityTarget)
       : velocity(velocity), entityTarget(entityTarget) {}
 
   std::string TypeName() const override { return "AIController"; }
@@ -275,6 +275,42 @@ struct ReplicatedNetId : public Component {
   std::string TypeName() const override { return "ReplicatedNetId"; }
   SerializedComponent Serialize() const override { return {"ReplicatedNetId", {}}; }
   void Deserialize(const SerializedComponent &) override {}
+};
+
+/** 2D camera as an entity component. When present on an entity, it can be used as the main camera. */
+class Camera : public Component {
+public:
+  Camera2D data;
+
+  Camera() = default;
+  explicit Camera(const Camera2D& cam) : data(cam) {}
+
+  std::string TypeName() const override { return "Camera"; }
+
+  SerializedComponent Serialize() const override {
+    return {"Camera",
+            {{"offset_x", data.offset.x},
+             {"offset_y", data.offset.y},
+             {"target_x", data.target.x},
+             {"target_y", data.target.y},
+             {"rotation", data.rotation},
+             {"zoom", data.zoom}}};
+  }
+
+  void Deserialize(const SerializedComponent& data_in) override {
+    if (auto it = data_in.fields.find("offset_x"); it != data_in.fields.end())
+      data.offset.x = std::get<float>(it->second);
+    if (auto it = data_in.fields.find("offset_y"); it != data_in.fields.end())
+      data.offset.y = std::get<float>(it->second);
+    if (auto it = data_in.fields.find("target_x"); it != data_in.fields.end())
+      data.target.x = std::get<float>(it->second);
+    if (auto it = data_in.fields.find("target_y"); it != data_in.fields.end())
+      data.target.y = std::get<float>(it->second);
+    if (auto it = data_in.fields.find("rotation"); it != data_in.fields.end())
+      data.rotation = std::get<float>(it->second);
+    if (auto it = data_in.fields.find("zoom"); it != data_in.fields.end())
+      data.zoom = std::get<float>(it->second);
+  }
 };
 
 }  // namespace criogenio

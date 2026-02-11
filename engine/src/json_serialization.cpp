@@ -39,19 +39,34 @@ json ToJson(const SerializedWorld &world) {
     j["entities"].push_back(je);
   }
 
-  // Terrain serialization can be added here if needed
-  if (world.terrain.layers.size() > 0) {
-    for (const auto &layer : world.terrain.layers) {
-      json jl;
-      jl["width"] = layer.width;
-      jl["height"] = layer.height;
-      jl["tiles"] = layer.tiles;
-      j["terrain"]["layers"].push_back(jl);
-    }
+  if (!world.terrain.tileset.tilesetPath.empty()) {
     j["terrain"]["tileset"]["columns"] = world.terrain.tileset.columns;
     j["terrain"]["tileset"]["rows"] = world.terrain.tileset.rows;
     j["terrain"]["tileset"]["tileSize"] = world.terrain.tileset.tileSize;
     j["terrain"]["tileset"]["tilesetPath"] = world.terrain.tileset.tilesetPath;
+    j["terrain"]["chunkSize"] = world.terrain.chunkSize;
+
+    if (world.terrain.chunkSize > 0 && !world.terrain.chunkedLayers.empty()) {
+      for (const auto &cl : world.terrain.chunkedLayers) {
+        json jlayer;
+        for (const auto &c : cl.chunks) {
+          json jc;
+          jc["chunkX"] = c.chunkX;
+          jc["chunkY"] = c.chunkY;
+          jc["tiles"] = c.tiles;
+          jlayer["chunks"].push_back(jc);
+        }
+        j["terrain"]["chunkedLayers"].push_back(jlayer);
+      }
+    } else if (!world.terrain.layers.empty()) {
+      for (const auto &layer : world.terrain.layers) {
+        json jl;
+        jl["width"] = layer.width;
+        jl["height"] = layer.height;
+        jl["tiles"] = layer.tiles;
+        j["terrain"]["layers"].push_back(jl);
+      }
+    }
   }
 
   // Serialize animations
@@ -90,22 +105,40 @@ SerializedWorld FromJson(const json &j) {
   SerializedWorld world;
 
   if (j.contains("terrain")) {
-    for (const auto &jl : j.at("terrain").at("layers")) {
-      SerializedTileLayer layer;
-      layer.width = jl.at("width").get<int>();
-      layer.height = jl.at("height").get<int>();
-      layer.tiles = jl.at("tiles").get<std::vector<int>>();
-      world.terrain.layers.push_back(std::move(layer));
-    }
+    auto &jt = j.at("terrain");
     world.terrain.tileset = SerializedTileSet();
-    world.terrain.tileset.columns =
-        j.at("terrain").at("tileset").at("columns").get<int>();
-    world.terrain.tileset.rows =
-        j.at("terrain").at("tileset").at("rows").get<int>();
+    world.terrain.tileset.columns = jt.at("tileset").at("columns").get<int>();
+    world.terrain.tileset.rows = jt.at("tileset").at("rows").get<int>();
     world.terrain.tileset.tileSize =
-        j.at("terrain").at("tileset").at("tileSize").get<int>();
+        jt.at("tileset").at("tileSize").get<int>();
     world.terrain.tileset.tilesetPath =
-        j.at("terrain").at("tileset").at("tilesetPath").get<std::string>();
+        jt.at("tileset").at("tilesetPath").get<std::string>();
+    world.terrain.chunkSize =
+        jt.contains("chunkSize") ? jt.at("chunkSize").get<int>() : 0;
+
+    if (world.terrain.chunkSize > 0 && jt.contains("chunkedLayers")) {
+      for (const auto &jlayer : jt.at("chunkedLayers")) {
+        SerializedChunkedLayer cl;
+        if (jlayer.contains("chunks")) {
+          for (const auto &jc : jlayer.at("chunks")) {
+            SerializedChunk sc;
+            sc.chunkX = jc.at("chunkX").get<int>();
+            sc.chunkY = jc.at("chunkY").get<int>();
+            sc.tiles = jc.at("tiles").get<std::vector<int>>();
+            cl.chunks.push_back(sc);
+          }
+        }
+        world.terrain.chunkedLayers.push_back(std::move(cl));
+      }
+    } else if (jt.contains("layers")) {
+      for (const auto &jl : jt.at("layers")) {
+        SerializedTileLayer layer;
+        layer.width = jl.at("width").get<int>();
+        layer.height = jl.at("height").get<int>();
+        layer.tiles = jl.at("tiles").get<std::vector<int>>();
+        world.terrain.layers.push_back(std::move(layer));
+      }
+    }
   }
 
   // Deserialize animations

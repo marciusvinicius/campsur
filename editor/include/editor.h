@@ -4,7 +4,7 @@
 
 #include "engine.h"
 #include "animation_database.h"
-#include "raylib.h"
+#include "graphics_types.h"
 #include "world.h"
 #include <optional>
 
@@ -27,8 +27,8 @@ struct EditorState {
 class EditorApp : public criogenio::Engine {
 public:
   EditorApp(int width, int height);
-  std::optional<Vector2> WorldToTile(const criogenio::Terrain2D &terrain,
-                                     Vector2 worldPos);
+  std::optional<criogenio::Vec2> WorldToTile(const criogenio::Terrain2D &terrain,
+                                             criogenio::Vec2 worldPos);
   void EditorAppReset();
   //~EditorApp();
   void Run();
@@ -36,7 +36,7 @@ public:
 private:
   EditorState state;
 
-  RenderTexture2D sceneRT;
+  criogenio::TextureHandle sceneRT;
   // Panels sizes
   int leftPanelWidth = 200;
   int rightPanelWidth = 220;
@@ -45,7 +45,9 @@ private:
   ImVec2 viewportSize;
   bool viewportHovered = false;
 
+  criogenio::Vec2 lastMousePos{0, 0};
   std::optional<int> selectedEntityId;
+  bool imguiBackendsInitialized = false;
 
   void InitImGUI();
   void RenderSceneToTexture();
@@ -57,8 +59,8 @@ private:
   void DrawWorldView();
   void DrawMainMenuBar();
   void DrawToolbar();
-  void HandleEntityDrag();
-  void HandleInput();
+  void HandleEntityDrag(criogenio::Vec2 mouseDelta);
+  void HandleInput(float dt, criogenio::Vec2 mouseDelta);
   void HandleScenePicking();
 
   // Entity Inspector TODO:(maraujo) Move this to UI file
@@ -75,7 +77,7 @@ private:
   void DrawGlobalComponentsPanel();
   void DrawGlobalInspector();
 
-  void PickEntityAt(Vector2 worldPos);
+  void PickEntityAt(criogenio::Vec2 worldPos);
   void CreateEmptyEntityAtMouse();
 
   bool IsSceneInputAllowed() const;
@@ -86,7 +88,7 @@ private:
   bool IsMouseInWorldView();
 
   // Helper to convert mouse screen position to world coordinates
-  Vector2 ScreenToWorldPosition(Vector2 mouseScreen);
+  criogenio::Vec2 ScreenToWorldPosition(criogenio::Vec2 mouseScreen);
 
   // helpers
   void DrawButton(int x, int y, int w, int h, const char *label,
@@ -139,7 +141,7 @@ private:
   void DrawTerrainEditor();
   // Draw grid overlay on terrain in viewport
   void DrawTerrainGridOverlay(const criogenio::Terrain2D &terrain,
-                              const Camera2D &camera);
+                              const criogenio::Camera2D &camera);
   // Draw file browser popup (called every frame)
   const char *DrawFileBrowserPopup();
 

@@ -1,5 +1,7 @@
 #include "game.h"
-#include "raylib.h"
+#include "graphics_types.h"
+#include "input.h"
+#include "keys.h"
 
 namespace tiled {
 
@@ -9,8 +11,8 @@ void TileMapSystem::Render(criogenio::Renderer &renderer) {
   const int w = MapWidthTiles;
   const int h = MapHeightTiles;
   const int ts = TileSize;
-  const Color a = {0x44, 0x88, 0x44, 255};  // grass green
-  const Color b = {0x55, 0x99, 0x55, 255};  // grass light
+  const criogenio::Color a = {0x44, 0x88, 0x44, 255};  // grass green
+  const criogenio::Color b = {0x55, 0x99, 0x55, 255};  // grass light
   for (int y = 0; y < h; ++y) {
     for (int x = 0; x < w; ++x) {
       bool alt = (x + y) % 2 == 0;
@@ -20,7 +22,7 @@ void TileMapSystem::Render(criogenio::Renderer &renderer) {
     }
   }
   // Thin grid lines
-  const Color line = {0, 0, 0, 48};
+  const criogenio::Color line = {0, 0, 0, 48};
   for (int x = 0; x <= w; ++x)
     renderer.DrawRect(static_cast<float>(x * ts), 0, 1, static_cast<float>(h * ts), line);
   for (int y = 0; y <= h; ++y)
@@ -52,7 +54,7 @@ void PlayerRenderSystem::Update(float /*dt*/) {}
 void PlayerRenderSystem::Render(criogenio::Renderer &renderer) {
   // Query NetReplicated + Transform so server draws all players (server + clients); clients already have both from snapshots
   auto ids = world.GetEntitiesWith<criogenio::NetReplicated, criogenio::Transform>();
-  static const Color kPlayerColors[] = {
+  static const criogenio::Color kPlayerColors[] = {
     {0x22, 0x66, 0xdd, 255},  // blue
     {0xdd, 0x44, 0x44, 255},  // red
     {0x44, 0xbb, 0x44, 255},  // green
@@ -76,10 +78,11 @@ void PlayerRenderSystem::Render(criogenio::Renderer &renderer) {
 
 void GameEngine::OnFrame(float /*dt*/) {
   criogenio::PlayerInput input = {};
-  if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) input.move_x += 1.f;
-  if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) input.move_x -= 1.f;
-  if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) input.move_y -= 1.f;
-  if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) input.move_y += 1.f;
+  using namespace criogenio;
+  if (Input::IsKeyDown(static_cast<int>(Key::Right)) || Input::IsKeyDown(static_cast<int>(Key::D))) input.move_x += 1.f;
+  if (Input::IsKeyDown(static_cast<int>(Key::Left)) || Input::IsKeyDown(static_cast<int>(Key::A))) input.move_x -= 1.f;
+  if (Input::IsKeyDown(static_cast<int>(Key::Up)) || Input::IsKeyDown(static_cast<int>(Key::W))) input.move_y -= 1.f;
+  if (Input::IsKeyDown(static_cast<int>(Key::Down)) || Input::IsKeyDown(static_cast<int>(Key::S))) input.move_y += 1.f;
 
   if (GetNetworkMode() == criogenio::NetworkMode::Client) {
     SendInputAsClient(input);

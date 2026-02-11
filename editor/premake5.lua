@@ -1,5 +1,6 @@
+-- Editor: cross-platform (Windows + Linux). Use premake5 gmake2 for Linux, VS for Windows.
 project(workspaceName .. "_editor")
-kind("ConsoleApp") -- or WindowedApp
+kind("ConsoleApp")
 language("C++")
 cppdialect("C++23")
 staticruntime("off")
@@ -13,20 +14,17 @@ objdir("../bin-int/%{prj.name}/%{cfg.buildcfg}")
 files({
 	"src/**.cpp",
 	"src/**.h",
-
 	"include/**.h",
 
-	-- tinyfiledialogs
 	"thirdpart/tinyfiledialogs.c",
 
-	-- rlImGui
-	"thirdpart/rlImGui-main/rlImGui.cpp",
-
-	-- Dear ImGui core
 	"thirdpart/imgui-docking/imgui.cpp",
 	"thirdpart/imgui-docking/imgui_draw.cpp",
 	"thirdpart/imgui-docking/imgui_tables.cpp",
 	"thirdpart/imgui-docking/imgui_widgets.cpp",
+
+	"thirdpart/imgui-docking/backends/imgui_impl_sdl3.cpp",
+	"thirdpart/imgui-docking/backends/imgui_impl_sdlrenderer3.cpp",
 })
 
 -----------------------------------------
@@ -42,9 +40,8 @@ includedirs({
 	-- tinyfiledialogs
 	"thirdpart",
 
-	-- ImGui
-	"thirdpart/rlImGui-main",
 	"thirdpart/imgui-docking",
+	"thirdpart/imgui-docking/backends",
 })
 
 -----------------------------------------
@@ -55,7 +52,8 @@ links({
 	"enet",
 })
 
-link_raylib()
+-- Engine uses SDL3; editor uses SDL3 for window + ImGui backend (imgui_impl_sdl3).
+link_sdl3()
 
 -----------------------------------------
 -- PLATFORM
