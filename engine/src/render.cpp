@@ -3,10 +3,18 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_render.h>
 #include <SDL3/SDL_surface.h>
+#include <SDL3/SDL_pixels.h>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <fstream>
+#include <vector>
+
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_NO_STDIO
+#define STBI_ONLY_PNG
+#include "video/stb_image.h"
 
 namespace criogenio {
 
@@ -403,18 +411,33 @@ TextureHandle Renderer::LoadTexture(const std::string& path) {
   TextureHandle out{};
   if (!s_impl || !s_impl->renderer || path.empty())
     return out;
-  SDL_Surface* surf = SDL_LoadPNG(path.c_str());
-  if (!surf)
+  std::ifstream f(path, std::ios::binary | std::ios::ate);
+  if (!f)
     return out;
+  std::streamsize size = f.tellg();
+  f.seekg(0, std::ios::beg);
+  std::vector<unsigned char> buf(static_cast<size_t>(size));
+  if (!f.read(reinterpret_cast<char*>(buf.data()), size))
+    return out;
+  int w = 0, h = 0, comp = 0;
+  unsigned char* pixels = stbi_load_from_memory(buf.data(), static_cast<int>(size), &w, &h, &comp, 4);
+  if (!pixels || w <= 0 || h <= 0)
+    return out;
+  SDL_Surface* surf = SDL_CreateSurfaceFrom(w, h, SDL_PIXELFORMAT_RGBA8888, pixels, w * 4);
+  if (!surf) {
+    stbi_image_free(pixels);
+    return out;
+  }
   SDL_Texture* tex = SDL_CreateTextureFromSurface(s_impl->renderer, surf);
   SDL_DestroySurface(surf);
+  stbi_image_free(pixels);
   if (!tex)
     return out;
-  float w = 0, h = 0;
-  SDL_GetTextureSize(tex, &w, &h);
+  float fw = 0, fh = 0;
+  SDL_GetTextureSize(tex, &fw, &fh);
   out.opaque = tex;
-  out.width = static_cast<int>(w);
-  out.height = static_cast<int>(h);
+  out.width = static_cast<int>(fw);
+  out.height = static_cast<int>(fh);
   return out;
 }
 

@@ -23,21 +23,22 @@ links({ "enet" })
 
 -- Engine uses SDL3 only (no raylib). Paths relative to repo root.
 filter({ "system:windows", "platforms:x64", "action:vs*" })
-	includedirs({ "../SDL3/include/SDL3", "../SDL3/include" })
+	includedirs({ "../SDL3/include/SDL3", "../SDL3/include", "../SDL3/src" })
 	libdirs({ "../SDL3/lib/x64" })
 	links({ "SDL3" })
 
 filter({ "system:windows", "platforms:x32", "action:vs*" })
-	includedirs({ "../SDL3/include/SDL3", "../SDL3/include" })
+	includedirs({ "../SDL3/include/SDL3", "../SDL3/include", "../SDL3/src" })
 	libdirs({ "../SDL3/lib/x32" })
 	links({ "SDL3" })
 
 filter({ "system:windows", "platforms:x64", "action:gmake*" })
-	includedirs({ "../SDL3/x86_64-w64-mingw32/include/SDL3", "../SDL3/x86_64-w64-mingw32/include" })
+	includedirs({ "../SDL3/x86_64-w64-mingw32/include/SDL3", "../SDL3/x86_64-w64-mingw32/include", "../SDL3/src" })
 	libdirs({ "../SDL3/x86_64-w64-mingw32/lib/", "../SDL3/x86_64-w64-mingw32/bin/" })
 	links({ "SDL3" })
 
 filter({ "system:linux or system:macosx" })
+	includedirs({ "../SDL3/include/SDL3", "../SDL3/include", "../SDL3/src" })
 	links({ "SDL3" })
 
 filter("action:vs*")

@@ -36,6 +36,12 @@ newoption({
 	},
 	default = "on",
 })
+
+-- Ensure we run from project root (avoids failing when premake is invoked from raylib-master etc.)
+if _MAIN_SCRIPT_DIR and _MAIN_SCRIPT_DIR ~= "" then
+	os.chdir(_MAIN_SCRIPT_DIR)
+end
+
 function string.starts(String, Start)
 	return string.sub(String, 1, string.len(Start)) == Start
 end
@@ -88,11 +94,17 @@ function check_raygui()
 	end
 end
 
--- ENet: same pattern as raylib - download from GitHub if folder missing
+-- ENet: same pattern as raylib - download from GitHub if folder missing or invalid
 function check_enet()
 	local enet_dir = "enet-1.3.18"
+	local enet_premake = enet_dir .. "/premake5.lua"
 	local enet_zip = "enet-1.3.18.zip"
 	local enet_url = "https://github.com/lsalzman/enet/archive/refs/tags/v1.3.18.zip"
+	-- Re-download if directory exists but premake5.lua is missing (corrupted/empty extraction)
+	if os.isdir(enet_dir) and not os.isfile(enet_premake) then
+		print("ENet folder invalid (missing premake5.lua), removing and re-downloading")
+		os.execute('rm -rf "' .. enet_dir .. '"')
+	end
 	if not os.isdir(enet_dir) then
 		if not os.isfile(enet_zip) then
 			print("ENet not found, downloading from github")
@@ -267,7 +279,7 @@ if os.isdir("tiled_walk") then
 	include("tiled_walk")
 end
 
-if os.isdir("enet-1.3.18") then
+if os.isfile("enet-1.3.18/premake5.lua") then
 	include("enet-1.3.18")
 end
 
