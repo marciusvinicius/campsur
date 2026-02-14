@@ -39,6 +39,7 @@ EditorApp::EditorApp(int width, int height) : Engine(width, height, "Editor") {
 
 void EditorApp::EditorAppReset() {
   RegisterCoreComponents();
+  GetWorld().AddSystem<GravitySystem>(GetWorld());
   GetWorld().AddSystem<MovementSystem>(GetWorld());
   GetWorld().AddSystem<AnimationSystem>(GetWorld());
   GetWorld().AddSystem<SpriteSystem>(GetWorld());
@@ -117,10 +118,14 @@ void EditorApp::Run() {
     ImGui::NewFrame();
 
     HandleInput(dt, mouseDelta);
-    HandleEntityDrag(mouseDelta);
-    HandleScenePicking();
+    if (!isPlaying) {
+      HandleEntityDrag(mouseDelta);
+      HandleScenePicking();
+    }
 
-    GetWorld().Update(dt);
+    if (isPlaying) {
+      GetWorld().Update(dt);
+    }
 
     RenderSceneToTexture();
 
@@ -305,6 +310,20 @@ void EditorApp::DrawHierarchyPanel() {
   // functions ---
 
   if (ImGui::Begin("Viewport")) {
+    if (isPlaying) {
+      ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.2f, 1.0f));
+      if (ImGui::Button("■ Stop")) {
+        isPlaying = false;
+      }
+      ImGui::PopStyleColor();
+      ImGui::SameLine();
+      ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Playing");
+    } else {
+      if (ImGui::Button("▶ Play")) {
+        isPlaying = true;
+      }
+    }
+
     ImVec2 avail = ImGui::GetContentRegionAvail();
 
     static ImVec2 lastSize = {0, 0};
@@ -393,16 +412,19 @@ void EditorApp::HandleInput(float dt, Vec2 mouseDelta) {
     GetWorld().GetActiveCamera()->target.y -= mouseDelta.y / GetWorld().GetActiveCamera()->zoom;
   }
 
-  float speed = 500.0f * dt;
-  using namespace criogenio;
-  if (Input::IsKeyDown(static_cast<int>(Key::W)))
-    GetWorld().GetActiveCamera()->target.y -= speed;
-  if (Input::IsKeyDown(static_cast<int>(Key::S)))
-    GetWorld().GetActiveCamera()->target.y += speed;
-  if (Input::IsKeyDown(static_cast<int>(Key::A)))
-    GetWorld().GetActiveCamera()->target.x -= speed;
-  if (Input::IsKeyDown(static_cast<int>(Key::D)))
-    GetWorld().GetActiveCamera()->target.x += speed;
+  // WASD camera movement only in edit mode; when playing, input goes to the game
+  if (!isPlaying) {
+    float speed = 500.0f * dt;
+    using namespace criogenio;
+    if (Input::IsKeyDown(static_cast<int>(Key::W)))
+      GetWorld().GetActiveCamera()->target.y -= speed;
+    if (Input::IsKeyDown(static_cast<int>(Key::S)))
+      GetWorld().GetActiveCamera()->target.y += speed;
+    if (Input::IsKeyDown(static_cast<int>(Key::A)))
+      GetWorld().GetActiveCamera()->target.x -= speed;
+    if (Input::IsKeyDown(static_cast<int>(Key::D)))
+      GetWorld().GetActiveCamera()->target.x += speed;
+  }
 }
 
 void EditorApp::OnGUI() {
@@ -418,9 +440,9 @@ void EditorApp::DrawDockSpace() {
     return;
 
   ImGuiViewport *viewport = ImGui::GetMainViewport();
-
-  ImGui::SetNextWindowPos(viewport->Pos);
-  ImGui::SetNextWindowSize(viewport->Size);
+  const float topPadding = 8.0f;
+  ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + topPadding));
+  ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, viewport->Size.y - topPadding));
   ImGui::SetNextWindowViewport(viewport->ID);
 
   ImGuiWindowFlags flags =
@@ -460,10 +482,6 @@ void EditorApp::DrawDockSpace() {
     ImGui::DockBuilderDockWindow("Animation Editor", dock_right);
     ImGui::DockBuilderDockWindow("Global Inspector", dock_right);
     ImGui::DockBuilderDockWindow("Viewport", dock_main);
-    ImGui::DockBuilderDockWindow("##Toolbar", dock_main);
-    if (ImGui::Button("Click Me")) {
-      // Action to take when clicked
-    }
     ImGui::DockBuilderFinish(dockspace_id);
   }
   DrawHierarchyPanel();
@@ -596,7 +614,7 @@ void EditorApp::DrawMainMenuBar() {
     ImGui::EndMainMenuBar();
   }
 
-  if (terrainEditMode) {
+  if (terrainEditMode && !isPlaying) {
     Vec2 mouseScreen = GetMousePosition();
     criogenio::Rect viewRect = {(float)viewportPos.x, (float)viewportPos.y, (float)viewportSize.x, (float)viewportSize.y};
     if (criogenio::PointInRect(mouseScreen, viewRect)) {
@@ -622,30 +640,6 @@ void EditorApp::CreateEmptyEntityAtMouse() {
   GetWorld().AddComponent<criogenio::Name>(id,
                                            "New Entity " + std::to_string(id));
   GetWorld().AddComponent<criogenio::Transform>(id, worldPos.x, worldPos.y);
-}
-
-void EditorApp::DrawToolbar() {
-  ImGui::Begin("##Toolbar", nullptr,
-               ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoScrollbar |
-                   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking);
-
-  if (ImGui::Button("+ Entity")) {
-    //  CreateEmptyEntity();
-  }
-
-  ImGui::SameLine();
-
-  if (ImGui::Button("▶ Play")) {
-    //    EnterPlayMode();
-  }
-
-  ImGui::SameLine();
-
-  if (ImGui::Button("■ Stop")) {
-    // ExitPlayMode();
-  }
-
-  ImGui::End();
 }
 
 void EditorApp::DrawTerrainEditor() {
@@ -1024,6 +1018,9 @@ void EditorApp::DrawComponentInspectors(int entity) {
     DrawAIControllerInspector(entity);
   if (GetWorld().HasComponent<criogenio::Sprite>(entity))
     DrawSpriteInspector(entity);
+
+  if (GetWorld().HasComponent<criogenio::RigidBody>(entity))
+    DrawRigidBodyInspector(entity);
 }
 
 void EditorApp::DrawGravityInspector(int entity) {
@@ -1910,6 +1907,38 @@ void EditorApp::DrawControllerInspector(int entity) {
   }
 }
 
+void EditorApp::DrawRigidBodyInspector(int entity) {
+  ImGui::PushID("RigidBody");
+  ImGui::BeginGroup();
+  bool headerOpen = ImGui::CollapsingHeader("RigidBody");
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+  if (ImGui::SmallButton("X")) {
+    GetWorld().RemoveComponent<criogenio::RigidBody>(entity);
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return;
+  }
+  ImGui::EndGroup();
+  ImGui::PopID();
+
+  if (!headerOpen)
+    return;
+
+  auto *rb = GetWorld().GetComponent<criogenio::RigidBody>(entity);
+  if (!rb)
+    return;
+
+  ImGui::DragFloat("Mass", &rb->mass, 0.1f, 0.01f, 100.0f);
+  ImGui::DragFloat2("Velocity", &rb->velocity.x, 1.0f, -2000.0f, 2000.0f);
+
+  if (ImGui::BeginPopupContextItem("RigidBodyContext")) {
+    if (ImGui::MenuItem("Remove Component")) {
+      GetWorld().RemoveComponent<criogenio::RigidBody>(entity);
+    }
+    ImGui::EndPopup();
+  }
+}
+
 void EditorApp::DrawAIControllerInspector(int entity) {
 
   ImGui::PushID("AIController");
@@ -2020,6 +2049,12 @@ void EditorApp::DrawAddComponentMenu(int entity) {
     if (!GetWorld().HasComponent<criogenio::Sprite>(entity)) {
       if (ImGui::MenuItem("Sprite")) {
         GetWorld().AddComponent<criogenio::Sprite>(entity);
+      }
+    }
+
+    if (!GetWorld().HasComponent<criogenio::RigidBody>(entity)) {
+      if (ImGui::MenuItem("RigidBody")) {
+        GetWorld().AddComponent<criogenio::RigidBody>(entity);
       }
     }
     ImGui::EndPopup();

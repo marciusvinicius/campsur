@@ -183,9 +183,15 @@ class Gravity : public GlobalComponent {
 public:
   Gravity() = default;
   std::string TypeName() const override { return "Gravity"; }
-  float strength = 9.81f;
-  SerializedComponent Serialize() const override { return {"Gravity", {}}; }
-  void Deserialize(const SerializedComponent &data) override {}
+  /** Downward acceleration in pixels/s². Use ~980 for typical platformer feel. */
+  float strength = 980.0f;
+  SerializedComponent Serialize() const override {
+    return {"Gravity", {{"strength", strength}}};
+  }
+  void Deserialize(const SerializedComponent &data) override {
+    if (auto it = data.fields.find("strength"); it != data.fields.end())
+      strength = std::get<float>(it->second);
+  }
 };
 
 class RigidBody : public Component {
@@ -193,12 +199,19 @@ public:
   RigidBody() = default;
   std::string TypeName() const override { return "RigidBody"; }
   float mass = 1.0f;
+  /** Physics velocity (pixels/s). GravitySystem modifies .y; movement systems set .x (and .y for jump). */
+  Vec2 velocity = {0, 0};
   SerializedComponent Serialize() const override {
-    return {"RigidBody", {{"mass", mass}}};
+    return {"RigidBody",
+            {{"mass", mass}, {"velocity_x", velocity.x}, {"velocity_y", velocity.y}}};
   }
   void Deserialize(const SerializedComponent &data) override {
     if (auto it = data.fields.find("mass"); it != data.fields.end())
       mass = std::get<float>(it->second);
+    if (auto it = data.fields.find("velocity_x"); it != data.fields.end())
+      velocity.x = std::get<float>(it->second);
+    if (auto it = data.fields.find("velocity_y"); it != data.fields.end())
+      velocity.y = std::get<float>(it->second);
   }
 };
 

@@ -49,6 +49,9 @@ private:
   std::optional<int> selectedEntityId;
   bool imguiBackendsInitialized = false;
 
+  /** When true, World::Update runs (simulation); when false, scene is static (edit mode). */
+  bool isPlaying = false;
+
   void InitImGUI();
   void RenderSceneToTexture();
 
@@ -58,7 +61,6 @@ private:
   void DrawDockSpace();
   void DrawWorldView();
   void DrawMainMenuBar();
-  void DrawToolbar();
   void HandleEntityDrag(criogenio::Vec2 mouseDelta);
   void HandleInput(float dt, criogenio::Vec2 mouseDelta);
   void HandleScenePicking();
@@ -73,6 +75,7 @@ private:
   void DrawSpriteInspector(int entity);
   void DrawControllerInspector(int entity);
   void DrawAIControllerInspector(int entity);
+  void DrawRigidBodyInspector(int entity);
   void DrawAddComponentMenu(int entity);
   void DrawGlobalComponentsPanel();
   void DrawGlobalInspector();

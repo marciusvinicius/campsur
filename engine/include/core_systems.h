@@ -63,9 +63,6 @@ public:
   GravitySystem(World &w) : world(w) {}
   void Update(float dt) override;
   void Render(Renderer &renderer) override;
-
-private:
-  const float GRAVITY = 980.0f; // pixels per second squared
 };
 
 } // namespace criogenio

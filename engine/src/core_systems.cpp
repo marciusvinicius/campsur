@@ -192,10 +192,18 @@ void AnimationSystem::OnWorldLoaded(World &world) {
 }
 
 void GravitySystem::Update(float dt) {
-  auto gravity = world.GetGlobalComponent<Gravity>();
-  auto ids = world.GetEntitiesWith<Transform, Controller, RigidBody>();
+  auto *gravity = world.GetGlobalComponent<Gravity>();
+  float strength = gravity ? gravity->strength : 980.0f;
 
+  auto ids = world.GetEntitiesWith<Transform, RigidBody>();
   for (ecs::EntityId id : ids) {
+    auto *rb = world.GetComponent<RigidBody>(id);
+    auto *tr = world.GetComponent<Transform>(id);
+    if (!rb || !tr)
+      continue;
+
+    rb->velocity.y += strength * dt;
+    tr->y += rb->velocity.y * dt;
   }
 }
 
