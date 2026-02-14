@@ -4,7 +4,7 @@
     {
       "label": "Build",
       "type": "shell",
-      "command": "make",
+      "command": "make -f Build.makefile build",
       "group": {
         "kind": "build",
         "isDefault": true
@@ -13,9 +13,11 @@
         "reveal": "silent",
         "panel": "shared"
       },
-      "problemMatcher": ["$gcc"],
+      "problemMatcher": [
+        "$gcc"
+      ],
       "linux": {
-        "command": "make",
+        "command": "make -f Build.makefile build",
         "options": {
           "cwd": "${workspaceFolder}"
         }
@@ -32,7 +34,10 @@
           "cwd": "${workspaceFolder}",
           "shell": {
             "executable": "cmd.exe",
-            "args": ["/d", "/c"]
+            "args": [
+              "/d",
+              "/c"
+            ]
           }
         }
       }
@@ -40,12 +45,14 @@
     {
       "label": "Build (Make)",
       "type": "shell",
-      "command": "make",
+      "command": "make -f Build.makefile build",
       "group": "build",
       "options": {
         "cwd": "${workspaceFolder}"
       },
-      "problemMatcher": ["$gcc"],
+      "problemMatcher": [
+        "$gcc"
+      ],
       "presentation": {
         "reveal": "silent",
         "panel": "shared"
@@ -66,13 +73,18 @@
         "cwd": "${workspaceFolder}",
         "shell": {
           "executable": "cmd.exe",
-          "args": ["/d", "/c"]
+          "args": [
+            "/d",
+            "/c"
+          ]
         }
       },
       "windows": {
         "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\""
       },
-      "problemMatcher": ["$msCompile"],
+      "problemMatcher": [
+        "$msCompile"
+      ],
       "presentation": {
         "reveal": "silent",
         "panel": "shared"
@@ -82,7 +94,9 @@
       "label": "premake5 vs2022",
       "type": "shell",
       "command": "premake5",
-      "args": ["vs2022"],
+      "args": [
+        "vs2022"
+      ],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -96,7 +110,9 @@
       "label": "premake5 gmake2",
       "type": "shell",
       "command": "premake5",
-      "args": ["gmake2"],
+      "args": [
+        "gmake2"
+      ],
       "options": {
         "cwd": "${workspaceFolder}"
       },

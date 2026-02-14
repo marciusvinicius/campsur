@@ -122,6 +122,7 @@ public:
                              const std::string &texture_path);
   // Access terrain (may be null)
   Terrain2D *GetTerrain();
+  void DeleteTerrain();
 
   // Camera: component on an entity, or fallback maincamera
   void AttachCamera2D(Camera2D cam);

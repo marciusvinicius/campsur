@@ -584,10 +584,10 @@ void EditorApp::DrawMainMenuBar() {
         // CreateSpriteEntity();
       }
       if (ImGui::MenuItem("Terrain")) {
-        auto &t = GetWorld().CreateTerrain2D(
-            "Terrain",
-            "editor/assets/mystic_woods_free_2.2/sprites/tilesets/plains.png");
-        // CreateTerrain();
+        const char *path = DrawFileBrowserPopup();
+        if (path && path[0] != '\0') {
+          GetWorld().CreateTerrain2D("Terrain", path);
+        }
       }
       ImGui::EndMenu();
     }
@@ -598,14 +598,18 @@ void EditorApp::DrawMainMenuBar() {
   if (terrainEditMode) {
     Vec2 mouseScreen = GetMousePosition();
     criogenio::Rect viewRect = {(float)viewportPos.x, (float)viewportPos.y, (float)viewportSize.x, (float)viewportSize.y};
-    if (criogenio::PointInRect(mouseScreen, viewRect) && Input::IsMouseDown(0)) {
+    if (criogenio::PointInRect(mouseScreen, viewRect)) {
       Vec2 worldPos = ScreenToWorldPosition(mouseScreen);
       auto* terrain = GetWorld().GetTerrain();
       if (terrain) {
         float ts = static_cast<float>(terrain->tileset.tileSize);
         int tx = static_cast<int>(std::floor((worldPos.x - terrain->origin.x) / ts));
         int ty = static_cast<int>(std::floor((worldPos.y - terrain->origin.y) / ts));
-        terrain->SetTile(terrainSelectedLayer, tx, ty, terrainSelectedTile);
+        if (Input::IsMouseDown(0)) {
+          terrain->SetTile(terrainSelectedLayer, tx, ty, terrainSelectedTile);
+        } else if (Input::IsMouseDown(1)) {
+          terrain->SetTile(terrainSelectedLayer, tx, ty, -1);
+        }
       }
     }
   }
@@ -648,10 +652,12 @@ void EditorApp::DrawTerrainEditor() {
 
   auto *terrain = GetWorld().GetTerrain();
   if (!terrain) {
-    if (ImGui::Button("Create Terrain (default)")) {
-      GetWorld().CreateTerrain2D(
-          "MainTerrain",
-          "editor/assets/mystic_woods_free_2.2/sprites/tilesets/plains.png");
+    ImGui::Text("No terrain. Create one to start painting.");
+    if (ImGui::Button("Create Terrain...")) {
+      const char *path = DrawFileBrowserPopup();
+      if (path && path[0] != '\0') {
+        GetWorld().CreateTerrain2D("MainTerrain", path);
+      }
     }
     ImGui::End();
     return;
@@ -661,6 +667,10 @@ void EditorApp::DrawTerrainEditor() {
     if (ImGui::Button("Add Layer")) {
       terrain->AddLayer();
       terrainSelectedLayer = 0;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Delete Terrain")) {
+      GetWorld().DeleteTerrain();
     }
     ImGui::End();
     return;
@@ -692,7 +702,22 @@ void EditorApp::DrawTerrainEditor() {
   ImGui::Text("Selected Tile: %d", terrainSelectedTile);
   ImGui::Text("Tile Size: %d x %d", terrain->tileset.tileSize,
               terrain->tileset.tileSize);
-  ImGui::Text("Paint anywhere in viewport; chunks are created as you edit.");
+  ImGui::Text("Left-click: paint | Right-click: erase");
+
+  // Erase tool
+  bool eraseSelected = (terrainSelectedTile == -1);
+  if (eraseSelected) {
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.6f, 1.0f, 1.0f));
+  }
+  if (ImGui::Button("Erase (empty tile)")) {
+    terrainSelectedTile = -1;
+  }
+  if (eraseSelected) {
+    ImGui::PopStyleColor();
+  }
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("Select to paint empty tiles with left-click.\nRight-click always erases regardless of selection.");
+  }
 
   // Show tileset as selectable grid
   auto tex = terrain->tileset.atlas;
@@ -743,6 +768,11 @@ void EditorApp::DrawTerrainEditor() {
     }
   } else {
     ImGui::TextDisabled("Tileset atlas not loaded");
+  }
+
+  ImGui::Separator();
+  if (ImGui::Button("Delete Terrain", ImVec2(-1, 0))) {
+    GetWorld().DeleteTerrain();
   }
 
   ImGui::End();
@@ -1151,6 +1181,7 @@ const char *EditorApp::DrawFileBrowserPopup() {
              path);
     }
   }
+  return nullptr;
   /*
 
       ImGui::BeginPopupModal("File Browser", NULL,

@@ -367,4 +367,6 @@ void World::AttachCamera2D(criogenio::Camera2D cam) {
 
 Terrain2D *World::GetTerrain() { return terrain.get(); }
 
+void World::DeleteTerrain() { terrain = nullptr; }
+
 } // namespace criogenio
