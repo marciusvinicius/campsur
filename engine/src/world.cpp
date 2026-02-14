@@ -49,8 +49,12 @@ void World::Update(float dt) {
 
 void World::Render(Renderer& renderer) {
   renderer.BeginCamera2D(*GetActiveCamera());
-  renderer.DrawGrid(100, 32);
-  renderer.DrawCircle(0, 0, 6, Colors::Red);
+  // Only draw the default grid when there is no terrain; otherwise the editor
+  // draws a single terrain-aligned grid to avoid two overlapping grids.
+  if (!terrain) {
+    renderer.DrawGrid(100, 32);
+    renderer.DrawCircle(0, 0, 6, Colors::Red);
+  }
 
   if (terrain)
     terrain->Render(renderer);

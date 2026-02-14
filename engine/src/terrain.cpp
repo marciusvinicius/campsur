@@ -48,10 +48,15 @@ void Terrain2D::GetVisibleTileRange(const Camera2D &camera, float viewWidth,
   Vec2 worldMin = ScreenToWorld2D({0, 0}, camera, viewWidth, viewHeight);
   Vec2 worldMax =
       ScreenToWorld2D({viewWidth, viewHeight}, camera, viewWidth, viewHeight);
-  minTx = static_cast<int>(std::floor(std::min(worldMin.x, worldMax.x) / ts)) - 1;
-  minTy = static_cast<int>(std::floor(std::min(worldMin.y, worldMax.y) / ts)) - 1;
-  maxTx = static_cast<int>(std::floor(std::max(worldMin.x, worldMax.x) / ts)) + 1;
-  maxTy = static_cast<int>(std::floor(std::max(worldMin.y, worldMax.y) / ts)) + 1;
+  // Tile indices are relative to terrain.origin: worldPos = origin + (tx*ts, ty*ts)
+  float minWx = std::min(worldMin.x, worldMax.x) - origin.x;
+  float minWy = std::min(worldMin.y, worldMax.y) - origin.y;
+  float maxWx = std::max(worldMin.x, worldMax.x) - origin.x;
+  float maxWy = std::max(worldMin.y, worldMax.y) - origin.y;
+  minTx = static_cast<int>(std::floor(minWx / ts)) - 1;
+  minTy = static_cast<int>(std::floor(minWy / ts)) - 1;
+  maxTx = static_cast<int>(std::floor(maxWx / ts)) + 1;
+  maxTy = static_cast<int>(std::floor(maxWy / ts)) + 1;
 }
 
 void Terrain2D::Render(Renderer &renderer) {

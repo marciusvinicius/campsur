@@ -357,10 +357,8 @@ void EditorApp::HandleEntityDrag(Vec2 mouseDelta) {
     Vec2 mouseScreen = GetMousePosition();
     Vec2 prevMouseScreen = {mouseScreen.x - mouseDelta.x, mouseScreen.y - mouseDelta.y};
 
-    float vpW = (float)GetRenderer().GetViewportWidth();
-    float vpH = (float)GetRenderer().GetViewportHeight();
-    Vec2 prevWorld = ScreenToWorld2D(prevMouseScreen, *GetWorld().GetActiveCamera(), vpW, vpH);
-    Vec2 currWorld = ScreenToWorld2D(mouseScreen, *GetWorld().GetActiveCamera(), vpW, vpH);
+    Vec2 prevWorld = ScreenToWorldPosition(prevMouseScreen);
+    Vec2 currWorld = ScreenToWorldPosition(mouseScreen);
 
     Vec2 drag = {currWorld.x - prevWorld.x, currWorld.y - prevWorld.y};
 
@@ -496,6 +494,9 @@ void EditorApp::RenderSceneToTexture() {
     return;
   criogenio::Renderer& ren = GetRenderer();
   ren.SetRenderTarget(sceneRT);
+  // Camera offset must be (0,0) so screen center (halfW, halfH) maps to world target.
+  // The formula uses offset + halfW, so offset=0 puts target at viewport center.
+  GetWorld().GetActiveCamera()->offset = {0.0f, 0.0f};
   ren.DrawRect(0, 0, (float)sceneRT.width, (float)sceneRT.height, criogenio::Colors::Black);
   ren.BeginCamera2D(*GetWorld().GetActiveCamera());
 
