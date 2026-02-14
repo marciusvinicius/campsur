@@ -915,6 +915,18 @@ void EditorApp::HandleScenePicking() {
   Vec2 tex = {local.x * ((float)sceneRT.width / vw), local.y * ((float)sceneRT.height / vh)};
 
   Vec2 world = criogenio::ScreenToWorld2D(tex, *GetWorld().GetActiveCamera(), (float)sceneRT.width, (float)sceneRT.height);
+
+  // If we have a selection and the click is on the selected entity, keep it selected
+  // so we can drag it (otherwise PickEntityAt would clear selection first and might miss).
+  if (selectedEntityId.has_value()) {
+    auto* t = GetWorld().GetComponent<criogenio::Transform>(selectedEntityId.value());
+    if (t) {
+      criogenio::Rect bounds{t->x, t->y, 64.0f, 128.0f};
+      if (criogenio::PointInRect(world, bounds))
+        return;
+    }
+  }
+
   PickEntityAt(world);
 }
 
