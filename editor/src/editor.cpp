@@ -197,6 +197,12 @@ void EditorApp::DrawGlobalComponentsPanel() {
   ImGui::Text("Global Components");
   ImGui::Separator();
 
+  ImGui::Checkbox("Show Collider Bounds", &showColliderDebug);
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("Draw BoxCollider outlines in the viewport (green = solid, cyan = one-way platform).");
+  }
+  ImGui::Separator();
+
   // Gravity
   bool hasGravity = GetWorld().HasGlobalComponent<criogenio::Gravity>();
   if (hasGravity) {
@@ -521,7 +527,7 @@ void EditorApp::DrawColliderDebug(criogenio::Renderer& ren) {
                                  : criogenio::Color{0, 255, 0, 255};
     if (selected)
       color = criogenio::Colors::Yellow;
-    ren.DrawRectOutline(tr->x, tr->y, col->width, col->height, color);
+    ren.DrawRectOutline(tr->x + col->offsetX, tr->y + col->offsetY, col->width, col->height, color);
   }
 }
 
@@ -1971,6 +1977,10 @@ void EditorApp::DrawBoxColliderInspector(int entity) {
 
   ImGui::DragFloat("Width", &col->width, 1.0f, 1.0f, 1000.0f);
   ImGui::DragFloat("Height", &col->height, 1.0f, 1.0f, 1000.0f);
+  ImGui::DragFloat2("Offset", &col->offsetX, 1.0f, -1000.0f, 1000.0f);
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("Offset from entity position (collider rect = Transform + Offset, size).");
+  }
   ImGui::Checkbox("One-way platform", &col->isPlatform);
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("When checked, only collides when entity falls onto it from above.");
