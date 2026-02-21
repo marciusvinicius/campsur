@@ -222,15 +222,19 @@ public:
   std::string TypeName() const override { return "BoxCollider"; }
   float width = 1.0f;
   float height = 1.0f;
+  /** When true, only collides when entity falls onto it from above (one-way platform). */
+  bool isPlatform = false;
   SerializedComponent Serialize() const override {
-    return {"BoxCollider", {{"width", width}, {"height", height}}};
+    return {"BoxCollider",
+            {{"width", width}, {"height", height}, {"isPlatform", isPlatform}}};
   }
   void Deserialize(const SerializedComponent &data) override {
     if (auto it = data.fields.find("width"); it != data.fields.end())
-
       width = std::get<float>(it->second);
     if (auto it = data.fields.find("height"); it != data.fields.end())
       height = std::get<float>(it->second);
+    if (auto it = data.fields.find("isPlatform"); it != data.fields.end())
+      isPlatform = std::get<bool>(it->second);
   }
 };
 

@@ -52,8 +52,12 @@ private:
   /** When true, World::Update runs (simulation); when false, scene is static (edit mode). */
   bool isPlaying = false;
 
+  /** When true, draw BoxCollider outlines in the viewport. */
+  bool showColliderDebug = true;
+
   void InitImGUI();
   void RenderSceneToTexture();
+  void DrawColliderDebug(criogenio::Renderer& ren);
 
   void DrawUI();
   void DrawHierarchyPanel();
@@ -76,6 +80,7 @@ private:
   void DrawControllerInspector(int entity);
   void DrawAIControllerInspector(int entity);
   void DrawRigidBodyInspector(int entity);
+  void DrawBoxColliderInspector(int entity);
   void DrawAddComponentMenu(int entity);
   void DrawGlobalComponentsPanel();
   void DrawGlobalInspector();

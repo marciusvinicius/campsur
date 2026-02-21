@@ -40,6 +40,7 @@ EditorApp::EditorApp(int width, int height) : Engine(width, height, "Editor") {
 void EditorApp::EditorAppReset() {
   RegisterCoreComponents();
   GetWorld().AddSystem<GravitySystem>(GetWorld());
+  GetWorld().AddSystem<CollisionSystem>(GetWorld());
   GetWorld().AddSystem<MovementSystem>(GetWorld());
   GetWorld().AddSystem<AnimationSystem>(GetWorld());
   GetWorld().AddSystem<SpriteSystem>(GetWorld());
@@ -507,6 +508,23 @@ void DrawTileHighlight(criogenio::Renderer& renderer, const criogenio::Terrain2D
   renderer.DrawRectOutline(x, y, (float)ts, (float)ts, criogenio::Colors::Yellow);
 }
 
+void EditorApp::DrawColliderDebug(criogenio::Renderer& ren) {
+  auto ids = GetWorld().GetEntitiesWith<criogenio::Transform, criogenio::BoxCollider>();
+  for (criogenio::ecs::EntityId id : ids) {
+    auto* tr = GetWorld().GetComponent<criogenio::Transform>(id);
+    auto* col = GetWorld().GetComponent<criogenio::BoxCollider>(id);
+    if (!tr || !col)
+      continue;
+    bool selected = selectedEntityId.has_value() && selectedEntityId.value() == id;
+    criogenio::Color color = col->isPlatform
+                                 ? criogenio::Color{0, 200, 255, 255}
+                                 : criogenio::Color{0, 255, 0, 255};
+    if (selected)
+      color = criogenio::Colors::Yellow;
+    ren.DrawRectOutline(tr->x, tr->y, col->width, col->height, color);
+  }
+}
+
 void EditorApp::RenderSceneToTexture() {
   if (!sceneRT.valid())
     return;
@@ -524,6 +542,9 @@ void EditorApp::RenderSceneToTexture() {
   }
 
   GetWorld().Render(ren);
+
+  if (showColliderDebug)
+    DrawColliderDebug(ren);
 
   if (terrainEditMode && GetWorld().GetTerrain()) {
     criogenio::Vec2 worldPos = ScreenToWorldPosition(GetViewportMousePos());
@@ -1038,6 +1059,9 @@ void EditorApp::DrawComponentInspectors(int entity) {
 
   if (GetWorld().HasComponent<criogenio::RigidBody>(entity))
     DrawRigidBodyInspector(entity);
+
+  if (GetWorld().HasComponent<criogenio::BoxCollider>(entity))
+    DrawBoxColliderInspector(entity);
 }
 
 void EditorApp::DrawGravityInspector(int entity) {
@@ -1924,6 +1948,42 @@ void EditorApp::DrawControllerInspector(int entity) {
   }
 }
 
+void EditorApp::DrawBoxColliderInspector(int entity) {
+  ImGui::PushID("BoxCollider");
+  ImGui::BeginGroup();
+  bool headerOpen = ImGui::CollapsingHeader("Box Collider");
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+  if (ImGui::SmallButton("X")) {
+    GetWorld().RemoveComponent<criogenio::BoxCollider>(entity);
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return;
+  }
+  ImGui::EndGroup();
+  ImGui::PopID();
+
+  if (!headerOpen)
+    return;
+
+  auto *col = GetWorld().GetComponent<criogenio::BoxCollider>(entity);
+  if (!col)
+    return;
+
+  ImGui::DragFloat("Width", &col->width, 1.0f, 1.0f, 1000.0f);
+  ImGui::DragFloat("Height", &col->height, 1.0f, 1.0f, 1000.0f);
+  ImGui::Checkbox("One-way platform", &col->isPlatform);
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("When checked, only collides when entity falls onto it from above.");
+  }
+
+  if (ImGui::BeginPopupContextItem("BoxColliderContext")) {
+    if (ImGui::MenuItem("Remove Component")) {
+      GetWorld().RemoveComponent<criogenio::BoxCollider>(entity);
+    }
+    ImGui::EndPopup();
+  }
+}
+
 void EditorApp::DrawRigidBodyInspector(int entity) {
   ImGui::PushID("RigidBody");
   ImGui::BeginGroup();
@@ -2072,6 +2132,12 @@ void EditorApp::DrawAddComponentMenu(int entity) {
     if (!GetWorld().HasComponent<criogenio::RigidBody>(entity)) {
       if (ImGui::MenuItem("RigidBody")) {
         GetWorld().AddComponent<criogenio::RigidBody>(entity);
+      }
+    }
+
+    if (!GetWorld().HasComponent<criogenio::BoxCollider>(entity)) {
+      if (ImGui::MenuItem("Box Collider")) {
+        GetWorld().AddComponent<criogenio::BoxCollider>(entity);
       }
     }
     ImGui::EndPopup();

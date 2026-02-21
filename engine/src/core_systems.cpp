@@ -209,6 +209,97 @@ void GravitySystem::Update(float dt) {
 
 void GravitySystem::Render(Renderer &renderer) {}
 
+static bool AABBOverlap(float ax, float ay, float aw, float ah,
+                        float bx, float by, float bw, float bh) {
+  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+void CollisionSystem::Update(float dt) {
+  (void)dt;
+  auto dynamics = world.GetEntitiesWith<Transform, RigidBody, BoxCollider>();
+  auto statics = world.GetEntitiesWith<Transform, BoxCollider>();
+
+  for (ecs::EntityId dynId : dynamics) {
+    auto *rb = world.GetComponent<RigidBody>(dynId);
+    auto *tr = world.GetComponent<Transform>(dynId);
+    auto *col = world.GetComponent<BoxCollider>(dynId);
+    if (!rb || !tr || !col)
+      continue;
+
+    float dynLeft = tr->x;
+    float dynTop = tr->y;
+    float dynRight = tr->x + col->width;
+    float dynBottom = tr->y + col->height;
+
+    for (ecs::EntityId statId : statics) {
+      if (statId == dynId)
+        continue;
+      if (world.HasComponent<RigidBody>(statId))
+        continue;
+
+      auto *platTr = world.GetComponent<Transform>(statId);
+      auto *platCol = world.GetComponent<BoxCollider>(statId);
+      if (!platTr || !platCol)
+        continue;
+
+      float platLeft = platTr->x;
+      float platTop = platTr->y;
+      float platRight = platTr->x + platCol->width;
+      float platBottom = platTr->y + platCol->height;
+
+      if (!AABBOverlap(dynLeft, dynTop, col->width, col->height,
+                       platLeft, platTop, platCol->width, platCol->height))
+        continue;
+
+      bool isPlatform = platCol->isPlatform;
+
+      if (isPlatform) {
+        if (rb->velocity.y <= 0)
+          continue;
+        if (dynBottom <= platTop + 1.0f)
+          continue;
+        tr->y = platTop - col->height;
+        rb->velocity.y = 0;
+      } else {
+        float overlapTop = dynBottom - platTop;
+        float overlapBottom = platBottom - dynTop;
+        float overlapLeft = dynRight - platLeft;
+        float overlapRight = platRight - dynLeft;
+        float minOverlap = overlapTop;
+        int resolve = 0;
+        if (overlapBottom < minOverlap) {
+          minOverlap = overlapBottom;
+          resolve = 1;
+        }
+        if (overlapLeft < minOverlap) {
+          minOverlap = overlapLeft;
+          resolve = 2;
+        }
+        if (overlapRight < minOverlap) {
+          minOverlap = overlapRight;
+          resolve = 3;
+        }
+        if (resolve == 0) {
+          tr->y = platTop - col->height;
+          rb->velocity.y = 0;
+        } else if (resolve == 1) {
+          tr->y = platBottom;
+          rb->velocity.y = 0;
+        } else if (resolve == 2) {
+          tr->x = platLeft - col->width;
+          rb->velocity.x = 0;
+        } else {
+          tr->x = platRight;
+          rb->velocity.x = 0;
+        }
+      }
+      break;
+    }
+  }
+}
+
+void CollisionSystem::Render(Renderer &renderer) { (void)renderer; }
+
 void SpriteSystem::Update(float dt) {}
 
 void SpriteSystem::Render(Renderer &renderer) {
