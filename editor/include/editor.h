@@ -90,6 +90,10 @@ private:
 
   bool IsMouseInWorldView();
 
+  // Mouse position in screen coordinates (matches ImGui/viewportPos). Use this for
+  // viewport hit-testing; GetMousePosition() returns window-relative coords.
+  criogenio::Vec2 GetViewportMousePos() const;
+
   // Helper to convert mouse screen position to world coordinates
   criogenio::Vec2 ScreenToWorldPosition(criogenio::Vec2 mouseScreen);
 

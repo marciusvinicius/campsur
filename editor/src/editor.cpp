@@ -335,14 +335,14 @@ void EditorApp::DrawHierarchyPanel() {
       lastSize = avail;
     }
 
-    ImVec2 vMin = ImGui::GetWindowContentRegionMin();
-    ImVec2 vMax = ImGui::GetWindowContentRegionMax();
-    ImVec2 wPos = ImGui::GetWindowPos();
-
-    viewportPos = {wPos.x + vMin.x, wPos.y + vMin.y};
-    viewportSize = {vMax.x - vMin.x, vMax.y - vMin.y};
     viewportHovered =
         ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+
+    // Use cursor position and avail size so viewport matches where the image is
+    // actually drawn (below the Play/Stop header). Using vMin/vMax was wrong
+    // because the image is drawn at the cursor, not at the content region top.
+    viewportPos = ImGui::GetCursorScreenPos();
+    viewportSize = avail;
 
     if (sceneRT.valid() && viewportSize.x > 0 && viewportSize.y > 0) {
       ImGui::Image((ImTextureID)(intptr_t)sceneRT.opaque, viewportSize,
@@ -361,7 +361,7 @@ void EditorApp::DrawHierarchyPanel() {
 }
 
 bool EditorApp::IsMouseInWorldView() {
-  Vec2 mouse = GetMousePosition();
+  Vec2 mouse = GetViewportMousePos();
   criogenio::Rect viewRect = {(float)viewportPos.x, (float)viewportPos.y, (float)viewportSize.x, (float)viewportSize.y};
   return criogenio::PointInRect(mouse, viewRect);
 }
@@ -373,7 +373,7 @@ void EditorApp::HandleEntityDrag(Vec2 mouseDelta) {
     return;
 
   if (Input::IsMouseDown(0)) {
-    Vec2 mouseScreen = GetMousePosition();
+    Vec2 mouseScreen = GetViewportMousePos();
     Vec2 prevMouseScreen = {mouseScreen.x - mouseDelta.x, mouseScreen.y - mouseDelta.y};
 
     Vec2 prevWorld = ScreenToWorldPosition(prevMouseScreen);
@@ -526,7 +526,7 @@ void EditorApp::RenderSceneToTexture() {
   GetWorld().Render(ren);
 
   if (terrainEditMode && GetWorld().GetTerrain()) {
-    criogenio::Vec2 worldPos = ScreenToWorldPosition(GetMousePosition());
+    criogenio::Vec2 worldPos = ScreenToWorldPosition(GetViewportMousePos());
     criogenio::Vec2 tile = TerrainWorldToTile(worldPos, *GetWorld().GetTerrain());
     DrawTerrainGridOverlay(*GetWorld().GetTerrain(), *GetWorld().GetActiveCamera());
     DrawTileHighlight(ren, *GetWorld().GetTerrain(), tile, *GetWorld().GetActiveCamera());
@@ -615,7 +615,7 @@ void EditorApp::DrawMainMenuBar() {
   }
 
   if (terrainEditMode && !isPlaying) {
-    Vec2 mouseScreen = GetMousePosition();
+    Vec2 mouseScreen = GetViewportMousePos();
     criogenio::Rect viewRect = {(float)viewportPos.x, (float)viewportPos.y, (float)viewportSize.x, (float)viewportSize.y};
     if (criogenio::PointInRect(mouseScreen, viewRect)) {
       Vec2 worldPos = ScreenToWorldPosition(mouseScreen);
@@ -904,7 +904,7 @@ void EditorApp::HandleScenePicking() {
   if (!ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     return;
 
-  Vec2 mouse = GetMousePosition();
+  Vec2 mouse = GetViewportMousePos();
   float vx = viewportPos.x, vy = viewportPos.y, vw = viewportSize.x, vh = viewportSize.y;
   if (mouse.x < vx || mouse.y < vy || mouse.x > vx + vw || mouse.y > vy + vh)
     return;
@@ -950,6 +950,11 @@ void EditorApp::PickEntityAt(criogenio::Vec2 worldPos) {
 bool EditorApp::IsSceneInputAllowed() const {
   return viewportHovered && !ImGui::IsAnyItemActive() &&
          !ImGui::IsAnyItemHovered();
+}
+
+criogenio::Vec2 EditorApp::GetViewportMousePos() const {
+  ImVec2 p = ImGui::GetIO().MousePos;
+  return {p.x, p.y};
 }
 
 criogenio::Vec2 EditorApp::ScreenToWorldPosition(criogenio::Vec2 mouseScreen) {
