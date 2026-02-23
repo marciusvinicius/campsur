@@ -8,6 +8,8 @@
 #include "keys.h"
 #include "math.h"
 #include "resources.h"
+#include "terrain.h"
+#include <cmath>
 
 namespace criogenio {
 
@@ -131,7 +133,10 @@ std::string AnimationSystem::BuildClipKey(const AnimationState &st) {
   case AnimState::IDLE:
     return "idle_" + FacingToString(st.facing);
   case AnimState::WALKING:
+  case AnimState::RUNNING:
     return "walk_" + FacingToString(st.facing);
+  case AnimState::JUMPING:
+    return "jump_" + FacingToString(st.facing);
   case AnimState::ATTACKING:
     return "attack_" + FacingToString(st.facing);
   }
@@ -217,12 +222,77 @@ static bool AABBOverlap(float ax, float ay, float aw, float ah,
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
 
+// Resolve dynamic AABB against a platform rect. Returns true if collision was resolved.
+static bool ResolveAgainstPlatform(float &trX, float &trY, RigidBody *rb,
+    float dynLeft, float dynTop, float dynRight, float dynBottom,
+    float colOffX, float colOffY, float colW, float colH,
+    float platLeft, float platTop, float platRight, float platBottom,
+    bool isPlatform, bool *outGrounded) {
+  if (!AABBOverlap(dynLeft, dynTop, colW, colH, platLeft, platTop,
+                   platRight - platLeft, platBottom - platTop))
+    return false;
+
+  if (isPlatform) {
+    if (rb->velocity.y <= 0)
+      return false;
+    if (dynBottom <= platTop + 1.0f)
+      return false;
+    trY = platTop - colOffY - colH;
+    rb->velocity.y = 0;
+    if (outGrounded)
+      *outGrounded = true;
+    return true;
+  }
+
+  float overlapTop = dynBottom - platTop;
+  float overlapBottom = platBottom - dynTop;
+  float overlapLeft = dynRight - platLeft;
+  float overlapRight = platRight - dynLeft;
+  float minOverlap = overlapTop;
+  int resolve = 0;
+  if (overlapBottom < minOverlap) {
+    minOverlap = overlapBottom;
+    resolve = 1;
+  }
+  if (overlapLeft < minOverlap) {
+    minOverlap = overlapLeft;
+    resolve = 2;
+  }
+  if (overlapRight < minOverlap) {
+    minOverlap = overlapRight;
+    resolve = 3;
+  }
+  if (resolve == 0) {
+    trY = platTop - colOffY - colH;
+    rb->velocity.y = 0;
+    if (outGrounded)
+      *outGrounded = true;
+  } else if (resolve == 1) {
+    trY = platBottom - colOffY;
+    rb->velocity.y = 0;
+  } else if (resolve == 2) {
+    trX = platLeft - colOffX - colW;
+    rb->velocity.x = 0;
+  } else {
+    trX = platRight - colOffX;
+    rb->velocity.x = 0;
+  }
+  return true;
+}
+
 void CollisionSystem::Update(float dt) {
   (void)dt;
   auto dynamics = world.GetEntitiesWith<Transform, RigidBody, BoxCollider>();
   auto statics = world.GetEntitiesWith<Transform, BoxCollider>();
+  Terrain2D *terrain = world.GetTerrain();
+  const int ts = terrain ? terrain->tileset.tileSize : 0;
+  const float ox = terrain ? terrain->origin.x : 0;
+  const float oy = terrain ? terrain->origin.y : 0;
 
   for (ecs::EntityId dynId : dynamics) {
+    auto *grounded = world.GetComponent<Grounded>(dynId);
+    if (grounded)
+      grounded->value = false;
     auto *rb = world.GetComponent<RigidBody>(dynId);
     auto *tr = world.GetComponent<Transform>(dynId);
     auto *col = world.GetComponent<BoxCollider>(dynId);
@@ -233,70 +303,56 @@ void CollisionSystem::Update(float dt) {
     float dynTop = tr->y + col->offsetY;
     float dynRight = dynLeft + col->width;
     float dynBottom = dynTop + col->height;
+    bool resolved = false;
 
+    // Collision against entity platforms
     for (ecs::EntityId statId : statics) {
-      if (statId == dynId)
+      if (statId == dynId || world.HasComponent<RigidBody>(statId))
         continue;
-      if (world.HasComponent<RigidBody>(statId))
-        continue;
-
       auto *platTr = world.GetComponent<Transform>(statId);
       auto *platCol = world.GetComponent<BoxCollider>(statId);
       if (!platTr || !platCol)
         continue;
-
       float platLeft = platTr->x + platCol->offsetX;
       float platTop = platTr->y + platCol->offsetY;
       float platRight = platLeft + platCol->width;
       float platBottom = platTop + platCol->height;
+      if (ResolveAgainstPlatform(tr->x, tr->y, rb, dynLeft, dynTop, dynRight, dynBottom,
+          col->offsetX, col->offsetY, col->width, col->height,
+          platLeft, platTop, platRight, platBottom, platCol->isPlatform,
+          grounded ? &grounded->value : nullptr)) {
+        resolved = true;
+        break;
+      }
+    }
 
-      if (!AABBOverlap(dynLeft, dynTop, col->width, col->height,
-                       platLeft, platTop, platCol->width, platCol->height))
-        continue;
+    // Collision against terrain tiles (solid tiles act as platforms)
+    if (!resolved && terrain && ts > 0 && !terrain->layers.empty()) {
+      int minTx = static_cast<int>(std::floor((dynLeft - ox) / ts));
+      int maxTx = static_cast<int>(std::floor((dynRight - ox - 0.001f) / ts));
+      int minTy = static_cast<int>(std::floor((dynTop - oy) / ts));
+      int maxTy = static_cast<int>(std::floor((dynBottom - oy - 0.001f) / ts));
 
-      bool isPlatform = platCol->isPlatform;
-
-      if (isPlatform) {
-        if (rb->velocity.y <= 0)
-          continue;
-        if (dynBottom <= platTop + 1.0f)
-          continue;
-        tr->y = platTop - col->offsetY - col->height;
-        rb->velocity.y = 0;
-      } else {
-        float overlapTop = dynBottom - platTop;
-        float overlapBottom = platBottom - dynTop;
-        float overlapLeft = dynRight - platLeft;
-        float overlapRight = platRight - dynLeft;
-        float minOverlap = overlapTop;
-        int resolve = 0;
-        if (overlapBottom < minOverlap) {
-          minOverlap = overlapBottom;
-          resolve = 1;
-        }
-        if (overlapLeft < minOverlap) {
-          minOverlap = overlapLeft;
-          resolve = 2;
-        }
-        if (overlapRight < minOverlap) {
-          minOverlap = overlapRight;
-          resolve = 3;
-        }
-        if (resolve == 0) {
-          tr->y = platTop - col->offsetY - col->height;
-          rb->velocity.y = 0;
-        } else if (resolve == 1) {
-          tr->y = platBottom - col->offsetY;
-          rb->velocity.y = 0;
-        } else if (resolve == 2) {
-          tr->x = platLeft - col->offsetX - col->width;
-          rb->velocity.x = 0;
-        } else {
-          tr->x = platRight - col->offsetX;
-          rb->velocity.x = 0;
+      for (int ty = minTy; ty <= maxTy && !resolved; ty++) {
+        for (int tx = minTx; tx <= maxTx && !resolved; tx++) {
+          if (terrain->GetTile(0, tx, ty) < 0)
+            continue;
+          float platLeft = ox + tx * ts;
+          float platTop = oy + ty * ts;
+          float platRight = platLeft + ts;
+          float platBottom = platTop + ts;
+          dynLeft = tr->x + col->offsetX;
+          dynTop = tr->y + col->offsetY;
+          dynRight = dynLeft + col->width;
+          dynBottom = dynTop + col->height;
+          if (ResolveAgainstPlatform(tr->x, tr->y, rb, dynLeft, dynTop, dynRight, dynBottom,
+              col->offsetX, col->offsetY, col->width, col->height,
+              platLeft, platTop, platRight, platBottom, false,
+              grounded ? &grounded->value : nullptr)) {
+            resolved = true;
+          }
         }
       }
-      break;
     }
   }
 }

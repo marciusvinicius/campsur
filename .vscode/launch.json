@@ -116,6 +116,35 @@
           "ignoreFailures": true
         }
       ]
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Platformer (Windows)",
+      "program": "${workspaceFolder}/bin/Debug/campsur_platformer.exe",
+      "args": [],
+      "preLaunchTask": "Build Platformer",
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "externalConsole": false
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Platformer (Linux)",
+      "program": "${workspaceFolder}/bin/Debug/campsur_platformer",
+      "args": [],
+      "preLaunchTask": "Build Platformer",
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
     }
   ]
 }

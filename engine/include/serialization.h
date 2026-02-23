@@ -23,6 +23,8 @@ inline float GetFloat(const Variant &v) {
 inline int GetInt(const Variant &v) {
   if (std::holds_alternative<int>(v))
     return std::get<int>(v);
+  if (std::holds_alternative<float>(v))
+    return static_cast<int>(std::get<float>(v));
   throw std::runtime_error("Expected int");
 }
 

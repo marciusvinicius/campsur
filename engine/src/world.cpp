@@ -313,6 +313,9 @@ void World::Deserialize(const SerializedWorld &data) {
       } else if (type_name == "Name") {
         auto &nameComp = AddComponent<Name>(entity_id);
         nameComp.Deserialize(serialized_component);
+      } else if (type_name == "BoxCollider") {
+        auto &col = AddComponent<BoxCollider>(entity_id);
+        col.Deserialize(serialized_component);
       } else if (type_name == "Camera") {
         auto &cam = AddComponent<Camera>(entity_id);
         cam.Deserialize(serialized_component);

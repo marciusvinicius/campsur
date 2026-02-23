@@ -84,19 +84,15 @@ public:
 
   void Deserialize(const SerializedComponent &data) override {
     if (auto it = data.fields.find("x"); it != data.fields.end())
-      x = std::get<float>(it->second);
-
+      x = GetFloat(it->second);
     if (auto it = data.fields.find("y"); it != data.fields.end())
-      y = std::get<float>(it->second);
-
+      y = GetFloat(it->second);
     if (auto it = data.fields.find("rotation"); it != data.fields.end())
-      rotation = std::get<float>(it->second);
-
+      rotation = GetFloat(it->second);
     if (auto it = data.fields.find("scale_x"); it != data.fields.end())
-      scale_x = std::get<float>(it->second);
-
+      scale_x = GetFloat(it->second);
     if (auto it = data.fields.find("scale_y"); it != data.fields.end())
-      scale_y = std::get<float>(it->second);
+      scale_y = GetFloat(it->second);
   }
 };
 
@@ -125,10 +121,9 @@ public:
   }
 
   void Deserialize(const SerializedComponent &data) override {
-    velocity.x = std::get<float>(data.fields.at("velocity_x"));
-    velocity.y = std::get<float>(data.fields.at("velocity_y"));
-    direction =
-        static_cast<Direction>(std::get<int>(data.fields.at("direction")));
+    velocity.x = GetFloat(data.fields.at("velocity_x"));
+    velocity.y = GetFloat(data.fields.at("velocity_y"));
+    direction = static_cast<Direction>(GetInt(data.fields.at("direction")));
   }
 };
 
@@ -157,13 +152,11 @@ public:
   }
 
   void Deserialize(const SerializedComponent &data) override {
-    velocity.x = std::get<float>(data.fields.at("velocity_x"));
-    velocity.y = std::get<float>(data.fields.at("velocity_y"));
-    direction =
-        static_cast<Direction>(std::get<int>(data.fields.at("direction")));
-    brainState =
-        static_cast<AIBrainState>(std::get<int>(data.fields.at("brainState")));
-    entityTarget = std::get<int>(data.fields.at("entityTarget"));
+    velocity.x = GetFloat(data.fields.at("velocity_x"));
+    velocity.y = GetFloat(data.fields.at("velocity_y"));
+    direction = static_cast<Direction>(GetInt(data.fields.at("direction")));
+    brainState = static_cast<AIBrainState>(GetInt(data.fields.at("brainState")));
+    entityTarget = GetInt(data.fields.at("entityTarget"));
   }
 };
 
@@ -195,7 +188,19 @@ public:
   }
   void Deserialize(const SerializedComponent &data) override {
     if (auto it = data.fields.find("strength"); it != data.fields.end())
-      strength = std::get<float>(it->second);
+      strength = GetFloat(it->second);
+  }
+};
+
+/** Set by CollisionSystem when entity lands on a platform. Cleared each frame; used for jump. */
+class Grounded : public Component {
+public:
+  bool value = false;
+  std::string TypeName() const override { return "Grounded"; }
+  SerializedComponent Serialize() const override { return {"Grounded", {{"value", value}}}; }
+  void Deserialize(const SerializedComponent &data) override {
+    if (auto it = data.fields.find("value"); it != data.fields.end())
+      value = std::get<bool>(it->second);
   }
 };
 
@@ -212,11 +217,11 @@ public:
   }
   void Deserialize(const SerializedComponent &data) override {
     if (auto it = data.fields.find("mass"); it != data.fields.end())
-      mass = std::get<float>(it->second);
+      mass = GetFloat(it->second);
     if (auto it = data.fields.find("velocity_x"); it != data.fields.end())
-      velocity.x = std::get<float>(it->second);
+      velocity.x = GetFloat(it->second);
     if (auto it = data.fields.find("velocity_y"); it != data.fields.end())
-      velocity.y = std::get<float>(it->second);
+      velocity.y = GetFloat(it->second);
   }
 };
 
@@ -238,13 +243,13 @@ public:
   }
   void Deserialize(const SerializedComponent &data) override {
     if (auto it = data.fields.find("width"); it != data.fields.end())
-      width = std::get<float>(it->second);
+      width = GetFloat(it->second);
     if (auto it = data.fields.find("height"); it != data.fields.end())
-      height = std::get<float>(it->second);
+      height = GetFloat(it->second);
     if (auto it = data.fields.find("offsetX"); it != data.fields.end())
-      offsetX = std::get<float>(it->second);
+      offsetX = GetFloat(it->second);
     if (auto it = data.fields.find("offsetY"); it != data.fields.end())
-      offsetY = std::get<float>(it->second);
+      offsetY = GetFloat(it->second);
     if (auto it = data.fields.find("isPlatform"); it != data.fields.end())
       isPlatform = std::get<bool>(it->second);
   }
@@ -275,9 +280,9 @@ public:
 
   void Deserialize(const SerializedComponent &data) override {
     textureId =
-        static_cast<AssetId>(std::get<int>(data.fields.at("textureId")));
+        static_cast<AssetId>(GetInt(data.fields.at("textureId")));
     spriteSize =
-        static_cast<AssetId>(std::get<int>(data.fields.at("spriteSize")));
+        static_cast<AssetId>(GetInt(data.fields.at("spriteSize")));
   }
 
   void SetTexture(const char *path) {
@@ -328,17 +333,17 @@ public:
 
   void Deserialize(const SerializedComponent& data_in) override {
     if (auto it = data_in.fields.find("offset_x"); it != data_in.fields.end())
-      data.offset.x = std::get<float>(it->second);
+      data.offset.x = GetFloat(it->second);
     if (auto it = data_in.fields.find("offset_y"); it != data_in.fields.end())
-      data.offset.y = std::get<float>(it->second);
+      data.offset.y = GetFloat(it->second);
     if (auto it = data_in.fields.find("target_x"); it != data_in.fields.end())
-      data.target.x = std::get<float>(it->second);
+      data.target.x = GetFloat(it->second);
     if (auto it = data_in.fields.find("target_y"); it != data_in.fields.end())
-      data.target.y = std::get<float>(it->second);
+      data.target.y = GetFloat(it->second);
     if (auto it = data_in.fields.find("rotation"); it != data_in.fields.end())
-      data.rotation = std::get<float>(it->second);
+      data.rotation = GetFloat(it->second);
     if (auto it = data_in.fields.find("zoom"); it != data_in.fields.end())
-      data.zoom = std::get<float>(it->second);
+      data.zoom = GetFloat(it->second);
   }
 };
 

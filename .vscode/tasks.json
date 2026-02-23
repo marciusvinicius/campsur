@@ -5,122 +5,67 @@
       "label": "Build",
       "type": "shell",
       "command": "make -f Build.makefile build",
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "presentation": {
-        "reveal": "silent",
-        "panel": "shared"
-      },
-      "problemMatcher": [
-        "$gcc"
-      ],
-      "linux": {
-        "command": "make -f Build.makefile build",
-        "options": {
-          "cwd": "${workspaceFolder}"
-        }
-      },
-      "windows": {
-        "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\"",
-        "args": [
-          "campsur.sln",
-          "/p:Configuration=Debug",
-          "/p:Platform=x64",
-          "/v:minimal"
-        ],
-        "options": {
-          "cwd": "${workspaceFolder}",
-          "shell": {
-            "executable": "cmd.exe",
-            "args": [
-              "/d",
-              "/c"
-            ]
-          }
-        }
-      }
+      "group": {"kind": "build", "isDefault": true},
+      "presentation": {"reveal": "silent", "panel": "shared"},
+      "problemMatcher": ["$gcc"],
+      "linux": {"command": "make -f Build.makefile build", "options": {"cwd": "${workspaceFolder}"}},
+      "windows": {"command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\"", "args": ["campsur.sln", "/p:Configuration=Debug", "/p:Platform=x64", "/v:minimal"], "options": {"cwd": "${workspaceFolder}", "shell": {"executable": "cmd.exe", "args": ["/d", "/c"]}}}
     },
     {
       "label": "Build (Make)",
       "type": "shell",
       "command": "make -f Build.makefile build",
       "group": "build",
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "problemMatcher": [
-        "$gcc"
-      ],
-      "presentation": {
-        "reveal": "silent",
-        "panel": "shared"
-      }
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": ["$gcc"],
+      "presentation": {"reveal": "silent", "panel": "shared"}
     },
     {
       "label": "Build (MSBuild)",
       "type": "shell",
       "command": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe",
-      "args": [
-        "campsur.sln",
-        "/p:Configuration=Debug",
-        "/p:Platform=x64",
-        "/v:minimal"
-      ],
+      "args": ["campsur.sln", "/p:Configuration=Debug", "/p:Platform=x64", "/v:minimal"],
       "group": "build",
-      "options": {
-        "cwd": "${workspaceFolder}",
-        "shell": {
-          "executable": "cmd.exe",
-          "args": [
-            "/d",
-            "/c"
-          ]
-        }
-      },
-      "windows": {
-        "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\""
-      },
-      "problemMatcher": [
-        "$msCompile"
-      ],
-      "presentation": {
-        "reveal": "silent",
-        "panel": "shared"
-      }
+      "options": {"cwd": "${workspaceFolder}", "shell": {"executable": "cmd.exe", "args": ["/d", "/c"]}},
+      "windows": {"command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\""},
+      "problemMatcher": ["$msCompile"],
+      "presentation": {"reveal": "silent", "panel": "shared"}
+    },
+    {
+      "label": "Build Platformer",
+      "type": "shell",
+      "command": "make config=debug_arm64 campsur_platformer",
+      "group": "build",
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": ["$gcc"],
+      "presentation": {"reveal": "silent", "panel": "shared"}
+    },
+    {
+      "label": "Run Platformer",
+      "type": "shell",
+      "command": "make config=debug_arm64 campsur_platformer && ./bin/Debug/campsur_platformer",
+      "group": "test",
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": ["$gcc"],
+      "presentation": {"reveal": "always", "panel": "shared"}
     },
     {
       "label": "premake5 vs2022",
       "type": "shell",
       "command": "premake5",
-      "args": [
-        "vs2022"
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
+      "args": ["vs2022"],
+      "options": {"cwd": "${workspaceFolder}"},
       "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared"
-      }
+      "presentation": {"reveal": "always", "panel": "shared"}
     },
     {
       "label": "premake5 gmake2",
       "type": "shell",
       "command": "premake5",
-      "args": [
-        "gmake2"
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
+      "args": ["gmake2"],
+      "options": {"cwd": "${workspaceFolder}"},
       "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared"
-      }
+      "presentation": {"reveal": "always", "panel": "shared"}
     }
   ]
 }

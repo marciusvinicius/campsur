@@ -279,6 +279,10 @@ if os.isdir("tiled_walk") then
 	include("tiled_walk")
 end
 
+if os.isdir("platformer") then
+	include("platformer")
+end
+
 if os.isfile("enet-1.3.18/premake5.lua") then
 	include("enet-1.3.18")
 end

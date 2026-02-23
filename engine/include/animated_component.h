@@ -30,10 +30,12 @@ public:
   }
 
   void Deserialize(const SerializedComponent &data) override {
-    current = static_cast<AnimState>(std::get<int>(data.fields.at("current")));
-    previous =
-        static_cast<AnimState>(std::get<int>(data.fields.at("previous")));
-    facing = static_cast<Direction>(std::get<int>(data.fields.at("facing")));
+    if (auto it = data.fields.find("current"); it != data.fields.end())
+      current = static_cast<AnimState>(GetInt(it->second));
+    if (auto it = data.fields.find("previous"); it != data.fields.end())
+      previous = static_cast<AnimState>(GetInt(it->second));
+    if (auto it = data.fields.find("facing"); it != data.fields.end())
+      facing = static_cast<Direction>(GetInt(it->second));
   }
   void SetState(AnimState newState) {
     if (current != newState) {
@@ -101,9 +103,10 @@ public:
   }
 
   void Deserialize(const SerializedComponent &data) override {
-    animationId =
-        static_cast<AssetId>(std::get<int>(data.fields.at("animationId")));
-    currentClipName = std::get<std::string>(data.fields.at("currentClipName"));
+    if (auto it = data.fields.find("animationId"); it != data.fields.end())
+      animationId = static_cast<AssetId>(GetInt(it->second));
+    if (auto it = data.fields.find("currentClipName"); it != data.fields.end())
+      currentClipName = GetString(it->second);
     frameIndex = 0;
     timer = 0.0f;
   }
