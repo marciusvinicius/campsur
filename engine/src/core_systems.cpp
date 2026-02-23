@@ -178,10 +178,13 @@ void RenderSystem::Render(Renderer &renderer) {
     if (!texture)
       continue;
 
+    float sx = (tr->scale_x > 0.0f) ? tr->scale_x : 1.0f;
+    float sy = (tr->scale_y > 0.0f) ? tr->scale_y : 1.0f;
     Rect src = animSprite->GetFrame();
-    Rect dest = {tr->x, tr->y, src.width, src.height};
+    Rect dest = {tr->x, tr->y, src.width * sx, src.height * sy};
+    Vec2 origin = {dest.width * 0.5f, dest.height * 0.5f};
 
-    renderer.DrawTexturePro(texture->texture, src, dest, {0, 0}, 0.0f,
+    renderer.DrawTexturePro(texture->texture, src, dest, origin, tr->rotation,
                             Colors::White);
   }
 }
@@ -314,12 +317,16 @@ void SpriteSystem::Render(Renderer &renderer) {
 
     auto texture = sprite->atlas;
 
+    float sx = (tr->scale_x > 0.0f) ? tr->scale_x : 1.0f;
+    float sy = (tr->scale_y > 0.0f) ? tr->scale_y : 1.0f;
     Rect src = {sprite->spriteX, sprite->spriteY, (float)sprite->spriteSize,
                 (float)sprite->spriteSize};
-    Rect dest = {tr->x, tr->y, src.width * (float)sprite->spriteSize,
-                 src.height * (float)sprite->spriteSize};
+    float w = (float)sprite->spriteSize * sx;
+    float h = (float)sprite->spriteSize * sy;
+    Rect dest = {tr->x, tr->y, w, h};
+    Vec2 origin = {dest.width * 0.5f, dest.height * 0.5f};
 
-    renderer.DrawTexturePro(texture->texture, src, dest, {0, 0}, 0.0f,
+    renderer.DrawTexturePro(texture->texture, src, dest, origin, tr->rotation,
                             Colors::White);
   }
 }

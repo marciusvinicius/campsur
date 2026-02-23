@@ -274,23 +274,37 @@ void Renderer::DrawTextureRec(TextureHandle texture, Rect source, Vec2 position,
 
 void Renderer::DrawTexturePro(TextureHandle texture, Rect source, Rect dest,
                               Vec2 origin, float rotation, Color tint) {
-  (void)origin;
-  (void)rotation;
-  // Simplified: ignore rotation and origin, draw scaled
   if (!s_impl || !s_impl->renderer || !texture.valid())
     return;
   SDL_Texture* tex = (SDL_Texture*)texture.opaque;
   SDL_FRect src = {source.x, source.y, source.width, source.height};
   float dx = dest.x, dy = dest.y;
+  float dw = dest.width, dh = dest.height;
   bool flipY = (s_impl->currentRenderTarget != nullptr);
   if (s_impl->cameraActive) {
     WorldToScreen(dest.x, dest.y, s_impl->camera, s_impl->viewportW,
                   s_impl->viewportH, dx, dy, flipY);
+    float zoom = s_impl->camera.zoom;
+    dw = dest.width * zoom;
+    dh = dest.height * zoom;
   }
-  SDL_FRect dst = {dx, dy, dest.width, dest.height};
+  SDL_FRect dst = {dx, dy, dw, dh};
   SDL_SetTextureColorMod(tex, tint.r, tint.g, tint.b);
   SDL_SetTextureAlphaMod(tex, tint.a);
-  SDL_RenderTexture(s_impl->renderer, tex, &src, &dst);
+  if (std::fabs(rotation) < 0.001f) {
+    SDL_RenderTexture(s_impl->renderer, tex, &src, &dst);
+  } else {
+    float ox = origin.x, oy = origin.y;
+    if (s_impl->cameraActive) {
+      float zoom = s_impl->camera.zoom;
+      ox = origin.x * zoom;
+      oy = origin.y * zoom;
+    }
+    SDL_FPoint center = {dx + ox, dy + oy};
+    SDL_RenderTextureRotated(s_impl->renderer, tex, &src, &dst,
+                             static_cast<double>(rotation), &center,
+                             SDL_FLIP_NONE);
+  }
   SDL_SetTextureColorMod(tex, 255, 255, 255);
   SDL_SetTextureAlphaMod(tex, 255);
 }

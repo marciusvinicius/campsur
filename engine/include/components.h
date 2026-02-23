@@ -65,8 +65,8 @@ public:
   float x = 0;
   float y = 0;
   float rotation = 0;
-  float scale_x = 0;
-  float scale_y = 0;
+  float scale_x = 1.0f;
+  float scale_y = 1.0f;
 
   Transform() = default;
   Transform(float x, float y) : x(x), y(y) {}
@@ -74,7 +74,12 @@ public:
   std::string TypeName() const override { return "Transform"; }
 
   SerializedComponent Serialize() const override {
-    return {"Transform", {{"x", x}, {"y", y}}};
+    return {"Transform",
+            {{"x", x},
+             {"y", y},
+             {"rotation", rotation},
+             {"scale_x", scale_x},
+             {"scale_y", scale_y}}};
   }
 
   void Deserialize(const SerializedComponent &data) override {
