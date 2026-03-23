@@ -18,8 +18,9 @@ includedirs({ "./" })
 includedirs({ "./src" })
 includedirs({ "./include" })
 includedirs({ "../enet-1.3.18/include" })
+includedirs({ "../box2d/include" })
 
-links({ "enet" })
+links({ "enet", "box2d" })
 
 -- Engine uses SDL3 only (no raylib). Paths relative to repo root.
 filter({ "system:windows", "platforms:x64", "action:vs*" })
@@ -40,6 +41,15 @@ filter({ "system:windows", "platforms:x64", "action:gmake*" })
 filter({ "system:linux or system:macosx" })
 	includedirs({ "../SDL3/include/SDL3", "../SDL3/include", "../SDL3/src" })
 	links({ "SDL3" })
+
+filter("system:linux")
+	links({ "GL", "dl" })
+
+filter("system:macosx")
+	links({ "OpenGL.framework" })
+
+filter("system:windows")
+	links({ "opengl32" })
 
 filter("action:vs*")
 	defines({ "_CRT_SECURE_NO_WARNINGS" })

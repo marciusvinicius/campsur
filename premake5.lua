@@ -203,6 +203,44 @@ function use_Box2dV3()
 	use_library("box2d", "erincatto/box2d", "main")
 end
 
+-- Box2D v3 (C): sources downloaded next to committed box2d/premake5.lua (include/ + src/).
+function check_box2d()
+	local box2d_dir = "box2d"
+	local box2d_header = box2d_dir .. "/include/box2d/box2d.h"
+	if os.isfile(box2d_header) then
+		return
+	end
+	if not os.isdir(box2d_dir) then
+		os.mkdir(box2d_dir)
+	end
+	local box2d_zip = "box2d-main.zip"
+	local box2d_url = "https://github.com/erincatto/box2d/archive/refs/heads/main.zip"
+	if not os.isfile(box2d_zip) then
+		print("Box2D sources missing, downloading erincatto/box2d (main)")
+		http.download(box2d_url, box2d_zip, {
+			progress = download_progress,
+			headers = { "From: Premake", "Referer: Premake" },
+		})
+	end
+	if os.isfile(box2d_zip) then
+		print("Unzipping Box2D archive to " .. os.getcwd())
+		zip.extract(box2d_zip, os.getcwd())
+		os.remove(box2d_zip)
+	end
+	local extracted = "box2d-main"
+	if os.isdir(extracted) then
+		if os.ishost("windows") then
+			os.execute('xcopy /E /I /Y "' .. extracted .. '\\include" "' .. box2d_dir .. '\\include"')
+			os.execute('xcopy /E /I /Y "' .. extracted .. '\\src" "' .. box2d_dir .. '\\src"')
+			os.execute('rmdir /S /Q "' .. extracted .. '"')
+		else
+			os.execute('cp -R "' .. extracted .. '/include" "' .. box2d_dir .. '/"')
+			os.execute('cp -R "' .. extracted .. '/src" "' .. box2d_dir .. '/"')
+			os.execute('rm -rf "' .. extracted .. '"')
+		end
+	end
+end
+
 workspaceName = path.getbasename(os.getcwd())
 
 if string.lower(workspaceName) == "raylib" then
@@ -257,10 +295,11 @@ cdialect("C23")
 cppdialect("C++23")
 check_raylib()
 check_enet()
-check_sdl3()
---check_raygui()
+	check_sdl3()
+	check_box2d()
+	--check_raygui()
 
-include("raylib_premake5.lua")
+	include("raylib_premake5.lua")
 --include("raygui_premake5.lua")
 
 if os.isdir("game") then
@@ -281,6 +320,10 @@ end
 
 if os.isdir("platformer") then
 	include("platformer")
+end
+
+if os.isdir("fp_plane") then
+	include("fp_plane")
 end
 
 if os.isfile("enet-1.3.18/premake5.lua") then

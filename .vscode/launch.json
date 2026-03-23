@@ -145,6 +145,64 @@
           "ignoreFailures": true
         }
       ]
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "FP Plane (Windows)",
+      "program": "${workspaceFolder}/bin/Debug/campsur_fp_plane.exe",
+      "args": [],
+      "preLaunchTask": "Build",
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "externalConsole": false
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "FP Plane (Linux)",
+      "program": "${workspaceFolder}/bin/Debug/campsur_fp_plane",
+      "args": [],
+      "preLaunchTask": "Build FP Plane",
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Box FPS (Windows)",
+      "program": "${workspaceFolder}/bin/Debug/campsur_box_fps.exe",
+      "args": [],
+      "preLaunchTask": "Build",
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "externalConsole": false
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Box FPS (Linux)",
+      "program": "${workspaceFolder}/bin/Debug/campsur_box_fps",
+      "args": [],
+      "preLaunchTask": "Build Box FPS",
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
     }
   ]
 }

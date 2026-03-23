@@ -41,6 +41,24 @@
       "presentation": {"reveal": "silent", "panel": "shared"}
     },
     {
+      "label": "Build FP Plane",
+      "type": "shell",
+      "command": "make config=debug_arm64 campsur_fp_plane",
+      "group": "build",
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": ["$gcc"],
+      "presentation": {"reveal": "silent", "panel": "shared"}
+    },
+    {
+      "label": "Build Box FPS",
+      "type": "shell",
+      "command": "make config=debug_arm64 campsur_box_fps",
+      "group": "build",
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": ["$gcc"],
+      "presentation": {"reveal": "silent", "panel": "shared"}
+    },
+    {
       "label": "Run Platformer",
       "type": "shell",
       "command": "make config=debug_arm64 campsur_platformer && ./bin/Debug/campsur_platformer",
