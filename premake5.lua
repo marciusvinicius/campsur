@@ -259,7 +259,19 @@ workspace(workspaceName)
 configurations({ "Debug", "Release" })
 platforms({ "x64", "x86", "ARM64" })
 
-defaultplatform("x64")
+local function detect_default_platform()
+	local host = os.host()
+	if host == "linux" or host == "macosx" then
+		local arch = os.outputof("uname -m") or ""
+		arch = string.lower(arch)
+		if string.find(arch, "arm64") or string.find(arch, "aarch64") or string.find(arch, "arm") then
+			return "ARM64"
+		end
+	end
+	return "x64"
+end
+
+defaultplatform(detect_default_platform())
 
 filter("configurations:Debug")
 defines({ "DEBUG" })

@@ -14,7 +14,16 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_NO_STDIO
 #define STBI_ONLY_PNG
+
+#if __has_include("video/stb_image.h")
 #include "video/stb_image.h"
+#elif __has_include(<stb/stb_image.h>)
+#include <stb/stb_image.h>
+#elif __has_include(<stb_image.h>)
+#include <stb_image.h>
+#else
+#error "stb_image.h not found. Install the stb headers (e.g. pacman -S stb) or add video/stb_image.h to the project."
+#endif
 
 namespace criogenio {
 
@@ -317,6 +326,8 @@ void Renderer::ProcessEvents(std::function<void(const void*)>* onEvent) {
     if (onEvent)
       (*onEvent)(&e);
     if (e.type == SDL_EVENT_QUIT)
+      s_impl->quitRequested = true;
+    if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_ESCAPE)
       s_impl->quitRequested = true;
     if (e.type == SDL_EVENT_WINDOW_RESIZED && e.window.windowID == SDL_GetWindowID(s_impl->window)) {
       int w = 0, h = 0;
