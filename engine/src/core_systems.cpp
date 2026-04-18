@@ -55,6 +55,47 @@ void MovementSystem::Update(float dt) {
 
 void MovementSystem::Render(Renderer &renderer) {}
 
+void MovementSystem3D::Update(float dt) {
+  auto ids = world.GetEntitiesWith<PlayerController3D, Transform3D>();
+
+  for (ecs::EntityId id : ids) {
+    auto *ctrl = world.GetComponent<PlayerController3D>(id);
+    auto *tr = world.GetComponent<Transform3D>(id);
+    if (!ctrl || !tr)
+      continue;
+
+    float moveX = 0.0f;
+    float moveY = 0.0f;
+    float moveZ = 0.0f;
+
+    if (Input::IsKeyDown(static_cast<int>(Key::W)))
+      moveZ -= 1.0f;
+    if (Input::IsKeyDown(static_cast<int>(Key::S)))
+      moveZ += 1.0f;
+    if (Input::IsKeyDown(static_cast<int>(Key::A)))
+      moveX -= 1.0f;
+    if (Input::IsKeyDown(static_cast<int>(Key::D)))
+      moveX += 1.0f;
+    if (Input::IsKeyDown(static_cast<int>(Key::Space)))
+      moveY += 1.0f;
+    if (Input::IsKeyDown(static_cast<int>(Key::LeftCtrl)))
+      moveY -= 1.0f;
+
+    float len = std::sqrt(moveX * moveX + moveY * moveY + moveZ * moveZ);
+    if (len > 1e-5f) {
+      moveX /= len;
+      moveY /= len;
+      moveZ /= len;
+    }
+
+    tr->x += moveX * ctrl->moveSpeed * dt;
+    tr->z += moveZ * ctrl->moveSpeed * dt;
+    tr->y += moveY * ctrl->verticalSpeed * dt;
+  }
+}
+
+void MovementSystem3D::Render(Renderer &renderer) { (void)renderer; }
+
 void AIMovementSystem::Update(float dt) {
   auto ids = world.GetEntitiesWith<AIController>();
 

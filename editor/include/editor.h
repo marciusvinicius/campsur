@@ -15,6 +15,7 @@
 #include <unordered_map>
 
 enum class FileDialogMode { None, SaveScene, LoadScene };
+enum class SceneMode { Scene2D, Scene3D };
 struct Hierarchy {
   int parent = -1;
   std::vector<int> children;
@@ -54,6 +55,7 @@ private:
 
   /** When true, draw BoxCollider outlines in the viewport. */
   bool showColliderDebug = true;
+  SceneMode sceneMode = SceneMode::Scene2D;
 
   void InitImGUI();
   void RenderSceneToTexture();
@@ -81,6 +83,12 @@ private:
   void DrawAIControllerInspector(int entity);
   void DrawRigidBodyInspector(int entity);
   void DrawBoxColliderInspector(int entity);
+  void DrawTransform3DInspector(int entity);
+  void DrawCamera3DInspector(int entity);
+  void DrawModel3DInspector(int entity);
+  void DrawBoxCollider3DInspector(int entity);
+  void DrawBox3DInspector(int entity);
+  void DrawPlayerController3DInspector(int entity);
   void DrawAddComponentMenu(int entity);
   void DrawGlobalComponentsPanel();
   void DrawGlobalInspector();

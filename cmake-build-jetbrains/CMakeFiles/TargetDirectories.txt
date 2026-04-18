@@ -1,0 +1,11 @@
+/home/marcius/Workspace/criogenio/campsur/cmake-build-jetbrains/CMakeFiles/campsur_generate_gmake2.dir
+/home/marcius/Workspace/criogenio/campsur/cmake-build-jetbrains/CMakeFiles/campsur_editor.dir
+/home/marcius/Workspace/criogenio/campsur/cmake-build-jetbrains/CMakeFiles/campsur_game.dir
+/home/marcius/Workspace/criogenio/campsur/cmake-build-jetbrains/CMakeFiles/campsur_platformer.dir
+/home/marcius/Workspace/criogenio/campsur/cmake-build-jetbrains/CMakeFiles/campsur_tiled_walk.dir
+/home/marcius/Workspace/criogenio/campsur/cmake-build-jetbrains/CMakeFiles/campsursnakegame.dir
+/home/marcius/Workspace/criogenio/campsur/cmake-build-jetbrains/CMakeFiles/campsur_fp_plane.dir
+/home/marcius/Workspace/criogenio/campsur/cmake-build-jetbrains/CMakeFiles/campsur_box_fps.dir
+/home/marcius/Workspace/criogenio/campsur/cmake-build-jetbrains/CMakeFiles/run_campsur_box_fps.dir
+/home/marcius/Workspace/criogenio/campsur/cmake-build-jetbrains/CMakeFiles/edit_cache.dir
+/home/marcius/Workspace/criogenio/campsur/cmake-build-jetbrains/CMakeFiles/rebuild_cache.dir

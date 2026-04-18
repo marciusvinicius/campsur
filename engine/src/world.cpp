@@ -125,6 +125,9 @@ SerializedWorld World::Serialize() const {
     if (auto trans = GetComponent<Transform>(entity_id)) {
       serialized_entity.components.push_back(trans->Serialize());
     }
+    if (auto trans3D = GetComponent<Transform3D>(entity_id)) {
+      serialized_entity.components.push_back(trans3D->Serialize());
+    }
 
     // Serialize AnimationState if exists
     if (auto anim_state = GetComponent<AnimationState>(entity_id)) {
@@ -134,6 +137,9 @@ SerializedWorld World::Serialize() const {
     // Serialize Controller if exists
     if (auto ctrl = GetComponent<Controller>(entity_id)) {
       serialized_entity.components.push_back(ctrl->Serialize());
+    }
+    if (auto ctrl3D = GetComponent<PlayerController3D>(entity_id)) {
+      serialized_entity.components.push_back(ctrl3D->Serialize());
     }
 
     // Serialize AIController if exists
@@ -153,6 +159,18 @@ SerializedWorld World::Serialize() const {
     if (auto cam = GetComponent<Camera>(entity_id)) {
       serialized_entity.components.push_back(cam->Serialize());
     }
+    if (auto cam3D = GetComponent<Camera3D>(entity_id)) {
+      serialized_entity.components.push_back(cam3D->Serialize());
+    }
+    if (auto model3D = GetComponent<Model3D>(entity_id)) {
+      serialized_entity.components.push_back(model3D->Serialize());
+    }
+    if (auto boxCollider3D = GetComponent<BoxCollider3D>(entity_id)) {
+      serialized_entity.components.push_back(boxCollider3D->Serialize());
+    }
+    if (auto box3D = GetComponent<Box3D>(entity_id)) {
+      serialized_entity.components.push_back(box3D->Serialize());
+    }
 
     if (!serialized_entity.components.empty()) {
       world.entities.push_back(serialized_entity);
@@ -165,6 +183,7 @@ SerializedWorld World::Serialize() const {
 void World::Deserialize(const SerializedWorld &data) {
   ecs::Registry::instance().clear();
   mainCameraEntity = ecs::NULL_ENTITY;
+  mainCamera3DEntity = ecs::NULL_ENTITY;
   terrain = nullptr;
   AnimationDatabase::instance().clear();
 
@@ -264,12 +283,18 @@ void World::Deserialize(const SerializedWorld &data) {
       if (type_name == "Transform") {
         auto &trans = AddComponent<Transform>(entity_id);
         trans.Deserialize(serialized_component);
+      } else if (type_name == "Transform3D") {
+        auto &trans3D = AddComponent<Transform3D>(entity_id);
+        trans3D.Deserialize(serialized_component);
       } else if (type_name == "AnimationState") {
         auto &anim_state = AddComponent<AnimationState>(entity_id);
         anim_state.Deserialize(serialized_component);
       } else if (type_name == "Controller") {
         auto &ctrl = AddComponent<Controller>(entity_id);
         ctrl.Deserialize(serialized_component);
+      } else if (type_name == "PlayerController3D") {
+        auto &ctrl3D = AddComponent<PlayerController3D>(entity_id);
+        ctrl3D.Deserialize(serialized_component);
       } else if (type_name == "AIController") {
         auto &ai_ctrl = AddComponent<AIController>(entity_id);
         ai_ctrl.Deserialize(serialized_component);
@@ -316,11 +341,25 @@ void World::Deserialize(const SerializedWorld &data) {
       } else if (type_name == "BoxCollider") {
         auto &col = AddComponent<BoxCollider>(entity_id);
         col.Deserialize(serialized_component);
-      } else if (type_name == "Camera") {
+      } else if (type_name == "Camera" || type_name == "Camera2D") {
         auto &cam = AddComponent<Camera>(entity_id);
         cam.Deserialize(serialized_component);
         if (mainCameraEntity == ecs::NULL_ENTITY)
           mainCameraEntity = entity_id;
+      } else if (type_name == "Camera3D") {
+        auto &cam3D = AddComponent<Camera3D>(entity_id);
+        cam3D.Deserialize(serialized_component);
+        if (mainCamera3DEntity == ecs::NULL_ENTITY)
+          mainCamera3DEntity = entity_id;
+      } else if (type_name == "Model3D") {
+        auto &model3D = AddComponent<Model3D>(entity_id);
+        model3D.Deserialize(serialized_component);
+      } else if (type_name == "BoxCollider3D") {
+        auto &boxCollider3D = AddComponent<BoxCollider3D>(entity_id);
+        boxCollider3D.Deserialize(serialized_component);
+      } else if (type_name == "Box3D") {
+        auto &box3D = AddComponent<Box3D>(entity_id);
+        box3D.Deserialize(serialized_component);
       }
     }
   }
@@ -364,12 +403,40 @@ const Camera2D* World::GetActiveCamera() const {
   return &maincamera;
 }
 
+box3d::FPCamera* World::GetActiveCamera3D() {
+  if (mainCamera3DEntity != ecs::NULL_ENTITY) {
+    if (Camera3D* c = GetComponent<Camera3D>(mainCamera3DEntity)) {
+      maincamera3D = c->ToFPCamera();
+      return &maincamera3D;
+    }
+  }
+  return &maincamera3D;
+}
+
+const box3d::FPCamera* World::GetActiveCamera3D() const {
+  if (mainCamera3DEntity != ecs::NULL_ENTITY) {
+    if (const Camera3D* c = GetComponent<Camera3D>(mainCamera3DEntity)) {
+      const_cast<World*>(this)->maincamera3D = c->ToFPCamera();
+      return &maincamera3D;
+    }
+  }
+  return &maincamera3D;
+}
+
 void World::AttachCamera2D(criogenio::Camera2D cam) {
   maincamera = cam;
   ecs::EntityId e = CreateEntity("MainCamera");
   AddComponent<Camera>(e, Camera(cam));
   AddComponent<Name>(e, "MainCamera");
   mainCameraEntity = e;
+}
+
+void World::AttachCamera3D(const box3d::FPCamera& cam) {
+  maincamera3D = cam;
+  ecs::EntityId e = CreateEntity("MainCamera3D");
+  AddComponent<Camera3D>(e, Camera3D(cam));
+  AddComponent<Name>(e, "MainCamera3D");
+  mainCamera3DEntity = e;
 }
 
 Terrain2D *World::GetTerrain() { return terrain.get(); }

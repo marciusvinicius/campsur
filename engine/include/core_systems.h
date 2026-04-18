@@ -22,6 +22,15 @@ public:
   void Render(Renderer &renderer) override;
 };
 
+class MovementSystem3D : public ISystem {
+public:
+  World &world;
+  MovementSystem3D(World &w) : world(w) {}
+
+  void Update(float dt) override;
+  void Render(Renderer &renderer) override;
+};
+
 class AIMovementSystem : public ISystem {
 public:
   World &world;

@@ -47,6 +47,34 @@ void VelocityMovementSystem::Update(float dt) {
   }
 }
 
+void CameraFollowSystem::Update(float /*dt*/) {
+  criogenio::Camera2D *cam = world.GetActiveCamera();
+  if (!cam) return;
+
+  criogenio::NetEntityId localNetId = 0;
+  if (engine.GetNetworkMode() == criogenio::NetworkMode::Client) {
+    criogenio::INetworkTransport *transport = engine.GetTransport();
+    if (!transport) return;
+    std::vector<criogenio::ConnectionId> cids = transport->GetConnectionIds();
+    if (cids.empty()) return;
+    localNetId = static_cast<criogenio::NetEntityId>(cids[0]);
+  }
+  // Server and offline: local player uses net id 0 (matches ReplicationServer).
+
+  auto ids = world.GetEntitiesWith<criogenio::ReplicatedNetId, criogenio::Transform>();
+  for (criogenio::ecs::EntityId id : ids) {
+    auto *netIdComp = world.GetComponent<criogenio::ReplicatedNetId>(id);
+    auto *tr = world.GetComponent<criogenio::Transform>(id);
+    if (!netIdComp || !tr || netIdComp->id != localNetId) continue;
+    cam->target.x = tr->x + TileSize * 0.5f;
+    cam->target.y = tr->y + TileSize * 0.5f;
+    cam->zoom = 1.f;
+    return;
+  }
+}
+
+void CameraFollowSystem::Render(criogenio::Renderer &) {}
+
 void VelocityMovementSystem::Render(criogenio::Renderer &) {}
 
 void PlayerRenderSystem::Update(float /*dt*/) {}
@@ -88,6 +116,17 @@ void GameEngine::OnFrame(float /*dt*/) {
     SendInputAsClient(input);
   } else if (GetNetworkMode() == criogenio::NetworkMode::Server) {
     SetServerPlayerInput(input);
+  } else {
+    // Offline: drive the local player (net id 0) the same way the server drives its host player.
+    auto ids = GetWorld().GetEntitiesWith<ReplicatedNetId, Controller>();
+    for (criogenio::ecs::EntityId id : ids) {
+      auto *nid = GetWorld().GetComponent<ReplicatedNetId>(id);
+      auto *ctrl = GetWorld().GetComponent<Controller>(id);
+      if (!nid || !ctrl || nid->id != 0) continue;
+      ctrl->velocity.x = input.move_x;
+      ctrl->velocity.y = input.move_y;
+      break;
+    }
   }
 }
 

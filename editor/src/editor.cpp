@@ -33,6 +33,105 @@ namespace fs = std::filesystem;
 
 using namespace criogenio;
 
+namespace {
+struct EditorVec3 {
+  float x;
+  float y;
+  float z;
+};
+
+static ImVec2 ProjectIso(const EditorVec3& p, float centerX, float centerY, float scale) {
+  const float sx = centerX + (p.x - p.z) * scale;
+  const float sy = centerY + (p.x + p.z) * scale * 0.5f - p.y * scale;
+  return ImVec2(sx, sy);
+}
+
+static uint8_t ClampColor(float v) {
+  if (v < 0.0f)
+    v = 0.0f;
+  if (v > 1.0f)
+    v = 1.0f;
+  return static_cast<uint8_t>(v * 255.0f);
+}
+
+static void DrawIsoLine(Renderer& ren, const EditorVec3& a, const EditorVec3& b, float centerX,
+                        float centerY, float scale, Color color) {
+  ImVec2 pa = ProjectIso(a, centerX, centerY, scale);
+  ImVec2 pb = ProjectIso(b, centerX, centerY, scale);
+  ren.DrawLine(pa.x, pa.y, pb.x, pb.y, color);
+}
+
+static void DrawIsoWireCube(Renderer& ren, const EditorVec3& c, const EditorVec3& h, float centerX,
+                            float centerY, float scale, Color color) {
+  EditorVec3 p[8] = {
+      {c.x - h.x, c.y - h.y, c.z - h.z}, {c.x + h.x, c.y - h.y, c.z - h.z},
+      {c.x + h.x, c.y - h.y, c.z + h.z}, {c.x - h.x, c.y - h.y, c.z + h.z},
+      {c.x - h.x, c.y + h.y, c.z - h.z}, {c.x + h.x, c.y + h.y, c.z - h.z},
+      {c.x + h.x, c.y + h.y, c.z + h.z}, {c.x - h.x, c.y + h.y, c.z + h.z},
+  };
+  const int e[12][2] = {{0, 1}, {1, 2}, {2, 3}, {3, 0}, {4, 5}, {5, 6},
+                        {6, 7}, {7, 4}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
+  for (int i = 0; i < 12; ++i) {
+    DrawIsoLine(ren, p[e[i][0]], p[e[i][1]], centerX, centerY, scale, color);
+  }
+}
+
+static EditorVec3 WorldToCamera(const EditorVec3& p, const box3d::FPCamera& cam) {
+  float x = p.x - cam.position.x;
+  float y = p.y - cam.position.y;
+  float z = p.z - cam.position.z;
+
+  float cy = std::cos(-cam.yaw);
+  float sy = std::sin(-cam.yaw);
+  float x1 = x * cy - z * sy;
+  float z1 = x * sy + z * cy;
+
+  float cp = std::cos(-cam.pitch);
+  float sp = std::sin(-cam.pitch);
+  float y2 = y * cp - z1 * sp;
+  float z2 = y * sp + z1 * cp;
+  return {x1, y2, z2};
+}
+
+static bool ProjectPerspective(const EditorVec3& p, const box3d::FPCamera& cam, float viewportW,
+                               float viewportH, ImVec2& out) {
+  EditorVec3 v = WorldToCamera(p, cam);
+  if (v.z <= 0.01f)
+    return false;
+
+  float focal = (viewportH * 0.5f) / std::tan((cam.fovDeg * 3.14159265f / 180.0f) * 0.5f);
+  out.x = viewportW * 0.5f + (v.x / v.z) * focal;
+  out.y = viewportH * 0.5f - (v.y / v.z) * focal;
+  return true;
+}
+
+static void DrawPerspectiveLine(Renderer& ren, const EditorVec3& a, const EditorVec3& b,
+                                const box3d::FPCamera& cam, float viewportW, float viewportH,
+                                Color color) {
+  ImVec2 pa, pb;
+  if (!ProjectPerspective(a, cam, viewportW, viewportH, pa))
+    return;
+  if (!ProjectPerspective(b, cam, viewportW, viewportH, pb))
+    return;
+  ren.DrawLine(pa.x, pa.y, pb.x, pb.y, color);
+}
+
+static void DrawPerspectiveWireCube(Renderer& ren, const EditorVec3& c, const EditorVec3& h,
+                                    const box3d::FPCamera& cam, float viewportW, float viewportH,
+                                    Color color) {
+  EditorVec3 p[8] = {
+      {c.x - h.x, c.y - h.y, c.z - h.z}, {c.x + h.x, c.y - h.y, c.z - h.z},
+      {c.x + h.x, c.y - h.y, c.z + h.z}, {c.x - h.x, c.y - h.y, c.z + h.z},
+      {c.x - h.x, c.y + h.y, c.z - h.z}, {c.x + h.x, c.y + h.y, c.z - h.z},
+      {c.x + h.x, c.y + h.y, c.z + h.z}, {c.x - h.x, c.y + h.y, c.z + h.z},
+  };
+  const int e[12][2] = {{0, 1}, {1, 2}, {2, 3}, {3, 0}, {4, 5}, {5, 6},
+                        {6, 7}, {7, 4}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
+  for (int i = 0; i < 12; ++i)
+    DrawPerspectiveLine(ren, p[e[i][0]], p[e[i][1]], cam, viewportW, viewportH, color);
+}
+} // namespace
+
 EditorApp::EditorApp(int width, int height) : Engine(width, height, "Editor") {
   EditorAppReset();
 }
@@ -42,6 +141,7 @@ void EditorApp::EditorAppReset() {
   GetWorld().AddSystem<GravitySystem>(GetWorld());
   GetWorld().AddSystem<CollisionSystem>(GetWorld());
   GetWorld().AddSystem<MovementSystem>(GetWorld());
+  GetWorld().AddSystem<MovementSystem3D>(GetWorld());
   GetWorld().AddSystem<AnimationSystem>(GetWorld());
   GetWorld().AddSystem<SpriteSystem>(GetWorld());
   GetWorld().AddSystem<RenderSystem>(GetWorld());
@@ -374,6 +474,8 @@ bool EditorApp::IsMouseInWorldView() {
 }
 
 void EditorApp::HandleEntityDrag(Vec2 mouseDelta) {
+  if (sceneMode == SceneMode::Scene3D)
+    return;
   if (!selectedEntityId.has_value())
     return;
   if (!IsMouseInWorldView())
@@ -398,6 +500,8 @@ void EditorApp::HandleEntityDrag(Vec2 mouseDelta) {
 }
 
 void EditorApp::HandleInput(float dt, Vec2 mouseDelta) {
+  if (sceneMode == SceneMode::Scene3D)
+    return;
   if (selectedEntityId.has_value())
     return;
   if (!viewportHovered)
@@ -536,6 +640,91 @@ void EditorApp::RenderSceneToTexture() {
     return;
   criogenio::Renderer& ren = GetRenderer();
   ren.SetRenderTarget(sceneRT);
+  if (sceneMode == SceneMode::Scene3D) {
+    ren.DrawRect(0, 0, (float)sceneRT.width, (float)sceneRT.height, criogenio::Colors::Black);
+    box3d::FPCamera cam = *GetWorld().GetActiveCamera3D();
+    if (isPlaying) {
+      int camEntity = GetWorld().GetMainCamera3DEntity();
+      if (camEntity != criogenio::ecs::NULL_ENTITY) {
+        auto* camComp = GetWorld().GetComponent<criogenio::Camera3D>(camEntity);
+        auto* tr3d = GetWorld().GetComponent<criogenio::Transform3D>(camEntity);
+        if (camComp && tr3d) {
+          camComp->positionX = tr3d->x;
+          camComp->positionY = tr3d->y;
+          camComp->positionZ = tr3d->z;
+          camComp->yaw = tr3d->rotationY;
+          camComp->pitch = tr3d->rotationX;
+          cam = camComp->ToFPCamera();
+        }
+      }
+    }
+
+    // Ground grid on XZ plane
+    for (int i = -10; i <= 10; ++i) {
+      Color gridColor = (i == 0) ? Color{95, 95, 95, 255} : Color{52, 52, 52, 255};
+      DrawPerspectiveLine(ren, EditorVec3{-10.0f, 0.0f, static_cast<float>(i)},
+                          EditorVec3{10.0f, 0.0f, static_cast<float>(i)}, cam, sceneRT.width,
+                          sceneRT.height, gridColor);
+      DrawPerspectiveLine(ren, EditorVec3{static_cast<float>(i), 0.0f, -10.0f},
+                          EditorVec3{static_cast<float>(i), 0.0f, 10.0f}, cam, sceneRT.width,
+                          sceneRT.height, gridColor);
+    }
+
+    // Axis gizmo
+    DrawPerspectiveLine(ren, EditorVec3{0.0f, 0.0f, 0.0f}, EditorVec3{2.5f, 0.0f, 0.0f}, cam,
+                        sceneRT.width, sceneRT.height, Color{240, 90, 90, 255});
+    DrawPerspectiveLine(ren, EditorVec3{0.0f, 0.0f, 0.0f}, EditorVec3{0.0f, 2.5f, 0.0f}, cam,
+                        sceneRT.width, sceneRT.height, Color{90, 240, 90, 255});
+    DrawPerspectiveLine(ren, EditorVec3{0.0f, 0.0f, 0.0f}, EditorVec3{0.0f, 0.0f, 2.5f}, cam,
+                        sceneRT.width, sceneRT.height, Color{90, 140, 255, 255});
+    ImVec2 px, py, pz;
+    if (ProjectPerspective(EditorVec3{2.8f, 0.0f, 0.0f}, cam, sceneRT.width, sceneRT.height, px))
+      ren.DrawTextString("X", static_cast<int>(px.x), static_cast<int>(px.y), 14,
+                         Color{240, 90, 90, 255});
+    if (ProjectPerspective(EditorVec3{0.0f, 2.8f, 0.0f}, cam, sceneRT.width, sceneRT.height, py))
+      ren.DrawTextString("Y", static_cast<int>(py.x), static_cast<int>(py.y), 14,
+                         Color{90, 240, 90, 255});
+    if (ProjectPerspective(EditorVec3{0.0f, 0.0f, 2.8f}, cam, sceneRT.width, sceneRT.height, pz))
+      ren.DrawTextString("Z", static_cast<int>(pz.x), static_cast<int>(pz.y), 14,
+                         Color{90, 140, 255, 255});
+
+    // Draw 3D boxes from components
+    for (int entity : GetWorld().GetAllEntities()) {
+      auto* t = GetWorld().GetComponent<criogenio::Transform3D>(entity);
+      auto* box = GetWorld().GetComponent<criogenio::Box3D>(entity);
+      if (!t || !box)
+        continue;
+
+      Color boxColor{ClampColor(box->colorR), ClampColor(box->colorG), ClampColor(box->colorB),
+                     255};
+      EditorVec3 center{t->x, t->y, t->z};
+      EditorVec3 half{box->halfX * t->scaleX, box->halfY * t->scaleY, box->halfZ * t->scaleZ};
+      DrawPerspectiveWireCube(ren, center, half, cam, sceneRT.width, sceneRT.height, boxColor);
+      if (!box->wireframe) {
+        DrawPerspectiveLine(ren,
+                            EditorVec3{center.x - half.x, center.y + half.y, center.z - half.z},
+                            EditorVec3{center.x + half.x, center.y + half.y, center.z + half.z},
+                            cam, sceneRT.width, sceneRT.height, boxColor);
+        DrawPerspectiveLine(ren,
+                            EditorVec3{center.x + half.x, center.y + half.y, center.z - half.z},
+                            EditorVec3{center.x - half.x, center.y + half.y, center.z + half.z},
+                            cam, sceneRT.width, sceneRT.height, boxColor);
+      }
+
+      if (selectedEntityId.has_value() && selectedEntityId.value() == entity) {
+        EditorVec3 selHalf{half.x + 0.06f, half.y + 0.06f, half.z + 0.06f};
+        DrawPerspectiveWireCube(ren, center, selHalf, cam, sceneRT.width, sceneRT.height,
+                                criogenio::Colors::Yellow);
+      }
+    }
+
+    ren.DrawTextString("3D Scene", 16, 12, 18, criogenio::Colors::White);
+    ren.DrawTextString("Using active main Camera3D while playing.", 16, 34, 14,
+                       criogenio::Colors::Gray);
+    ren.UnsetRenderTarget();
+    return;
+  }
+
   // Camera offset must be (0,0) so screen center (halfW, halfH) maps to world target.
   // The formula uses offset + halfW, so offset=0 puts target at viewport center.
   GetWorld().GetActiveCamera()->offset = {0.0f, 0.0f};
@@ -567,12 +756,23 @@ void EditorApp::DrawMainMenuBar() {
   if (ImGui::BeginMainMenuBar()) {
 
     if (ImGui::BeginMenu("File")) {
-      if (ImGui::MenuItem("New Scene")) {
+      if (ImGui::MenuItem("New Scene (2D)")) {
         // Delete all entities and reset editor state
         auto &world = GetWorld();
         for (auto id : world.GetAllEntities()) {
           world.DeleteEntity(id);
         }
+        sceneMode = SceneMode::Scene2D;
+        selectedEntityId.reset();
+        EditorAppReset();
+      }
+      if (ImGui::MenuItem("New Scene (3D)")) {
+        auto &world = GetWorld();
+        for (auto id : world.GetAllEntities()) {
+          world.DeleteEntity(id);
+        }
+        sceneMode = SceneMode::Scene3D;
+        selectedEntityId.reset();
         EditorAppReset();
       }
       if (ImGui::MenuItem("Open Scene...")) {
@@ -616,6 +816,18 @@ void EditorApp::DrawMainMenuBar() {
       ImGui::EndMenu();
     }
 
+    if (ImGui::BeginMenu("Scene")) {
+      bool is2D = sceneMode == SceneMode::Scene2D;
+      bool is3D = sceneMode == SceneMode::Scene3D;
+      if (ImGui::MenuItem("2D Scene Mode", nullptr, is2D)) {
+        sceneMode = SceneMode::Scene2D;
+      }
+      if (ImGui::MenuItem("3D Scene Mode", nullptr, is3D)) {
+        sceneMode = SceneMode::Scene3D;
+      }
+      ImGui::EndMenu();
+    }
+
     if (ImGui::BeginMenu("GameObject")) {
       if (ImGui::MenuItem("Create Empty")) {
         // CreateEmptyEntity();
@@ -624,7 +836,12 @@ void EditorApp::DrawMainMenuBar() {
         GetWorld().AddComponent<criogenio::Name>(id, "New Entity " +
                                                          std::to_string(id));
 
-        GetWorld().AddComponent<criogenio::Transform>(id, 0.0f, 0.0f);
+        if (sceneMode == SceneMode::Scene3D) {
+          GetWorld().AddComponent<criogenio::Transform3D>(id);
+          GetWorld().AddComponent<criogenio::Box3D>(id);
+        } else {
+          GetWorld().AddComponent<criogenio::Transform>(id, 0.0f, 0.0f);
+        }
       }
       if (ImGui::MenuItem("Sprite")) {
         // CreateSpriteEntity();
@@ -666,7 +883,14 @@ void EditorApp::CreateEmptyEntityAtMouse() {
   int id = GetWorld().CreateEntity("New Entity");
   GetWorld().AddComponent<criogenio::Name>(id,
                                            "New Entity " + std::to_string(id));
-  GetWorld().AddComponent<criogenio::Transform>(id, worldPos.x, worldPos.y);
+  if (sceneMode == SceneMode::Scene3D) {
+    auto& t = GetWorld().AddComponent<criogenio::Transform3D>(id);
+    t.x = worldPos.x;
+    t.z = worldPos.y;
+    GetWorld().AddComponent<criogenio::Box3D>(id);
+  } else {
+    GetWorld().AddComponent<criogenio::Transform>(id, worldPos.x, worldPos.y);
+  }
 }
 
 void EditorApp::DrawTerrainEditor() {
@@ -926,6 +1150,8 @@ name.name.c_str());
 }*/
 
 void EditorApp::HandleScenePicking() {
+  if (sceneMode == SceneMode::Scene3D)
+    return;
   if (!viewportHovered)
     return;
   if (!ImGui::IsMouseClicked(ImGuiMouseButton_Left))
@@ -1048,6 +1274,10 @@ void EditorApp::DrawEntityHeader(int entity) {
 void EditorApp::DrawComponentInspectors(int entity) {
   if (GetWorld().HasComponent<criogenio::Transform>(entity))
     DrawTransformInspector(entity);
+  if (GetWorld().HasComponent<criogenio::Transform3D>(entity))
+    DrawTransform3DInspector(entity);
+  if (GetWorld().HasComponent<criogenio::Camera3D>(entity))
+    DrawCamera3DInspector(entity);
 
   if (GetWorld().HasComponent<criogenio::AnimationState>(entity))
     DrawAnimationStateInspector(entity);
@@ -1068,6 +1298,14 @@ void EditorApp::DrawComponentInspectors(int entity) {
 
   if (GetWorld().HasComponent<criogenio::BoxCollider>(entity))
     DrawBoxColliderInspector(entity);
+  if (GetWorld().HasComponent<criogenio::Model3D>(entity))
+    DrawModel3DInspector(entity);
+  if (GetWorld().HasComponent<criogenio::BoxCollider3D>(entity))
+    DrawBoxCollider3DInspector(entity);
+  if (GetWorld().HasComponent<criogenio::Box3D>(entity))
+    DrawBox3DInspector(entity);
+  if (GetWorld().HasComponent<criogenio::PlayerController3D>(entity))
+    DrawPlayerController3DInspector(entity);
 }
 
 void EditorApp::DrawGravityInspector(int entity) {
@@ -1205,6 +1443,62 @@ void EditorApp::DrawTransformInspector(int entity) {
     }
     ImGui::EndPopup();
   }
+}
+
+void EditorApp::DrawTransform3DInspector(int entity) {
+  ImGui::PushID("Transform3D");
+  ImGui::BeginGroup();
+  bool headerOpen =
+      ImGui::CollapsingHeader("Transform 3D", ImGuiTreeNodeFlags_DefaultOpen);
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+  if (ImGui::SmallButton("X")) {
+    GetWorld().RemoveComponent<criogenio::Transform3D>(entity);
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return;
+  }
+  ImGui::EndGroup();
+  ImGui::PopID();
+
+  if (!headerOpen)
+    return;
+
+  auto *t = GetWorld().GetComponent<criogenio::Transform3D>(entity);
+  if (!t)
+    return;
+
+  ImGui::DragFloat3("Position", &t->x, 0.1f);
+  ImGui::DragFloat3("Rotation", &t->rotationX, 0.5f);
+  ImGui::DragFloat3("Scale", &t->scaleX, 0.01f, 0.01f, 100.0f);
+}
+
+void EditorApp::DrawCamera3DInspector(int entity) {
+  ImGui::PushID("Camera3D");
+  ImGui::BeginGroup();
+  bool headerOpen = ImGui::CollapsingHeader("Camera 3D");
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+  if (ImGui::SmallButton("X")) {
+    GetWorld().RemoveComponent<criogenio::Camera3D>(entity);
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return;
+  }
+  ImGui::EndGroup();
+  ImGui::PopID();
+
+  if (!headerOpen)
+    return;
+
+  auto *cam = GetWorld().GetComponent<criogenio::Camera3D>(entity);
+  if (!cam)
+    return;
+
+  ImGui::DragFloat3("Position", &cam->positionX, 0.1f);
+  ImGui::DragFloat("Yaw", &cam->yaw, 0.01f);
+  ImGui::DragFloat("Pitch", &cam->pitch, 0.01f);
+  ImGui::DragFloat("FOV", &cam->fovDeg, 0.1f, 20.0f, 160.0f);
+  ImGui::DragFloat("Near Plane", &cam->nearPlane, 0.001f, 0.001f, 10.0f);
+  ImGui::DragFloat("Far Plane", &cam->farPlane, 0.5f, 1.0f, 2000.0f);
 }
 
 // TODO:(maraujo) move these kind of thing to UI
@@ -1994,6 +2288,113 @@ void EditorApp::DrawBoxColliderInspector(int entity) {
   }
 }
 
+void EditorApp::DrawModel3DInspector(int entity) {
+  ImGui::PushID("Model3D");
+  ImGui::BeginGroup();
+  bool headerOpen = ImGui::CollapsingHeader("Model 3D");
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+  if (ImGui::SmallButton("X")) {
+    GetWorld().RemoveComponent<criogenio::Model3D>(entity);
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return;
+  }
+  ImGui::EndGroup();
+  ImGui::PopID();
+
+  if (!headerOpen)
+    return;
+
+  auto *model = GetWorld().GetComponent<criogenio::Model3D>(entity);
+  if (!model)
+    return;
+
+  char pathBuf[512] = {0};
+  strncpy(pathBuf, model->modelPath.c_str(), sizeof(pathBuf) - 1);
+  if (ImGui::InputText("Model Path", pathBuf, sizeof(pathBuf))) {
+    model->modelPath = pathBuf;
+  }
+  ImGui::ColorEdit3("Tint", &model->tintR);
+  ImGui::Checkbox("Visible", &model->visible);
+}
+
+void EditorApp::DrawBoxCollider3DInspector(int entity) {
+  ImGui::PushID("BoxCollider3D");
+  ImGui::BeginGroup();
+  bool headerOpen = ImGui::CollapsingHeader("Box Collider 3D");
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+  if (ImGui::SmallButton("X")) {
+    GetWorld().RemoveComponent<criogenio::BoxCollider3D>(entity);
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return;
+  }
+  ImGui::EndGroup();
+  ImGui::PopID();
+
+  if (!headerOpen)
+    return;
+
+  auto *col = GetWorld().GetComponent<criogenio::BoxCollider3D>(entity);
+  if (!col)
+    return;
+
+  ImGui::DragFloat3("Size", &col->sizeX, 0.05f, 0.01f, 1000.0f);
+  ImGui::DragFloat3("Offset", &col->offsetX, 0.05f, -1000.0f, 1000.0f);
+  ImGui::Checkbox("Is Trigger", &col->isTrigger);
+}
+
+void EditorApp::DrawBox3DInspector(int entity) {
+  ImGui::PushID("Box3D");
+  ImGui::BeginGroup();
+  bool headerOpen = ImGui::CollapsingHeader("Box 3D");
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+  if (ImGui::SmallButton("X")) {
+    GetWorld().RemoveComponent<criogenio::Box3D>(entity);
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return;
+  }
+  ImGui::EndGroup();
+  ImGui::PopID();
+
+  if (!headerOpen)
+    return;
+
+  auto *box = GetWorld().GetComponent<criogenio::Box3D>(entity);
+  if (!box)
+    return;
+
+  ImGui::DragFloat3("Half Extents", &box->halfX, 0.05f, 0.01f, 1000.0f);
+  ImGui::ColorEdit3("Color", &box->colorR);
+  ImGui::Checkbox("Wireframe", &box->wireframe);
+}
+
+void EditorApp::DrawPlayerController3DInspector(int entity) {
+  ImGui::PushID("PlayerController3D");
+  ImGui::BeginGroup();
+  bool headerOpen = ImGui::CollapsingHeader("Player Controller 3D");
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+  if (ImGui::SmallButton("X")) {
+    GetWorld().RemoveComponent<criogenio::PlayerController3D>(entity);
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return;
+  }
+  ImGui::EndGroup();
+  ImGui::PopID();
+
+  if (!headerOpen)
+    return;
+
+  auto *ctrl = GetWorld().GetComponent<criogenio::PlayerController3D>(entity);
+  if (!ctrl)
+    return;
+
+  ImGui::DragFloat("Move Speed", &ctrl->moveSpeed, 0.1f, 0.1f, 200.0f);
+  ImGui::DragFloat("Vertical Speed", &ctrl->verticalSpeed, 0.1f, 0.1f, 200.0f);
+}
+
 void EditorApp::DrawRigidBodyInspector(int entity) {
   ImGui::PushID("RigidBody");
   ImGui::BeginGroup();
@@ -2103,6 +2504,17 @@ void EditorApp::DrawAddComponentMenu(int entity) {
         GetWorld().AddComponent<criogenio::Transform>(entity, 0, 0);
       }
     }
+    if (!GetWorld().HasComponent<criogenio::Transform3D>(entity)) {
+      if (ImGui::MenuItem("Transform 3D")) {
+        GetWorld().AddComponent<criogenio::Transform3D>(entity);
+      }
+    }
+    if (!GetWorld().HasComponent<criogenio::Camera3D>(entity)) {
+      if (ImGui::MenuItem("Camera 3D")) {
+        GetWorld().AddComponent<criogenio::Camera3D>(entity);
+        GetWorld().SetMainCamera3DEntity(entity);
+      }
+    }
 
     if (!GetWorld().HasComponent<criogenio::AnimatedSprite>(entity)) {
       if (ImGui::MenuItem("Animated Sprite")) {
@@ -2148,6 +2560,26 @@ void EditorApp::DrawAddComponentMenu(int entity) {
     if (!GetWorld().HasComponent<criogenio::BoxCollider>(entity)) {
       if (ImGui::MenuItem("Box Collider")) {
         GetWorld().AddComponent<criogenio::BoxCollider>(entity);
+      }
+    }
+    if (!GetWorld().HasComponent<criogenio::Model3D>(entity)) {
+      if (ImGui::MenuItem("Model 3D")) {
+        GetWorld().AddComponent<criogenio::Model3D>(entity);
+      }
+    }
+    if (!GetWorld().HasComponent<criogenio::BoxCollider3D>(entity)) {
+      if (ImGui::MenuItem("Box Collider 3D")) {
+        GetWorld().AddComponent<criogenio::BoxCollider3D>(entity);
+      }
+    }
+    if (!GetWorld().HasComponent<criogenio::Box3D>(entity)) {
+      if (ImGui::MenuItem("Box 3D")) {
+        GetWorld().AddComponent<criogenio::Box3D>(entity);
+      }
+    }
+    if (!GetWorld().HasComponent<criogenio::PlayerController3D>(entity)) {
+      if (ImGui::MenuItem("Player Controller 3D")) {
+        GetWorld().AddComponent<criogenio::PlayerController3D>(entity);
       }
     }
     ImGui::EndPopup();

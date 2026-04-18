@@ -129,13 +129,9 @@ void Engine::Run() {
     previousTime = now;
 
     OnFrame(dt);
-    world->Update(dt);
 
-    if (networkMode == NetworkMode::Server && transport && replicationServer) {
-      transport->Update();
-      replicationServer->Update();
-    } else if (networkMode == NetworkMode::Client && transport &&
-               replicationClient) {
+    // Apply snapshots before world update so client-side systems (e.g. camera) see current transforms.
+    if (networkMode == NetworkMode::Client && transport && replicationClient) {
       transport->Update();
       auto msgs = transport->PollMessages();
       for (const auto& msg : msgs) {
@@ -145,6 +141,15 @@ void Engine::Run() {
           replicationClient->ApplySnapshot(snap);
         }
       }
+    }
+
+    world->Update(dt);
+
+    if (networkMode == NetworkMode::Server && transport && replicationServer) {
+      transport->Update();
+      replicationServer->Update();
+    } else if (networkMode == NetworkMode::Client && transport &&
+               replicationClient) {
       replicationClient->UpdateInterpolation(dt);
     }
     renderer->BeginFrame();
@@ -159,11 +164,26 @@ void Engine::RegisterCoreComponents() {
   ComponentFactory::Register("Transform", [](World& w, int e) {
     return &w.AddComponent<Transform>(e);
   });
+  ComponentFactory::Register("Transform3D", [](World& w, int e) {
+    return &w.AddComponent<Transform3D>(e);
+  });
+  ComponentFactory::Register("Model3D", [](World& w, int e) {
+    return &w.AddComponent<Model3D>(e);
+  });
+  ComponentFactory::Register("BoxCollider3D", [](World& w, int e) {
+    return &w.AddComponent<BoxCollider3D>(e);
+  });
+  ComponentFactory::Register("Box3D", [](World& w, int e) {
+    return &w.AddComponent<Box3D>(e);
+  });
   ComponentFactory::Register("AnimatedSprite", [](World& w, int e) {
     return &w.AddComponent<AnimatedSprite>(e);
   });
   ComponentFactory::Register("Controller", [](World& w, int e) {
     return &w.AddComponent<Controller>(e);
+  });
+  ComponentFactory::Register("PlayerController3D", [](World& w, int e) {
+    return &w.AddComponent<PlayerController3D>(e);
   });
   ComponentFactory::Register("AnimationState", [](World& w, int e) {
     return &w.AddComponent<AnimationState>(e);
@@ -176,8 +196,14 @@ void Engine::RegisterCoreComponents() {
   ComponentFactory::Register("NetReplicated", [](World& w, int e) {
     return &w.AddComponent<NetReplicated>(e);
   });
+  ComponentFactory::Register("Camera2D", [](World& w, int e) {
+    return &w.AddComponent<Camera>(e);
+  });
   ComponentFactory::Register("Camera", [](World& w, int e) {
     return &w.AddComponent<Camera>(e);
+  });
+  ComponentFactory::Register("Camera3D", [](World& w, int e) {
+    return &w.AddComponent<Camera3D>(e);
   });
 }
 

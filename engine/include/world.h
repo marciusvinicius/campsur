@@ -2,6 +2,7 @@
 #pragma once
 
 #include "components.h"
+#include "box3d/fp_camera.h"
 #include "ecs_core.h"
 #include "ecs_registry.h"
 #include "graphics_types.h"
@@ -129,10 +130,17 @@ public:
   /** Pointer to the active camera (from main camera entity component, or &maincamera). Never null. */
   Camera2D* GetActiveCamera();
   const Camera2D* GetActiveCamera() const;
+  void AttachCamera3D(const box3d::FPCamera& cam);
+  /** Pointer to the active 3D camera (from main camera entity component, or &maincamera3D). Never null. */
+  box3d::FPCamera* GetActiveCamera3D();
+  const box3d::FPCamera* GetActiveCamera3D() const;
   /** Entity that holds the main Camera component; ecs::NULL_ENTITY if using maincamera fallback. */
   ecs::EntityId GetMainCameraEntity() const { return mainCameraEntity; }
   void SetMainCameraEntity(ecs::EntityId id) { mainCameraEntity = id; }
+  ecs::EntityId GetMainCamera3DEntity() const { return mainCamera3DEntity; }
+  void SetMainCamera3DEntity(ecs::EntityId id) { mainCamera3DEntity = id; }
   Camera2D maincamera;
+  box3d::FPCamera maincamera3D;
 
   // Get all entities
   const std::vector<ecs::EntityId> &GetAllEntities() const {
@@ -141,6 +149,7 @@ public:
 
 private:
   ecs::EntityId mainCameraEntity = ecs::NULL_ENTITY;
+  ecs::EntityId mainCamera3DEntity = ecs::NULL_ENTITY;
   std::unordered_map<size_t, std::unique_ptr<GlobalComponent>> globalComponents;
   std::vector<std::unique_ptr<ISystem>> systems;
   std::unique_ptr<Terrain2D> terrain;

@@ -52,4 +52,14 @@ public:
   void OnFrame(float dt) override;
 };
 
+/** Keeps the 2D camera centered on the local player (server net id 0; client uses connection id). */
+class CameraFollowSystem : public criogenio::ISystem {
+public:
+  criogenio::World &world;
+  GameEngine &engine;
+  CameraFollowSystem(GameEngine &e, criogenio::World &w) : world(w), engine(e) {}
+  void Update(float dt) override;
+  void Render(criogenio::Renderer &renderer) override;
+};
+
 }  // namespace tiled

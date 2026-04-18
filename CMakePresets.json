@@ -1,0 +1,38 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "jetbrains-debug",
+      "displayName": "JetBrains Debug Wrapper",
+      "description": "Wrapper preset to build campsur targets via make config=debug_arm64",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/cmake-build-jetbrains",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "box-fps",
+      "displayName": "Build campsur_box_fps",
+      "configurePreset": "jetbrains-debug",
+      "targets": [
+        "campsur_box_fps"
+      ]
+    },
+    {
+      "name": "fp-plane",
+      "displayName": "Build campsur_fp_plane",
+      "configurePreset": "jetbrains-debug",
+      "targets": [
+        "campsur_fp_plane"
+      ]
+    }
+  ]
+}
