@@ -48,6 +48,17 @@ void MapEventSystem::Render(criogenio::Renderer &renderer) {
     criogenio::Color c = {0, 255, 128, 180};
     renderer.DrawRectOutline(trg.x, trg.y, trg.w, trg.h, c);
   }
+  for (const auto &it : session->tiledInteractables) {
+    float ix = it.x, iy = it.y, iw = it.w, ih = it.h;
+    if (it.is_point) {
+      iw = 16.f;
+      ih = 16.f;
+      ix -= iw * 0.5f;
+      iy -= ih * 0.5f;
+    }
+    criogenio::Color c = {255, 64, 255, 160};
+    renderer.DrawRectOutline(ix, iy, iw, ih, c);
+  }
 }
 
 } // namespace subterra

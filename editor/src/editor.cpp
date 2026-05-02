@@ -2,7 +2,9 @@
 #include "animation_database.h"
 #include "animation_state.h"
 #include "asset_manager.h"
+#include "animated_component.h"
 #include "criogenio_io.h"
+#include "subterra_player_json_io.h"
 #include "graphics_types.h"
 #include "input.h"
 #include "keys.h"
@@ -805,6 +807,68 @@ void EditorApp::DrawMainMenuBar() {
           else
             printf("[Editor] ERROR: Failed to load TMX (see console): %s\n",
                    tmxPath);
+        }
+      }
+      if (ImGui::MenuItem("Import Subterra animation (.json)...")) {
+        if (!selectedEntityId.has_value()) {
+          printf("[Editor] Select an entity first (AnimatedSprite will be created if missing).\n");
+        } else {
+          const char *jsonF[] = {"*.json"};
+          const char *pJson = tinyfd_openFileDialog(
+              "Import Subterra animation", "subterra_guild/data/animations/player.json", 1,
+              jsonF, "JSON", 0);
+          if (pJson && std::strlen(pJson) > 0) {
+            std::string err;
+            criogenio::AssetId nid = criogenio::LoadSubterraGuildAnimationJson(
+                std::string(pJson), nullptr, nullptr, &err);
+            if (nid == criogenio::INVALID_ASSET_ID)
+              printf("[Editor] Import failed: %s\n", err.c_str());
+            else {
+              auto &w = GetWorld();
+              const int e = selectedEntityId.value();
+              if (!w.HasComponent<criogenio::AnimatedSprite>(e))
+                w.AddComponent<criogenio::AnimatedSprite>(e, nid);
+              else {
+                auto *sp = w.GetComponent<criogenio::AnimatedSprite>(e);
+                if (sp->animationId != criogenio::INVALID_ASSET_ID)
+                  criogenio::AnimationDatabase::instance().removeReference(sp->animationId);
+                sp->animationId = nid;
+                criogenio::AnimationDatabase::instance().addReference(nid);
+              }
+              if (!w.HasComponent<criogenio::AnimationState>(e))
+                w.AddComponent<criogenio::AnimationState>(e);
+              if (const auto *def = criogenio::AnimationDatabase::instance().getAnimation(nid)) {
+                texturePathEdits[e] = def->texturePath;
+                if (!def->clips.empty())
+                  w.GetComponent<criogenio::AnimatedSprite>(e)->SetClip(def->clips[0].name);
+              }
+              printf("[Editor] Imported Subterra animation -> id %u (%s)\n",
+                     static_cast<unsigned>(nid), pJson);
+            }
+          }
+        }
+      }
+      if (ImGui::MenuItem("Export Subterra player.json...")) {
+        if (!selectedEntityId.has_value())
+          printf("[Editor] Select an entity with AnimatedSprite.\n");
+        else {
+          auto *sp =
+              GetWorld().GetComponent<criogenio::AnimatedSprite>(selectedEntityId.value());
+          if (!sp || sp->animationId == criogenio::INVALID_ASSET_ID)
+            printf("[Editor] No AnimatedSprite or no animation assigned.\n");
+          else {
+            const char *jsonF[] = {"*.json"};
+            const char *pOut = tinyfd_saveFileDialog("Export Subterra player.json", "player.json",
+                                                     1, jsonF, "JSON");
+            if (pOut && std::strlen(pOut) > 0) {
+              std::string err;
+              if (!criogenio::SaveSubterraPlayerAnimationJson(sp->animationId, std::string(pOut),
+                                                              &err))
+                printf("[Editor] Export failed: %s\n", err.c_str());
+              else
+                printf("[Editor] Exported Subterra player.json: %s\n", pOut);
+            }
+          }
         }
       }
       if (ImGui::MenuItem("Save Scene", "Ctrl+S")) {
@@ -1725,20 +1789,29 @@ void EditorApp::DrawAnimationEditor(int entity) {
     }
   }
   ImGui::SameLine();
-  if (ImGui::Button("Import...")) {
+    if (ImGui::Button("Import...")) {
     const char *filters[] = {"*.json"};
     const char *path = tinyfd_openFileDialog("Import Animation", "", 1, filters,
                                              "Animation Files", 0);
     if (path && std::strlen(path) > 0) {
       criogenio::AssetId oldId = sprite->animationId;
-      criogenio::AssetId newId = criogenio::LoadAnimationFromFile(path);
+      std::string err;
+      criogenio::AssetId newId =
+          criogenio::LoadSubterraGuildAnimationJson(std::string(path), nullptr, nullptr, &err);
+      if (newId == criogenio::INVALID_ASSET_ID)
+        printf("[Editor] Animation import failed: %s\n", err.c_str());
       if (newId != criogenio::INVALID_ASSET_ID) {
         if (oldId != criogenio::INVALID_ASSET_ID) {
           criogenio::AnimationDatabase::instance().removeReference(oldId);
         }
         sprite->animationId = newId;
         criogenio::AnimationDatabase::instance().addReference(newId);
-        sprite->currentClipName.clear();
+        if (const auto *def =
+                criogenio::AnimationDatabase::instance().getAnimation(newId);
+            def && !def->clips.empty())
+          sprite->SetClip(def->clips[0].name);
+        else
+          sprite->currentClipName.clear();
       }
     }
   }

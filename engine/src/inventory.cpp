@@ -1,10 +1,9 @@
-#include "subterra_components.h"
-#include "items.h"
-#include "serialization.h"
+#include "inventory.h"
+#include "item_catalog.h"
 #include <algorithm>
 #include <sstream>
 
-namespace subterra {
+namespace criogenio {
 
 void Inventory::Deserialize(const SerializedComponent &data) {
   Clear();
@@ -13,7 +12,7 @@ void Inventory::Deserialize(const SerializedComponent &data) {
     auto it = data.fields.find(key);
     if (it == data.fields.end())
       continue;
-    std::string v = criogenio::GetString(it->second);
+    std::string v = GetString(it->second);
     auto sp = v.find(' ');
     if (sp == std::string::npos || sp == 0)
       continue;
@@ -105,4 +104,4 @@ std::string Inventory::FormatLine() const {
   return os.str();
 }
 
-} // namespace subterra
+} // namespace criogenio

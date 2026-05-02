@@ -65,6 +65,8 @@ static SDL_BlendMode ToSDLBlend(TextureBlendMode m) {
     return SDL_BLENDMODE_NONE;
   case TextureBlendMode::Alpha:
     return SDL_BLENDMODE_BLEND;
+  case TextureBlendMode::Add:
+    return SDL_BLENDMODE_ADD;
   case TextureBlendMode::Mod:
     return SDL_BLENDMODE_MOD;
   case TextureBlendMode::Mul:
@@ -259,6 +261,42 @@ void Renderer::DrawGrid(int slices, float spacing) {
     float p = (float)i * spacing;
     DrawLine(-extent, p, extent, p, gridColor);
     DrawLine(p, -extent, p, extent, gridColor);
+  }
+}
+
+void Renderer::SetRenderDrawBlendMode(TextureBlendMode blend) {
+  if (!s_impl || !s_impl->renderer)
+    return;
+  SDL_SetRenderDrawBlendMode(s_impl->renderer, ToSDLBlend(blend));
+}
+
+void Renderer::DrawRectScreen(float x, float y, float w, float h, Color color) {
+  if (!s_impl || !s_impl->renderer)
+    return;
+  SDL_FRect fr = {x, y, w, h};
+  SDL_SetRenderDrawColorFromColor(s_impl->renderer, color);
+  SDL_RenderFillRect(s_impl->renderer, &fr);
+}
+
+void Renderer::DrawFilledCircleScreen(float centerX, float centerY, float radius,
+                                    Color color) {
+  if (!s_impl || !s_impl->renderer || radius <= 0.5f)
+    return;
+  SDL_SetRenderDrawColorFromColor(s_impl->renderer, color);
+  const int r = static_cast<int>(std::ceil(radius));
+  const int cx = static_cast<int>(std::floor(centerX));
+  const int cy = static_cast<int>(std::floor(centerY));
+  const int r2 = r * r;
+  for (int dy = -r; dy <= r; ++dy) {
+    const int spanSq = r2 - dy * dy;
+    if (spanSq < 0)
+      continue;
+    const int half = static_cast<int>(std::sqrt(static_cast<double>(spanSq)));
+    const int x0 = cx - half;
+    const int wpx = half * 2 + 1;
+    SDL_FRect row = {static_cast<float>(x0), static_cast<float>(cy + dy),
+                     static_cast<float>(wpx), 1.f};
+    SDL_RenderFillRect(s_impl->renderer, &row);
   }
 }
 

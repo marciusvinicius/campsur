@@ -44,6 +44,7 @@ struct TextureHandle {
 enum class TextureBlendMode {
   None,
   Alpha,
+  Add,
   Mod,
   Mul,
 };

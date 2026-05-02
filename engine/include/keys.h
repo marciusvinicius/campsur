@@ -14,6 +14,16 @@ enum class Key : int {
   S = 22,
   D = 7,
   Space = 44,
+  /** SDL_SCANCODE_E — pick up / interact in Subterra Guild. */
+  E = 8,
+  /** SDL_SCANCODE_1 … SDL_SCANCODE_5 — action bar selection. */
+  Num1 = 30,
+  Num2 = 31,
+  Num3 = 32,
+  Num4 = 33,
+  Num5 = 34,
+  /** SDL_SCANCODE_U — use consumable from active action bar (Subterra). */
+  U = 24,
   Escape = 41,
   Enter = 40,
   LeftCtrl = 224,

@@ -49,6 +49,30 @@ struct TiledObjectGroup {
   std::vector<TiledMapObject> objects;
 };
 
+/** Tiled object layer entry: `type` or `name` `spawn_prefab` with property `spawn_prefab` / `prefab_name`. */
+struct TiledSpawnPrefab {
+  float x = 0.f;
+  float y = 0.f;
+  float width = 0.f;
+  float height = 0.f;
+  std::string prefabName;
+  int quantity = 1;
+};
+
+/**
+ * Tiled object whose `type` or `name` is `interactable` (case-insensitive), with
+ * property `interactable_type` or `interactable` giving the kind (door, chest, …).
+ */
+struct TiledInteractable {
+  float x = 0.f;
+  float y = 0.f;
+  float w = 0.f;
+  float h = 0.f;
+  bool is_point = false;
+  int tiled_object_id = 0;
+  std::string interactable_type;
+};
+
 /** Tiled `<imagelayer>`: full-image decoration between or above tile layers. */
 struct TiledImageLayerMeta {
   std::string name;
@@ -90,6 +114,31 @@ struct TmxMapMetadata {
    */
   std::vector<TmxDrawLayerStep> drawLayerOrder;
   std::vector<TiledObjectGroup> objectGroups;
+  /** Filled from object layers (spawn_prefab); used by gameplay to place pickups. */
+  std::vector<TiledSpawnPrefab> spawnPrefabs;
+  /** Filled from object layers (`interactable` type/name + kind property). */
+  std::vector<TiledInteractable> interactables;
+  /**
+   * Static map lights: `windows` tile layers (warm per-tile emitters) and object-layer
+   * torches (`type`/`class`/`name` torch or `torch` property), matching reference TMX load.
+   */
+  struct MapLightSource {
+    float x = 0.f;
+    float y = 0.f;
+    float radius = 128.f;
+    unsigned char r = 255, g = 180, b = 80;
+    bool is_window = false;
+  };
+  std::vector<MapLightSource> mapLightSources;
+
+  /**
+   * Tile-aligned collision mask (aligned with Odin `TileMap.collision`): layers whose name
+   * contains "collision", tile layers with property `collides=true`, and rectangles from
+   * object groups whose name contains "collision". Index: `(ty - boundsMinTy) * collisionStrideTiles + (tx - boundsMinTx)`.
+   */
+  int collisionStrideTiles = 0;
+  int collisionHeightTiles = 0;
+  std::vector<uint8_t> collisionSolid;
 
   void clear() {
     infinite = false;
@@ -99,6 +148,23 @@ struct TmxMapMetadata {
     imageLayers.clear();
     drawLayerOrder.clear();
     objectGroups.clear();
+    spawnPrefabs.clear();
+    interactables.clear();
+    mapLightSources.clear();
+    collisionStrideTiles = 0;
+    collisionHeightTiles = 0;
+    collisionSolid.clear();
+  }
+
+  /** World tile coords (same space as `Terrain2D::GetTile`). */
+  bool collisionTileSolid(int worldTx, int worldTy) const {
+    if (collisionSolid.empty() || collisionStrideTiles <= 0 || collisionHeightTiles <= 0)
+      return false;
+    const int lx = worldTx - boundsMinTx;
+    const int ly = worldTy - boundsMinTy;
+    if (lx < 0 || ly < 0 || lx >= collisionStrideTiles || ly >= collisionHeightTiles)
+      return false;
+    return collisionSolid[static_cast<size_t>(ly * collisionStrideTiles + lx)] != 0;
   }
 };
 

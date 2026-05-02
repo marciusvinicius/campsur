@@ -4,6 +4,7 @@
 #include "terrain.h"
 #include "tmx_metadata.h"
 #include <algorithm>
+#include <cmath>
 #include <cctype>
 #include <cstdint>
 #include <cstring>
@@ -178,6 +179,16 @@ static std::string toLowerAscii(std::string s) {
   return s;
 }
 
+/** Tiled often uses `<data encoding="csv"/>` for empty layers (especially infinite maps). */
+static bool xmlOpenTagSelfClosingBeforeGt(std::string_view tagThroughGt) {
+  if (tagThroughGt.size() < 2 || tagThroughGt.back() != '>')
+    return false;
+  int i = static_cast<int>(tagThroughGt.size()) - 2;
+  while (i >= 0 && std::isspace(static_cast<unsigned char>(tagThroughGt[static_cast<size_t>(i)])))
+    --i;
+  return i >= 0 && tagThroughGt[static_cast<size_t>(i)] == '/';
+}
+
 static std::vector<uint32_t> decodeLayerDataGids(const std::string &dataOpen,
                                                 const std::string &dataBody, int lw, int lh) {
   const int expected = lw * lh;
@@ -333,6 +344,98 @@ struct TileBounds {
   }
 };
 
+static bool asciiLowerContainsSubstring(const std::string &name, const char *needle) {
+  if (name.empty())
+    return false;
+  std::string low;
+  low.reserve(name.size());
+  for (unsigned char c : name)
+    low.push_back(static_cast<char>(std::tolower(c)));
+  return low.find(needle) != std::string::npos;
+}
+
+static bool tiledLayerFeedsCollisionMask(const TiledLayerMeta &meta) {
+  if (asciiLowerContainsSubstring(meta.name, "collision"))
+    return true;
+  return TmxGetPropertyBool(meta.properties, "collides", false);
+}
+
+static void finalizeTmxCollisionMask(Terrain2D &terrain) {
+  TmxMapMetadata &m = terrain.tmxMeta;
+  m.collisionSolid.clear();
+  m.collisionStrideTiles = 0;
+  m.collisionHeightTiles = 0;
+  const int w = m.boundsMaxTx - m.boundsMinTx;
+  const int h = m.boundsMaxTy - m.boundsMinTy;
+  if (w <= 0 || h <= 0)
+    return;
+  m.collisionStrideTiles = w;
+  m.collisionHeightTiles = h;
+  m.collisionSolid.assign(static_cast<size_t>(w * h), 0);
+
+  auto markTile = [&](int worldTx, int worldTy) {
+    const int lx = worldTx - m.boundsMinTx;
+    const int ly = worldTy - m.boundsMinTy;
+    if (lx < 0 || ly < 0 || lx >= w || ly >= h)
+      return;
+    m.collisionSolid[static_cast<size_t>(ly * w + lx)] = 1;
+  };
+
+  for (size_t li = 0; li < terrain.layers.size() && li < m.layerInfo.size(); ++li) {
+    if (!tiledLayerFeedsCollisionMask(m.layerInfo[li]))
+      continue;
+    const int layerIdx = static_cast<int>(li);
+    for (int ty = m.boundsMinTy; ty < m.boundsMaxTy; ++ty) {
+      for (int tx = m.boundsMinTx; tx < m.boundsMaxTx; ++tx) {
+        if (terrain.CellHasTile(layerIdx, tx, ty))
+          markTile(tx, ty);
+      }
+    }
+  }
+
+  const int gw = terrain.GridStepX();
+  const int gh = terrain.GridStepY();
+  if (gw <= 0 || gh <= 0)
+    return;
+  const float orx = terrain.origin.x;
+  const float ory = terrain.origin.y;
+
+  for (const TiledObjectGroup &og : m.objectGroups) {
+    if (!asciiLowerContainsSubstring(og.name, "collision"))
+      continue;
+    for (const TiledMapObject &obj : og.objects) {
+      if (obj.point)
+        continue;
+      const float x1 = obj.x;
+      const float y1 = obj.y;
+      const float x2 = obj.x + obj.width;
+      const float y2 = obj.y + obj.height;
+      if (obj.width <= 0.f && obj.height <= 0.f)
+        continue;
+      if (obj.width <= 0.f || obj.height <= 0.f) {
+        const int tx =
+            static_cast<int>(std::floor((obj.x - orx) / static_cast<float>(gw)));
+        const int ty =
+            static_cast<int>(std::floor((obj.y - ory) / static_cast<float>(gh)));
+        markTile(tx, ty);
+        continue;
+      }
+      const int tminx = static_cast<int>(
+          std::floor((std::min(x1, x2) - orx) / static_cast<float>(gw)));
+      const int tmaxx = static_cast<int>(
+          std::floor((std::max(x1, x2) - orx - 1e-3f) / static_cast<float>(gw)));
+      const int tminy = static_cast<int>(
+          std::floor((std::min(y1, y2) - ory) / static_cast<float>(gh)));
+      const int tmaxy = static_cast<int>(
+          std::floor((std::max(y1, y2) - ory - 1e-3f) / static_cast<float>(gh)));
+      for (int ty = tminy; ty <= tmaxy; ++ty) {
+        for (int tx = tminx; tx <= tmaxx; ++tx)
+          markTile(tx, ty);
+      }
+    }
+  }
+}
+
 void parseOneObject(const std::string &inner, size_t op, TiledMapObject &obj) {
   size_t gt = inner.find('>', op);
   if (gt == std::string::npos)
@@ -345,7 +448,12 @@ void parseOneObject(const std::string &inner, size_t op, TiledMapObject &obj) {
 
   obj.id = parseIntAttr(objOpen, "id", 0);
   obj.name = attrValue(objOpen, "name");
-  obj.objectType = attrValue(objOpen, "type");
+  {
+    std::string typ = attrValue(objOpen, "type");
+    if (typ.empty())
+      typ = attrValue(objOpen, "class");
+    obj.objectType = std::move(typ);
+  }
   obj.x = parseFloatAttr(objOpen, "x", 0.f);
   obj.y = parseFloatAttr(objOpen, "y", 0.f);
   obj.width = parseFloatAttr(objOpen, "width", 0.f);
@@ -399,6 +507,162 @@ void parseObjectGroups(const std::string &xml, std::vector<TiledObjectGroup> &gr
 
     groups.push_back(std::move(og));
     pos = close + 14;
+  }
+}
+
+static int spawnPrefabQuantityCI(const std::vector<TmxProperty> &props) {
+  for (const auto &p : props) {
+    if (toLowerAscii(p.name) != "quantity")
+      continue;
+    if (p.value.empty())
+      return 1;
+    try {
+      int q = std::stoi(p.value);
+      return q > 0 ? q : 1;
+    } catch (...) {
+      return 1;
+    }
+  }
+  return 1;
+}
+
+static std::string spawnPrefabNameCI(const std::vector<TmxProperty> &props) {
+  for (const auto &p : props) {
+    std::string n = toLowerAscii(p.name);
+    if (n == "spawn_prefab" || n == "prefab_name")
+      return trim(p.value);
+  }
+  return {};
+}
+
+static void extractSpawnPrefabs(TmxMapMetadata &meta) {
+  meta.spawnPrefabs.clear();
+  for (const auto &og : meta.objectGroups) {
+    for (const auto &obj : og.objects) {
+      if (toLowerAscii(obj.objectType) != "spawn_prefab" &&
+          toLowerAscii(obj.name) != "spawn_prefab")
+        continue;
+      std::string prefab = spawnPrefabNameCI(obj.properties);
+      if (prefab.empty())
+        continue;
+      for (char &c : prefab)
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+      TiledSpawnPrefab sp;
+      sp.x = obj.x;
+      sp.y = obj.y;
+      sp.width = obj.width;
+      sp.height = obj.height;
+      sp.prefabName = std::move(prefab);
+      sp.quantity = spawnPrefabQuantityCI(obj.properties);
+      meta.spawnPrefabs.push_back(std::move(sp));
+    }
+  }
+}
+
+static std::string interactableKindFromProps(const std::vector<TmxProperty> &props) {
+  for (const auto &p : props) {
+    std::string n = toLowerAscii(p.name);
+    if (n == "interactable_type" || n == "interactable") {
+      std::string v = trim(p.value);
+      for (char &c : v)
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+      return v;
+    }
+  }
+  return {};
+}
+
+static void collectWindowLightsFromLayer(
+    const Terrain2D &terrain, int layerIdx,
+    std::vector<TmxMapMetadata::MapLightSource> &out) {
+  if (layerIdx < 0 || layerIdx >= static_cast<int>(terrain.layers.size()))
+    return;
+  const int stepX = terrain.GridStepX();
+  const int stepY = terrain.GridStepY();
+  if (stepX <= 0 || stepY <= 0)
+    return;
+  constexpr float kWindowLightRadiusPx = 108.f;
+  const auto &layer = terrain.layers[static_cast<size_t>(layerIdx)];
+  const int cs = terrain.GetChunkSize();
+  for (const auto &kv : layer.chunks) {
+    int ckx = kv.first.first;
+    int cky = kv.first.second;
+    const auto &tiles = kv.second;
+    if (static_cast<int>(tiles.size()) != cs * cs)
+      continue;
+    for (int ly = 0; ly < cs; ++ly) {
+      for (int lx = 0; lx < cs; ++lx) {
+        if (tiles[static_cast<size_t>(ly * cs + lx)] == 0)
+          continue;
+        const int wtx = ckx * cs + lx;
+        const int wty = cky * cs + ly;
+        TmxMapMetadata::MapLightSource ls;
+        ls.x = (static_cast<float>(wtx) + 0.5f) * static_cast<float>(stepX);
+        ls.y = (static_cast<float>(wty) + 0.5f) * static_cast<float>(stepY);
+        ls.radius = kWindowLightRadiusPx;
+        ls.r = 255;
+        ls.g = 236;
+        ls.b = 198;
+        ls.is_window = true;
+        out.push_back(ls);
+      }
+    }
+  }
+}
+
+static void extractTorchMapLights(TmxMapMetadata &meta) {
+  for (const auto &og : meta.objectGroups) {
+    for (const auto &obj : og.objects) {
+      const std::string t = toLowerAscii(obj.objectType);
+      const std::string n = toLowerAscii(obj.name);
+      const bool torchProp = TmxGetPropertyBool(obj.properties, "torch", false);
+      if (t != "torch" && n != "torch" && !torchProp)
+        continue;
+      float radius_v = 128.f;
+      const int rv = TmxGetPropertyInt(obj.properties, "radius", -1);
+      if (rv > 0)
+        radius_v = static_cast<float>(rv);
+      const float ow = std::max(0.f, obj.width);
+      const float oh = std::max(0.f, obj.height);
+      float cx = obj.x + ow * 0.5f;
+      float cy = obj.y + oh * 0.5f;
+      if (obj.point || (ow <= 0.001f && oh <= 0.001f)) {
+        cx = obj.x;
+        cy = obj.y;
+      }
+      TmxMapMetadata::MapLightSource ls;
+      ls.x = cx;
+      ls.y = cy;
+      ls.radius = radius_v;
+      ls.r = 255;
+      ls.g = 180;
+      ls.b = 80;
+      ls.is_window = false;
+      meta.mapLightSources.push_back(ls);
+    }
+  }
+}
+
+static void extractInteractables(TmxMapMetadata &meta) {
+  meta.interactables.clear();
+  for (const auto &og : meta.objectGroups) {
+    for (const auto &obj : og.objects) {
+      if (toLowerAscii(obj.objectType) != "interactable" &&
+          toLowerAscii(obj.name) != "interactable")
+        continue;
+      std::string kind = interactableKindFromProps(obj.properties);
+      if (kind.empty())
+        continue;
+      TiledInteractable ti;
+      ti.x = obj.x;
+      ti.y = obj.y;
+      ti.w = std::max(0.f, obj.width);
+      ti.h = std::max(0.f, obj.height);
+      ti.is_point = obj.point || (ti.w < 0.5f && ti.h < 0.5f);
+      ti.tiled_object_id = obj.id;
+      ti.interactable_type = std::move(kind);
+      meta.interactables.push_back(std::move(ti));
+    }
   }
 }
 
@@ -580,13 +844,18 @@ Terrain2D TilemapLoader::LoadFromTMX(const std::string &path) {
     TiledLayerMeta layerMeta = buildLayerMeta(layerTag, layerProps);
 
     size_t dataGt = xml.find('>', dataPos);
+    if (dataGt == std::string::npos || dataGt > layerClose)
+      throw std::runtime_error("TMX: malformed <data> opening tag");
     std::string dataOpen = std::string(xml.substr(dataPos, dataGt - dataPos + 1));
+    const bool dataSelfClose = xmlOpenTagSelfClosingBeforeGt(dataOpen);
 
-    size_t dataClose = xml.find("</data>", dataGt);
-    if (dataClose == std::string::npos)
-      throw std::runtime_error("TMX: unclosed <data>");
-    std::string dataBody =
-        trim(std::string(xml.substr(dataGt + 1, dataClose - dataGt - 1)));
+    std::string dataBody;
+    if (!dataSelfClose) {
+      size_t dataClose = xml.find("</data>", dataGt + 1);
+      if (dataClose == std::string::npos || dataClose > layerClose)
+        throw std::runtime_error("TMX: unclosed <data>");
+      dataBody = trim(std::string(xml.substr(dataGt + 1, dataClose - dataGt - 1)));
+    }
 
     int lw = parseIntAttr(layerTag, "width", mapW);
     int lh = parseIntAttr(layerTag, "height", mapH);
@@ -628,19 +897,30 @@ Terrain2D TilemapLoader::LoadFromTMX(const std::string &path) {
         cpos = cClose + 8;
       }
     } else {
-      if (lw <= 0 || lh <= 0)
-        throw std::runtime_error("TMX: layer missing width/height for non-chunk data");
-      std::vector<uint32_t> gids = decodeLayerDataGids(dataOpen, dataBody, lw, lh);
-      for (int ty = 0; ty < lh; ++ty) {
-        for (int tx = 0; tx < lw; ++tx) {
-          uint32_t raw = gids[static_cast<size_t>(ty * lw + tx)];
-          uint32_t gid = raw & 0x1FFFFFFFu;
-          int store = (gid == 0) ? 0 : static_cast<int>(gid);
-          terrain.SetTile(layerIdx, tx, ty, store);
-          thisLayerBounds.add(tx, ty);
+      if (lw <= 0 || lh <= 0) {
+        if (!(mapInfinite && dataBody.empty()))
+          throw std::runtime_error("TMX: layer missing width/height for non-chunk data");
+      } else {
+        std::vector<uint32_t> gids;
+        if (dataBody.empty()) {
+          gids.assign(static_cast<size_t>(lw) * static_cast<size_t>(lh), 0u);
+        } else {
+          gids = decodeLayerDataGids(dataOpen, dataBody, lw, lh);
+        }
+        for (int ty = 0; ty < lh; ++ty) {
+          for (int tx = 0; tx < lw; ++tx) {
+            uint32_t raw = gids[static_cast<size_t>(ty * lw + tx)];
+            uint32_t gid = raw & 0x1FFFFFFFu;
+            int store = (gid == 0) ? 0 : static_cast<int>(gid);
+            terrain.SetTile(layerIdx, tx, ty, store);
+            thisLayerBounds.add(tx, ty);
+          }
         }
       }
     }
+
+    if (terrain.tmxMeta.layerInfo[static_cast<size_t>(layerIdx)].windows)
+      collectWindowLightsFromLayer(terrain, layerIdx, terrain.tmxMeta.mapLightSources);
 
     layerBounds.merge(thisLayerBounds);
     pos = layerClose + 8;
@@ -698,6 +978,10 @@ Terrain2D TilemapLoader::LoadFromTMX(const std::string &path) {
   }
 
   parseObjectGroups(xml, terrain.tmxMeta.objectGroups);
+  extractSpawnPrefabs(terrain.tmxMeta);
+  extractInteractables(terrain.tmxMeta);
+  extractTorchMapLights(terrain.tmxMeta);
+  finalizeTmxCollisionMask(terrain);
 
   return terrain;
 }

@@ -40,6 +40,13 @@ public:
   void DrawLine(float x1, float y1, float x2, float y2, Color color);
   void DrawGrid(int slices, float spacing);
 
+  /** Blend mode for `DrawRect` / `DrawFilledCircleScreen` (not textures). Default is alpha. */
+  void SetRenderDrawBlendMode(TextureBlendMode blend);
+  /** Axis-aligned rect in raw window pixels; ignores the 2D camera (for post-world fullscreen passes). */
+  void DrawRectScreen(float x, float y, float w, float h, Color color);
+  /** Filled disk in window pixel space; ignores the 2D camera. */
+  void DrawFilledCircleScreen(float centerX, float centerY, float radius, Color color);
+
   bool WindowShouldClose() const;
   /**
    * Process SDL events. If consumeFirst is set and returns true for an event, default handling

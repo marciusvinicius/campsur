@@ -261,6 +261,37 @@ bool Terrain2D::CellHasTile(int layerIndex, int worldTx, int worldTy) const {
   return v >= 0;
 }
 
+bool Terrain2D::TmxFootprintOverlapsSolid(float rectLeft, float rectTop, float w,
+                                        float h) const {
+  if (!gidMode_ || tmxMeta.collisionSolid.empty() || w <= 0.f || h <= 0.f)
+    return false;
+  const int gw = GridStepX();
+  const int gh = GridStepY();
+  if (gw <= 0 || gh <= 0)
+    return false;
+  const float ox = origin.x;
+  const float oy = origin.y;
+  const float r = rectLeft + w;
+  const float b = rectTop + h;
+  const int minTx = static_cast<int>(std::floor((rectLeft - ox) / static_cast<float>(gw)));
+  const int maxTx = static_cast<int>(std::floor((r - ox - 1e-3f) / static_cast<float>(gw)));
+  const int minTy = static_cast<int>(std::floor((rectTop - oy) / static_cast<float>(gh)));
+  const int maxTy = static_cast<int>(std::floor((b - oy - 1e-3f) / static_cast<float>(gh)));
+  for (int ty = minTy; ty <= maxTy; ++ty) {
+    for (int tx = minTx; tx <= maxTx; ++tx) {
+      if (!tmxMeta.collisionTileSolid(tx, ty))
+        continue;
+      const float tileL = ox + tx * static_cast<float>(gw);
+      const float tileT = oy + ty * static_cast<float>(gh);
+      const float tileR = tileL + static_cast<float>(gw);
+      const float tileB = tileT + static_cast<float>(gh);
+      if (rectLeft < tileR && r > tileL && rectTop < tileB && b > tileT)
+        return true;
+    }
+  }
+  return false;
+}
+
 void Terrain2D::ClearTmxState() {
   gidMode_ = false;
   mapTilePxW_ = mapTilePxH_ = 0;

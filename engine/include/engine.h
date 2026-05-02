@@ -44,6 +44,8 @@ public:
 protected:
   virtual void OnGUI() {}
   virtual void OnFrame(float dt) { (void)dt; }
+  /** After `World::Render` (camera ended); use for fullscreen compositing (e.g. day/night). */
+  virtual void OnAfterWorldRender(Renderer& renderer) { (void)renderer; }
   /** Register game-specific debug console commands; called once before the main loop. */
   virtual void RegisterDebugCommands() {}
   /** Return true to skip default handling (quit, escape, resize) for this SDL_Event. */

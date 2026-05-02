@@ -89,6 +89,11 @@ public:
   int GridStepY() const { return mapTilePxH_ > 0 ? mapTilePxH_ : tileset.tileSize; }
   bool UsesGidMode() const { return gidMode_; }
   bool CellHasTile(int layerIndex, int worldTx, int worldTy) const;
+  /**
+   * When `tmxMeta.collisionSolid` is non-empty, tests axis-aligned rect (world pixels,
+   * top-left) against merged TMX collision tiles.
+   */
+  bool TmxFootprintOverlapsSolid(float rectLeft, float rectTop, float w, float h) const;
   void ClearTmxState();
 
   /** TMX `<map width="…" height="…">` in tiles; 0 if not from TMX. */

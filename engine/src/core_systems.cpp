@@ -18,6 +18,9 @@ namespace criogenio {
 
 namespace {
 
+PlayerMovementAxisOverrideFn g_playerMovementAxisOverride = nullptr;
+PlayerRunHeldOverrideFn g_playerRunHeldOverride = nullptr;
+
 bool NameLooksLikePlayer(const Name *nm) {
   if (!nm)
     return false;
@@ -45,6 +48,16 @@ int EffectiveSpriteDrawOrder(const World &world, ecs::EntityId id) {
 
 } // namespace
 
+void SetPlayerMovementAxisOverride(PlayerMovementAxisOverrideFn fn) {
+  g_playerMovementAxisOverride = fn;
+}
+
+PlayerMovementAxisOverrideFn GetPlayerMovementAxisOverride() {
+  return g_playerMovementAxisOverride;
+}
+
+void SetPlayerRunHeldOverride(PlayerRunHeldOverrideFn fn) { g_playerRunHeldOverride = fn; }
+
 void MovementSystem::Update(float dt) {
   auto ids = world.GetEntitiesWith<Controller>();
 
@@ -60,41 +73,78 @@ void MovementSystem::Update(float dt) {
     if (!ctrl || !tr || !anim)
       continue;
 
-    if (Input::IsGameplayInputSuppressed()) {
+    if (Input::IsGameplayInputSuppressed() || ctrl->movement_frozen) {
       anim->current = AnimState::IDLE;
       continue;
     }
 
     float dx = 0, dy = 0;
+    const bool usedOverride =
+        g_playerMovementAxisOverride &&
+        g_playerMovementAxisOverride(world, id, &dx, &dy);
 
-    if (Input::IsKeyDown(static_cast<int>(Key::Right)) ||
-        Input::IsKeyDown(static_cast<int>(Key::D))) {
-      dx += 1;
-      anim->facing = Direction::RIGHT;
-    }
-    if (Input::IsKeyDown(static_cast<int>(Key::Left)) ||
-        Input::IsKeyDown(static_cast<int>(Key::A))) {
-      dx -= 1;
-      anim->facing = Direction::LEFT;
-    }
-    if (Input::IsKeyDown(static_cast<int>(Key::Up)) ||
-        Input::IsKeyDown(static_cast<int>(Key::W))) {
-      dy -= 1;
-      anim->facing = Direction::UP;
-    }
-    if (Input::IsKeyDown(static_cast<int>(Key::Down)) ||
-        Input::IsKeyDown(static_cast<int>(Key::S))) {
-      dy += 1;
-      anim->facing = Direction::DOWN;
+    if (!usedOverride) {
+      if (Input::IsKeyDown(static_cast<int>(Key::Right)) ||
+          Input::IsKeyDown(static_cast<int>(Key::D))) {
+        dx += 1;
+        anim->facing = Direction::RIGHT;
+      }
+      if (Input::IsKeyDown(static_cast<int>(Key::Left)) ||
+          Input::IsKeyDown(static_cast<int>(Key::A))) {
+        dx -= 1;
+        anim->facing = Direction::LEFT;
+      }
+      if (Input::IsKeyDown(static_cast<int>(Key::Up)) ||
+          Input::IsKeyDown(static_cast<int>(Key::W))) {
+        dy -= 1;
+        anim->facing = Direction::UP;
+      }
+      if (Input::IsKeyDown(static_cast<int>(Key::Down)) ||
+          Input::IsKeyDown(static_cast<int>(Key::S))) {
+        dy += 1;
+        anim->facing = Direction::DOWN;
+      }
+    } else {
+      if (dx > 0.01f)
+        anim->facing = Direction::RIGHT;
+      else if (dx < -0.01f)
+        anim->facing = Direction::LEFT;
+      else if (dy < -0.01f)
+        anim->facing = Direction::UP;
+      else if (dy > 0.01f)
+        anim->facing = Direction::DOWN;
     }
 
-    const bool run = Input::IsKeyDown(static_cast<int>(Key::LeftShift)) ||
-                     Input::IsKeyDown(static_cast<int>(Key::RightShift));
+    const bool run = g_playerRunHeldOverride
+                         ? g_playerRunHeldOverride()
+                         : (Input::IsKeyDown(static_cast<int>(Key::LeftShift)) ||
+                            Input::IsKeyDown(static_cast<int>(Key::RightShift)));
     const float runMul = run ? 1.55f : 1.f;
 
     if (dx != 0 || dy != 0) {
-      tr->x += dx * ctrl->velocity.x * runMul * dt;
-      tr->y += dy * ctrl->velocity.y * runMul * dt;
+      const float stepX = dx * ctrl->velocity.x * runMul * dt;
+      const float stepY = dy * ctrl->velocity.y * runMul * dt;
+      Terrain2D *terrain = world.GetTerrain();
+      const bool useTileCol =
+          terrain && ctrl->tile_collision_w > 0.f && ctrl->tile_collision_h > 0.f &&
+          !terrain->tmxMeta.collisionSolid.empty();
+      if (useTileCol) {
+        const float ox = ctrl->tile_collision_offset_x;
+        const float oy = ctrl->tile_collision_offset_y;
+        const float cw = ctrl->tile_collision_w;
+        const float ch = ctrl->tile_collision_h;
+        const float x0 = tr->x;
+        const float y0 = tr->y;
+        const float tryX = x0 + stepX;
+        if (!terrain->TmxFootprintOverlapsSolid(tryX + ox, y0 + oy, cw, ch))
+          tr->x = tryX;
+        const float tryY = y0 + stepY;
+        if (!terrain->TmxFootprintOverlapsSolid(tr->x + ox, tryY + oy, cw, ch))
+          tr->y = tryY;
+      } else {
+        tr->x += stepX;
+        tr->y += stepY;
+      }
       anim->current = run ? AnimState::RUNNING : AnimState::WALKING;
     } else {
       anim->current = AnimState::IDLE;

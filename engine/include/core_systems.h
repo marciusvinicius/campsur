@@ -13,6 +13,19 @@
 
 namespace criogenio {
 
+/**
+ * When non-null, `MovementSystem` asks this first for player movement axes (dx,dy in {-1,0,1}).
+ * Return true if handled (skip built-in WASD for that entity). Used by Subterra for input_config.json bindings.
+ */
+using PlayerMovementAxisOverrideFn =
+    bool (*)(World &world, ecs::EntityId id, float *outDx, float *outDy);
+void SetPlayerMovementAxisOverride(PlayerMovementAxisOverrideFn fn);
+PlayerMovementAxisOverrideFn GetPlayerMovementAxisOverride();
+
+/** When non-null, used instead of LeftShift/RightShift for run speed multiplier. */
+using PlayerRunHeldOverrideFn = bool (*)();
+void SetPlayerRunHeldOverride(PlayerRunHeldOverrideFn fn);
+
 class MovementSystem : public ISystem {
 public:
   World &world;

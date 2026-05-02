@@ -1,6 +1,8 @@
 #include "engine.h"
 #include "asset_manager.h"
 #include "component_factory.h"
+#include "gameplay_tags.h"
+#include "inventory.h"
 #include "input.h"
 #include "network/net_messages.h"
 #include "network/replication_client.h"
@@ -173,6 +175,7 @@ void Engine::Run() {
     }
     renderer->BeginFrame();
     world->Render(*renderer);
+    OnAfterWorldRender(*renderer);
     debugConsole_.Draw(*renderer, renderer->GetViewportWidth(),
                         renderer->GetViewportHeight());
     OnGUI();
@@ -219,6 +222,33 @@ void Engine::RegisterCoreComponents() {
   });
   ComponentFactory::Register("NetReplicated", [](World& w, int e) {
     return &w.AddComponent<NetReplicated>(e);
+  });
+  ComponentFactory::Register("ReplicatedNetId", [](World& w, int e) {
+    return &w.AddComponent<ReplicatedNetId>(e);
+  });
+  ComponentFactory::Register("BoxCollider", [](World& w, int e) {
+    return &w.AddComponent<BoxCollider>(e);
+  });
+  ComponentFactory::Register("RigidBody", [](World& w, int e) {
+    return &w.AddComponent<RigidBody>(e);
+  });
+  ComponentFactory::Register("Grounded", [](World& w, int e) {
+    return &w.AddComponent<Grounded>(e);
+  });
+  ComponentFactory::Register("Sprite", [](World& w, int e) {
+    return &w.AddComponent<Sprite>(e);
+  });
+  ComponentFactory::Register("PlayerTag", [](World& w, int e) {
+    return &w.AddComponent<PlayerTag>(e);
+  });
+  ComponentFactory::Register("MobTag", [](World& w, int e) {
+    return &w.AddComponent<MobTag>(e);
+  });
+  ComponentFactory::Register("WorldPickup", [](World& w, int e) {
+    return &w.AddComponent<WorldPickup>(e);
+  });
+  ComponentFactory::Register("Inventory", [](World& w, int e) {
+    return &w.AddComponent<Inventory>(e);
   });
   ComponentFactory::Register("Camera2D", [](World& w, int e) {
     return &w.AddComponent<Camera>(e);

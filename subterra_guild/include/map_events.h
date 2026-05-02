@@ -2,6 +2,7 @@
 
 #include "terrain.h"
 #include "tmx_metadata.h"
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <unordered_set>
@@ -63,7 +64,25 @@ MapEventPayload MakePayloadFromTrigger(const MapEventTrigger &t, bool manual = f
 
 void DispatchMapEventDefaults(SubterraSession &session, const MapEventPayload &p);
 
-/** Resolve spawn name to pixel center (Tiled coords). Returns false if not found. */
+/** Bit flags in `SubterraSession::interactableStateFlags` (per `InteractableStateKey`). */
+struct InteractableState {
+  static constexpr std::uint8_t Open = 1;
+  static constexpr std::uint8_t Burning = 2;
+};
+
+std::string InteractableStateKey(const std::string &mapPath,
+                                const criogenio::TiledInteractable &it);
+/** Stored flags for this interactable key (0 when never toggled). */
+std::uint8_t InteractableFlagsEffective(const SubterraSession &session,
+                                        const criogenio::TiledInteractable &it);
+void ApplyInteractableUse(SubterraSession &session, const criogenio::TiledInteractable &it);
+
+/**
+ * Resolve teleport spawn key to player center (world px, Tiled coords).
+ * Matches reference: object id string, then event_id, then name; prefers markers
+ * without teleport_to / target_level; offsets north when landing on an outgoing
+ * teleporter so the player does not instantly warp back.
+ */
 bool FindSpawnCenter(const criogenio::TmxMapMetadata &meta, const std::string &name,
                      float &outCx, float &outCy);
 

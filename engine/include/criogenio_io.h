@@ -14,6 +14,9 @@ bool LoadTerrainFromTmxFile(World &world, const std::string &path);
 // file so it can be reused by other animation components.
 bool SaveAnimationToFile(AssetId animId, const std::string &path);
 
+// Subterra Guild animations (`player.json`, assets, engine clip JSON): see
+// `subterra_player_json_io.h` (`LoadSubterraGuildAnimationJson`).
+
 // Load an animation definition from a standalone JSON file and register it in
 // the AnimationDatabase. Returns the created AssetId, or INVALID_ASSET_ID on
 // failure.

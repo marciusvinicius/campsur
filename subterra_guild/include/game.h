@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ecs_core.h"
 #include "graphics_types.h"
 #include "systems.h"
 #include "world.h"
@@ -22,6 +23,11 @@ static constexpr float DefaultCameraZoom = 1.15f;
 extern int g_playerDrawW;
 extern int g_playerDrawH;
 
+/** Footprint ~Odin `PLAYER_BODY_RADIUS` (10): narrow box at feet for TMX `collision` layers. */
+void SubterraApplyPlayerTileCollisionFootprint(criogenio::World &world,
+                                               criogenio::ecs::EntityId player,
+                                               float spriteW, float spriteH);
+
 /** Clamp player transforms to the loaded terrain using `g_playerDrawW/H`. */
 class MapBoundsSystem : public criogenio::ISystem {
 public:
@@ -34,16 +40,26 @@ public:
 class CameraFollowSystem : public criogenio::ISystem {
 public:
   criogenio::World &world;
-  explicit CameraFollowSystem(criogenio::World &w) : world(w) {}
+  SubterraSession &session;
+  CameraFollowSystem(criogenio::World &w, SubterraSession &s) : world(w), session(s) {}
   void Update(float dt) override;
   void Render(criogenio::Renderer &renderer) override;
 };
 
-/** Overlap test against player; draws pickup markers. */
+/** E to pick up nearest item in range; 1–5 action bar, U use consumable; draws pickup markers. */
 class PickupSystem : public criogenio::ISystem {
 public:
   SubterraSession &session;
   explicit PickupSystem(SubterraSession &s) : session(s) {}
+  void Update(float dt) override;
+  void Render(criogenio::Renderer &renderer) override;
+};
+
+/** Vitals + status effects tick (after movement/animation). */
+class VitalsSystem : public criogenio::ISystem {
+public:
+  SubterraSession &session;
+  explicit VitalsSystem(SubterraSession &s) : session(s) {}
   void Update(float dt) override;
   void Render(criogenio::Renderer &renderer) override;
 };

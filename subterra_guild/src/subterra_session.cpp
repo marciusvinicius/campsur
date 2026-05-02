@@ -1,12 +1,50 @@
 #include "subterra_session.h"
+#include "components.h"
 #include "engine.h"
 #include "map_events.h"
+#include "spawn_service.h"
 #include "subterra_components.h"
 #include "terrain_loader.h"
+#include <filesystem>
 #include <memory>
+#include <string>
 #include <unordered_set>
 
 namespace subterra {
+
+namespace fs = std::filesystem;
+
+namespace {
+
+static std::string mapBasenameFromPath(const std::string &path) {
+  if (path.empty())
+    return {};
+  return fs::path(path).filename().string();
+}
+
+static void snapshotPickupsForBasename(SubterraSession &session, const std::string &basename) {
+  if (basename.empty() || !session.world)
+    return;
+  std::vector<PersistedPickup> list;
+  auto ids = session.world->GetEntitiesWith<WorldPickup, criogenio::Transform>();
+  for (criogenio::ecs::EntityId id : ids) {
+    auto *pk = session.world->GetComponent<WorldPickup>(id);
+    auto *tr = session.world->GetComponent<criogenio::Transform>(id);
+    if (!pk || !tr || pk->item_id.empty() || pk->count <= 0)
+      continue;
+    PersistedPickup p;
+    p.item_id = pk->item_id;
+    p.count = pk->count;
+    p.width = pk->width;
+    p.height = pk->height;
+    p.center_x = tr->x + pk->width * 0.5f;
+    p.center_y = tr->y + pk->height * 0.5f;
+    list.push_back(std::move(p));
+  }
+  session.persistedPickupsByBasename[basename] = std::move(list);
+}
+
+} // namespace
 
 void sessionLog(SubterraSession &session, const std::string &line) {
   if (session.engine)
@@ -16,10 +54,28 @@ void sessionLog(SubterraSession &session, const std::string &line) {
 void SubterraSession::rebuildTriggers() {
   triggers.clear();
   triggerInsidePrevFrame.clear();
+  tiledInteractables.clear();
   criogenio::Terrain2D *t = world ? world->GetTerrain() : nullptr;
-  if (!t)
-    return;
-  triggers = BuildMapEventTriggers(*t);
+  if (t) {
+    triggers = BuildMapEventTriggers(*t);
+    tiledInteractables = t->tmxMeta.interactables;
+  }
+  triggers.insert(triggers.end(), runtimeTriggers.begin(), runtimeTriggers.end());
+}
+
+std::string SubterraSession::addRuntimeTrigger(MapEventTrigger t) {
+  if (t.storage_key.empty())
+    t.storage_key = "rt_" + std::to_string(runtimeTriggerSeq++);
+  std::string key = t.storage_key;
+  runtimeTriggers.push_back(std::move(t));
+  rebuildTriggers();
+  return key;
+}
+
+void SubterraSession::clearRuntimeTriggers() {
+  runtimeTriggers.clear();
+  runtimeTriggerSeq = 1;
+  rebuildTriggers();
 }
 
 void SubterraSession::destroyTransientEntities() {
@@ -42,12 +98,30 @@ bool SubterraSession::loadMap(const std::string &path, std::string &errOut) {
     return false;
   }
   try {
+    const std::string leavingBasename = mapBasenameFromPath(mapPath);
+    if (!leavingBasename.empty())
+      snapshotPickupsForBasename(*this, leavingBasename);
+
     destroyTransientEntities();
+    interactableStateFlags.clear();
+    nearestInteractableIndex = -1;
+    runtimeTriggers.clear();
+    runtimeTriggerSeq = 1;
     criogenio::Terrain2D terrain = criogenio::TilemapLoader::LoadFromTMX(path);
     world->SetTerrain(std::make_unique<criogenio::Terrain2D>(std::move(terrain)));
     mapPath = path;
     triggerInsidePrevFrame.clear();
     rebuildTriggers();
+    const std::string enteringBasename = mapBasenameFromPath(path);
+    const auto persisted = persistedPickupsByBasename.find(enteringBasename);
+    if (persisted != persistedPickupsByBasename.end()) {
+      for (const PersistedPickup &p : persisted->second)
+        SpawnPickupAt(*this, p.center_x, p.center_y, p.item_id, p.count, p.width, p.height);
+    } else {
+      SpawnTiledMapPrefabs(*this);
+    }
+    nearestPickupEntity = criogenio::ecs::NULL_ENTITY;
+    interactHint.clear();
     return true;
   } catch (const std::exception &e) {
     errOut = e.what();
@@ -68,7 +142,18 @@ void SubterraSession::placePlayerAtSpawn(const std::string &spawnNameOrEmpty) {
     have = ter && FindSpawnCenter(ter->tmxMeta, spawnNameOrEmpty, cx, cy);
   if (!have && ter)
     have = FindSpawnCenter(ter->tmxMeta, "player_start_position", cx, cy);
-  if (!have && ter && ter->LogicalMapWidthTiles() > 0) {
+  if (!have && ter && ter->UsesGidMode() && ter->LogicalMapWidthTiles() > 0) {
+    const float sx = static_cast<float>(ter->GridStepX());
+    const float sy = static_cast<float>(ter->GridStepY());
+    const auto &m = ter->tmxMeta;
+    const float minPx = static_cast<float>(m.boundsMinTx) * sx;
+    const float maxPx = static_cast<float>(m.boundsMaxTx) * sx;
+    const float minPy = static_cast<float>(m.boundsMinTy) * sy;
+    const float maxPy = static_cast<float>(m.boundsMaxTy) * sy;
+    cx = (minPx + maxPx) * 0.5f;
+    cy = (minPy + maxPy) * 0.5f;
+    have = true;
+  } else if (!have && ter && ter->LogicalMapWidthTiles() > 0) {
     cx = ter->LogicalMapWidthTiles() * static_cast<float>(ter->GridStepX()) * 0.5f;
     cy = ter->LogicalMapHeightTiles() * static_cast<float>(ter->GridStepY()) * 0.5f;
     have = true;

@@ -228,6 +228,16 @@ struct Animation {
 class Controller : public Component {
 public:
   Vec2 velocity = {0, 0};
+  /** When true, movement input is ignored (e.g. player death in Subterra Guild). */
+  bool movement_frozen = false;
+  /**
+   * Top-down TMX collision (Subterra-style): when both extents > 0 and terrain has a
+   * collision mask, `MovementSystem` resolves against solid tiles using offsets from `Transform`.
+   */
+  float tile_collision_w = 0.f;
+  float tile_collision_h = 0.f;
+  float tile_collision_offset_x = 0.f;
+  float tile_collision_offset_y = 0.f;
 
   Direction direction = Direction::UP;
   Controller() = default;
@@ -241,6 +251,11 @@ public:
                 {"velocity_x", velocity.x},
                 {"velocity_y", velocity.y},
                 {"direction", static_cast<int>(direction)},
+                {"movement_frozen", movement_frozen ? 1.f : 0.f},
+                {"tile_collision_w", tile_collision_w},
+                {"tile_collision_h", tile_collision_h},
+                {"tile_collision_offset_x", tile_collision_offset_x},
+                {"tile_collision_offset_y", tile_collision_offset_y},
             }};
   }
 
@@ -248,6 +263,16 @@ public:
     velocity.x = GetFloat(data.fields.at("velocity_x"));
     velocity.y = GetFloat(data.fields.at("velocity_y"));
     direction = static_cast<Direction>(GetInt(data.fields.at("direction")));
+    if (auto it = data.fields.find("movement_frozen"); it != data.fields.end())
+      movement_frozen = GetFloat(it->second) > 0.5f;
+    if (auto it = data.fields.find("tile_collision_w"); it != data.fields.end())
+      tile_collision_w = GetFloat(it->second);
+    if (auto it = data.fields.find("tile_collision_h"); it != data.fields.end())
+      tile_collision_h = GetFloat(it->second);
+    if (auto it = data.fields.find("tile_collision_offset_x"); it != data.fields.end())
+      tile_collision_offset_x = GetFloat(it->second);
+    if (auto it = data.fields.find("tile_collision_offset_y"); it != data.fields.end())
+      tile_collision_offset_y = GetFloat(it->second);
   }
 };
 
@@ -483,10 +508,14 @@ public:
   }
 
   void Deserialize(const SerializedComponent &data) override {
-    textureId =
-        static_cast<AssetId>(GetInt(data.fields.at("textureId")));
-    spriteSize =
-        static_cast<AssetId>(GetInt(data.fields.at("spriteSize")));
+    if (auto it = data.fields.find("textureId"); it != data.fields.end())
+      textureId = static_cast<AssetId>(GetInt(it->second));
+    if (auto it = data.fields.find("spriteX"); it != data.fields.end())
+      spriteX = GetInt(it->second);
+    if (auto it = data.fields.find("spriteY"); it != data.fields.end())
+      spriteY = GetInt(it->second);
+    if (auto it = data.fields.find("spriteSize"); it != data.fields.end())
+      spriteSize = GetInt(it->second);
   }
 
   void SetTexture(const char *path) {

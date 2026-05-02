@@ -171,13 +171,14 @@ void DebugConsole::Draw(Renderer &renderer, int viewportW, int viewportH) {
     return;
 
   const int panelH = 200;
-  const float panelY = static_cast<float>(viewportH - panelH);
+  const float panelTop = 0.f;
   Color bg{20, 20, 24, 220};
-  renderer.DrawRect(0.f, panelY, static_cast<float>(viewportW),
-                      static_cast<float>(panelH), bg);
+  renderer.DrawRect(0.f, panelTop, static_cast<float>(viewportW), static_cast<float>(panelH),
+                    bg);
 
   const float lineStep = 14.f;
-  float y = static_cast<float>(viewportH) - 22.f;
+  const float panelBottom = static_cast<float>(panelH);
+  float y = panelBottom - 22.f;
   std::string prompt = std::string("> ") + inputLine_ + "_";
   renderer.DrawDebugText(6.f, y, prompt.c_str());
   y -= lineStep;
@@ -186,8 +187,7 @@ void DebugConsole::Draw(Renderer &renderer, int viewportW, int viewportH) {
   int start = static_cast<int>(logLines_.size()) - maxVisible;
   if (start < 0)
     start = 0;
-  for (int i = static_cast<int>(logLines_.size()) - 1; i >= start && y >= panelY + 4.f;
-       --i) {
+  for (int i = static_cast<int>(logLines_.size()) - 1; i >= start && y >= panelTop + 4.f; --i) {
     renderer.DrawDebugText(6.f, y, logLines_[static_cast<size_t>(i)].c_str());
     y -= lineStep;
   }

@@ -1,9 +1,11 @@
 #include "spawn_service.h"
+#include "subterra_interactable_prefabs.h"
 #include "animated_component.h"
 #include "animation_database.h"
 #include "components.h"
 #include "subterra_components.h"
 #include "subterra_session.h"
+#include "terrain.h"
 #include <cmath>
 
 namespace subterra {
@@ -49,16 +51,39 @@ void SpawnMobsAround(SubterraSession &session, float cx, float cy, int count) {
 }
 
 void SpawnPickupAt(SubterraSession &session, float centerX, float centerY,
-                   const std::string &item_id, int count) {
+                   const std::string &item_id, int count, float pickup_width, float pickup_height) {
   if (!session.world || item_id.empty() || count <= 0)
     return;
   criogenio::World &w = *session.world;
   WorldPickup wp(item_id, count);
+  if (pickup_width > 0.5f)
+    wp.width = pickup_width;
+  if (pickup_height > 0.5f)
+    wp.height = pickup_height;
   float halfW = wp.width * 0.5f;
   float halfH = wp.height * 0.5f;
   criogenio::ecs::EntityId e = w.CreateEntity("pickup");
   w.AddComponent<criogenio::Transform>(e, centerX - halfW, centerY - halfH);
   w.AddComponent<WorldPickup>(e, item_id, count, wp.width, wp.height);
+}
+
+void SpawnTiledMapPrefabs(SubterraSession &session) {
+  if (!session.world)
+    return;
+  criogenio::Terrain2D *t = session.world->GetTerrain();
+  if (!t)
+    return;
+  for (const criogenio::TiledSpawnPrefab &sp : t->tmxMeta.spawnPrefabs) {
+    if (sp.prefabName.empty())
+      continue;
+    if (SubterraInteractablePrefabNameIsRegistered(sp.prefabName))
+      continue;
+    float cx = sp.x + sp.width * 0.5f;
+    float cy = sp.y + sp.height * 0.5f;
+    float pw = sp.width > 0.5f ? sp.width : 0.f;
+    float ph = sp.height > 0.5f ? sp.height : 0.f;
+    SpawnPickupAt(session, cx, cy, sp.prefabName, sp.quantity, pw, ph);
+  }
 }
 
 } // namespace subterra

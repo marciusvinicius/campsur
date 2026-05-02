@@ -2,6 +2,8 @@
 #include "animated_component.h"
 #include "animation_database.h"
 #include "asset_manager.h"
+#include "gameplay_tags.h"
+#include "inventory.h"
 #include "log.h"
 #include "resources.h"
 #include <unordered_map>
@@ -157,6 +159,37 @@ SerializedWorld World::Serialize() const {
     }
     if (auto rl = GetComponent<SpriteRenderLayer>(entity_id)) {
       serialized_entity.components.push_back(rl->Serialize());
+    }
+
+    if (auto bc = GetComponent<BoxCollider>(entity_id)) {
+      serialized_entity.components.push_back(bc->Serialize());
+    }
+    if (auto rb = GetComponent<RigidBody>(entity_id)) {
+      serialized_entity.components.push_back(rb->Serialize());
+    }
+    if (auto gd = GetComponent<Grounded>(entity_id)) {
+      serialized_entity.components.push_back(gd->Serialize());
+    }
+    if (auto spr = GetComponent<Sprite>(entity_id)) {
+      serialized_entity.components.push_back(spr->Serialize());
+    }
+    if (auto nr = GetComponent<NetReplicated>(entity_id)) {
+      serialized_entity.components.push_back(nr->Serialize());
+    }
+    if (auto netId = GetComponent<ReplicatedNetId>(entity_id)) {
+      serialized_entity.components.push_back(netId->Serialize());
+    }
+    if (auto pt = GetComponent<PlayerTag>(entity_id)) {
+      serialized_entity.components.push_back(pt->Serialize());
+    }
+    if (auto mt = GetComponent<MobTag>(entity_id)) {
+      serialized_entity.components.push_back(mt->Serialize());
+    }
+    if (auto wp = GetComponent<WorldPickup>(entity_id)) {
+      serialized_entity.components.push_back(wp->Serialize());
+    }
+    if (auto inv = GetComponent<Inventory>(entity_id)) {
+      serialized_entity.components.push_back(inv->Serialize());
     }
 
     if (auto cam = GetComponent<Camera>(entity_id)) {
@@ -344,6 +377,29 @@ void World::Deserialize(const SerializedWorld &data) {
       } else if (type_name == "SpriteRenderLayer") {
         auto &rl = AddComponent<SpriteRenderLayer>(entity_id);
         rl.Deserialize(serialized_component);
+      } else if (type_name == "RigidBody") {
+        auto &rb = AddComponent<RigidBody>(entity_id);
+        rb.Deserialize(serialized_component);
+      } else if (type_name == "Grounded") {
+        auto &gd = AddComponent<Grounded>(entity_id);
+        gd.Deserialize(serialized_component);
+      } else if (type_name == "Sprite") {
+        auto &spr = AddComponent<Sprite>(entity_id);
+        spr.Deserialize(serialized_component);
+      } else if (type_name == "NetReplicated") {
+        AddComponent<NetReplicated>(entity_id).Deserialize(serialized_component);
+      } else if (type_name == "ReplicatedNetId") {
+        AddComponent<ReplicatedNetId>(entity_id).Deserialize(serialized_component);
+      } else if (type_name == "PlayerTag") {
+        AddComponent<PlayerTag>(entity_id).Deserialize(serialized_component);
+      } else if (type_name == "MobTag") {
+        AddComponent<MobTag>(entity_id).Deserialize(serialized_component);
+      } else if (type_name == "WorldPickup") {
+        auto &wp = AddComponent<WorldPickup>(entity_id);
+        wp.Deserialize(serialized_component);
+      } else if (type_name == "Inventory") {
+        auto &inv = AddComponent<Inventory>(entity_id);
+        inv.Deserialize(serialized_component);
       } else if (type_name == "BoxCollider") {
         auto &col = AddComponent<BoxCollider>(entity_id);
         col.Deserialize(serialized_component);
