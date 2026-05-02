@@ -12,5 +12,12 @@ public:
   static Vec2 GetMousePosition();
   // Call once per frame so IsKeyPressed can detect edge; optional if only using IsKeyDown.
   static void EndFrame();
+
+  /** When true, MovementSystem skips reading movement keys (e.g. debug console open). */
+  static void SetSuppressGameplayInput(bool suppress);
+  static bool IsGameplayInputSuppressed();
+
+private:
+  static bool suppressGameplayInput_;
 };
 } // namespace criogenio

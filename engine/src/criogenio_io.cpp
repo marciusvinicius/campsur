@@ -1,9 +1,12 @@
 #include "criogenio_io.h"
 #include "json_serialization.h"
+#include "terrain_loader.h"
 #include "asset_manager.h"
 #include "log.h"
 #include "resources.h"
 #include <fstream>
+#include <memory>
+#include <stdexcept>
 
 namespace criogenio {
 
@@ -30,6 +33,20 @@ bool LoadWorldFromFile(World &world, const std::string &path) {
   SerializedWorld sw = FromJson(j);
   world.Deserialize(sw);
   return true;
+}
+
+bool LoadTerrainFromTmxFile(World &world, const std::string &path) {
+  try {
+    Terrain2D terrain = TilemapLoader::LoadFromTMX(path);
+    world.SetTerrain(std::make_unique<Terrain2D>(std::move(terrain)));
+    return true;
+  } catch (const std::exception &e) {
+    ENGINE_LOG(LOG_ERROR, "LoadTerrainFromTmxFile: %s", e.what());
+    return false;
+  } catch (...) {
+    ENGINE_LOG(LOG_ERROR, "LoadTerrainFromTmxFile: unknown error");
+    return false;
+  }
 }
 
 bool SaveAnimationToFile(AssetId animId, const std::string &path) {

@@ -120,6 +120,35 @@
     {
       "type": "cppdbg",
       "request": "launch",
+      "name": "Subterra Guild (Windows)",
+      "program": "${workspaceFolder}/bin/Debug/campsur_subterra_guild.exe",
+      "args": [],
+      "preLaunchTask": "Build Subterra Guild",
+      "cwd": "${workspaceFolder}/subterra_guild",
+      "stopAtEntry": false,
+      "externalConsole": false
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Subterra Guild (Linux)",
+      "program": "${workspaceFolder}/bin/Debug/campsur_subterra_guild",
+      "args": [],
+      "preLaunchTask": "Build Subterra Guild",
+      "cwd": "${workspaceFolder}/subterra_guild",
+      "stopAtEntry": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
       "name": "Platformer (Windows)",
       "program": "${workspaceFolder}/bin/Debug/campsur_platformer.exe",
       "args": [],

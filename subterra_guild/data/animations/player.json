@@ -1,0 +1,61 @@
+{
+    "male_sheet": "assets/sprites/male_character-spritesheet.png",
+    "female_sheet": "assets/sprites/female_character-spritesheet.png",
+    "frame_width": 64,
+    "frame_height": 64,
+    "direction_count": 4,
+    "direction_order": ["up", "left", "down", "right"],
+    "animations": [
+        {
+            "name": "spell_cast",
+            "start_row": 0,
+            "frame_count": 7,
+            "fps": 8,
+            "loop": false,
+            "prevent_player_control": true
+        },
+        {
+            "name": "walk",
+            "start_row": 8,
+            "frame_count": 8,
+            "fps": 10,
+            "loop": true
+        },
+        {
+            "name": "run",
+            "start_row": 38,
+            "frame_count": 8,
+            "fps": 10,
+            "loop": true
+        },
+        {
+            "name": "attack",
+            "start_row": 12,
+            "frame_count": 6,
+            "fps": 16,
+            "loop": false
+        },
+        {
+            "name": "idle",
+            "start_row": 22,
+            "frame_count": 2,
+            "fps": 2,
+            "loop": true
+        },
+        {
+            "name": "death",
+            "start_row": 24,
+            "frame_count": 4,
+            "fps": 10,
+            "loop": false,
+            "prevent_player_control": true
+        },
+        {
+            "name": "rest",
+            "start_row": 24,
+            "frame_count": 4,
+            "fps": 10,
+            "loop": true
+        }
+    ]
+}

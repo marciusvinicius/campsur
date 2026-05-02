@@ -9,9 +9,14 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <vector>
 
 namespace criogenio {
+
+bool Engine::OnPollEvent(const void* /*sdlEvent*/) {
+  return false;
+}
 
 static float GetTimeSeconds() {
   using namespace std::chrono;
@@ -33,6 +38,8 @@ Engine::Engine(int width, int height, const char* title) : width(width), height(
 }
 
 Engine::~Engine() {
+  if (renderer)
+    debugConsole_.shutdown(renderer->GetWindowHandle());
   replicationClient.reset();
   replicationServer.reset();
   transport.reset();
@@ -51,6 +58,8 @@ Engine::~Engine() {
 World& Engine::GetWorld() { return *world; }
 EventBus& Engine::GetEventBus() { return eventBus; }
 Renderer& Engine::GetRenderer() { return *renderer; }
+
+DebugConsole& Engine::GetDebugConsole() { return debugConsole_; }
 
 Vec2 Engine::GetMousePosition() const {
   return renderer ? renderer->GetMousePosition() : Vec2{0, 0};
@@ -122,8 +131,18 @@ void Engine::Run() {
     return;
   }
   previousTime = GetTimeSeconds();
+  if (!debugCommandsInitialized_) {
+    debugCommandsInitialized_ = true;
+    debugConsole_.InitializeCommands(*this);
+    RegisterDebugCommands();
+  }
+  std::function<bool(const void*)> eventHook = [this](const void* ev) {
+    if (debugConsole_.HandleEvent(*this, ev, renderer->GetWindowHandle()))
+      return true;
+    return OnPollEvent(ev);
+  };
   while (!renderer->WindowShouldClose()) {
-    renderer->ProcessEvents();
+    renderer->ProcessEvents(&eventHook);
     float now = GetTimeSeconds();
     float dt = now - previousTime;
     previousTime = now;
@@ -154,6 +173,8 @@ void Engine::Run() {
     }
     renderer->BeginFrame();
     world->Render(*renderer);
+    debugConsole_.Draw(*renderer, renderer->GetViewportWidth(),
+                        renderer->GetViewportHeight());
     OnGUI();
     renderer->EndFrame();
     Input::EndFrame();
@@ -193,6 +214,9 @@ void Engine::RegisterCoreComponents() {
   });
   ComponentFactory::Register(
       "Name", [](World& w, int e) { return &w.AddComponent<Name>(e, ""); });
+  ComponentFactory::Register("SpriteRenderLayer", [](World& w, int e) {
+    return &w.AddComponent<SpriteRenderLayer>(e);
+  });
   ComponentFactory::Register("NetReplicated", [](World& w, int e) {
     return &w.AddComponent<NetReplicated>(e);
   });

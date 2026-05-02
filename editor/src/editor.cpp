@@ -19,6 +19,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 
 #ifdef __cplusplus
@@ -209,8 +210,9 @@ void EditorApp::Run() {
     Vec2 mouseDelta = {mousePos.x - lastMousePos.x, mousePos.y - lastMousePos.y};
     lastMousePos = mousePos;
 
-    std::function<void(const void*)> passEventToImGui = [](const void* ev) {
+    std::function<bool(const void*)> passEventToImGui = [](const void* ev) {
       ImGui_ImplSDL3_ProcessEvent((const SDL_Event*)ev);
+      return false;
     };
     ren.ProcessEvents(&passEventToImGui);
 
@@ -791,6 +793,18 @@ void EditorApp::DrawMainMenuBar() {
                    "'%s'\n",
                    path);
           }
+        }
+      }
+      if (ImGui::MenuItem("Import Tiled Map (.tmx)...")) {
+        const char *tmxFilters[] = {"*.tmx"};
+        const char *tmxPath = tinyfd_openFileDialog(
+            "Import Tiled Map", "", 1, tmxFilters, "Tiled Map (.tmx)", 0);
+        if (tmxPath && strlen(tmxPath) > 0) {
+          if (criogenio::LoadTerrainFromTmxFile(GetWorld(), std::string(tmxPath)))
+            printf("[Editor] Loaded TMX terrain: %s\n", tmxPath);
+          else
+            printf("[Editor] ERROR: Failed to load TMX (see console): %s\n",
+                   tmxPath);
         }
       }
       if (ImGui::MenuItem("Save Scene", "Ctrl+S")) {

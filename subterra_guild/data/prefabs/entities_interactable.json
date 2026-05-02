@@ -1,0 +1,68 @@
+{
+  // Optional "rest_emission" on any interactable:
+  //   radius — If > 0: proximity aura in px (player centre vs interactable centre); rest applies while you stand inside.
+  //            If 0: no passive aura. The player must use interact (E) while within use range to start resting at this object;
+  //            using interact again on the same object turns rest off. Walking out of use range also cancels rest.
+  //   stamina_recovery_rate, food_recovery_rate, health_recovery_rate — extra vital points per second while the aura (or toggled rest) applies.
+  //   0 for a rate means this interactable does not regenerate that vital via rest_emission.
+  // When several proximity auras overlap, the highest rate per vital wins. Toggled rest binds to one object at a time.
+  // Campfire: food_recovery_rate stacks with server world rules only inside the small warmth ring near a burning fire (see game.odin).
+  "type": "entities",
+  "list": [
+    {
+      "type": "interactable",
+      "name": "Door",
+      "prefab_name": "door",
+      "size": 16,
+      "texture": "assets/16x16 Assorted RPG Icons/all-assets-preview.png",
+      "position_on_texture": [0, 0],
+      "animation_path": "data/animations/door.json"
+    },
+    {
+      "type": "interactable",
+      "name": "Chest",
+      "prefab_name": "chest",
+      "size": 16,
+      "texture": "assets/16x16 Assorted RPG Icons/all-assets-preview.png",
+      "animation_path": "data/animations/chest.json",
+      "position_on_texture": [1, 0]
+    },
+    {
+      "type": "interactable",
+      "name": "Campfire",
+      "prefab_name": "campfire",
+      "size": 16,
+      "texture": "assets/16x16 Assorted RPG Icons/all-assets-preview.png",
+      "animation_path": "data/animations/campfire.json",
+      "position_on_texture": [2, 0],
+      "light_emission": {
+        "radius": 128,
+        "intensity": 1.0,
+        "color": [255, 180, 80]
+      },
+      "rest_emission": {
+        "radius": 128,
+        "stamina_recovery_rate": 300,
+        "food_recovery_rate": 0,
+        "health_recovery_rate": 10
+      }
+    },
+    {
+      "type": "interactable",
+      "name": "Bed",
+      "prefab_name": "bed",
+      "size": 16,
+      "texture": "assets/16x16 Assorted RPG Icons/all-assets-preview.png",
+      "animation_path": "data/animations/bed.json",
+      "position_on_texture": [3, 0],
+      "rest_emission": {
+        // radius 0: press interact (E) in range to rest here; E again on this bed to stop.
+        "radius": 0,
+        "stamina_recovery_rate": 1000,
+        "food_recovery_rate": 0,
+        "health_recovery_rate": 100
+      }
+    }
+
+  ]
+}

@@ -1,6 +1,7 @@
 #include "render.h"
 #include "graphics_types.h"
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_blendmode.h>
 #include <SDL3/SDL_render.h>
 #include <SDL3/SDL_surface.h>
 #include <SDL3/SDL_pixels.h>
@@ -56,6 +57,32 @@ void WorldToScreen(float worldX, float worldY, const Camera2D& cam, int vpW,
 
 void SDL_SetRenderDrawColorFromColor(SDL_Renderer* r, Color c) {
   SDL_SetRenderDrawColor(r, c.r, c.g, c.b, c.a);
+}
+
+static SDL_BlendMode ToSDLBlend(TextureBlendMode m) {
+  switch (m) {
+  case TextureBlendMode::None:
+    return SDL_BLENDMODE_NONE;
+  case TextureBlendMode::Alpha:
+    return SDL_BLENDMODE_BLEND;
+  case TextureBlendMode::Mod:
+    return SDL_BLENDMODE_MOD;
+  case TextureBlendMode::Mul:
+    return SDL_BLENDMODE_MUL;
+  }
+  return SDL_BLENDMODE_BLEND;
+}
+
+static void ApplyTextureBlend(SDL_Texture* tex, TextureBlendMode blend,
+                              SDL_BlendMode* prevOut) {
+  SDL_BlendMode prev = SDL_BLENDMODE_BLEND;
+  SDL_GetTextureBlendMode(tex, &prev);
+  *prevOut = prev;
+  SDL_SetTextureBlendMode(tex, ToSDLBlend(blend));
+}
+
+static void RestoreTextureBlend(SDL_Texture* tex, SDL_BlendMode prev) {
+  SDL_SetTextureBlendMode(tex, prev);
 }
 
 void SetRendererInitError(const char* fallback) {
@@ -245,6 +272,13 @@ void Renderer::DrawTextString(const std::string& text, int x, int y, int size,
   // SDL3 has no built-in text; would need SDL_ttf. Stub for now.
 }
 
+void Renderer::DrawDebugText(float x, float y, const char* utf8) {
+  if (!s_impl || !s_impl->renderer || !utf8)
+    return;
+  SDL_SetRenderDrawColor(s_impl->renderer, 255, 255, 255, 255);
+  SDL_RenderDebugText(s_impl->renderer, x, y, utf8);
+}
+
 void Renderer::DrawTexture(TextureHandle texture, float x, float y) {
   if (!s_impl || !s_impl->renderer || !texture.valid())
     return;
@@ -262,7 +296,7 @@ void Renderer::DrawTexture(TextureHandle texture, float x, float y) {
 }
 
 void Renderer::DrawTextureRec(TextureHandle texture, Rect source, Vec2 position,
-                              Color tint) {
+                              Color tint, TextureBlendMode blend) {
   if (!s_impl || !s_impl->renderer || !texture.valid())
     return;
   SDL_Texture* tex = (SDL_Texture*)texture.opaque;
@@ -274,15 +308,19 @@ void Renderer::DrawTextureRec(TextureHandle texture, Rect source, Vec2 position,
                   s_impl->viewportH, dx, dy, flipY);
   }
   SDL_FRect dst = {dx, dy, source.width, source.height};
+  SDL_BlendMode prevBlend;
+  ApplyTextureBlend(tex, blend, &prevBlend);
   SDL_SetTextureColorMod(tex, tint.r, tint.g, tint.b);
   SDL_SetTextureAlphaMod(tex, tint.a);
   SDL_RenderTexture(s_impl->renderer, tex, &src, &dst);
   SDL_SetTextureColorMod(tex, 255, 255, 255);
   SDL_SetTextureAlphaMod(tex, 255);
+  RestoreTextureBlend(tex, prevBlend);
 }
 
 void Renderer::DrawTexturePro(TextureHandle texture, Rect source, Rect dest,
-                              Vec2 origin, float rotation, Color tint) {
+                              Vec2 origin, float rotation, Color tint,
+                              TextureBlendMode blend) {
   if (!s_impl || !s_impl->renderer || !texture.valid())
     return;
   SDL_Texture* tex = (SDL_Texture*)texture.opaque;
@@ -298,6 +336,8 @@ void Renderer::DrawTexturePro(TextureHandle texture, Rect source, Rect dest,
     dh = dest.height * zoom;
   }
   SDL_FRect dst = {dx, dy, dw, dh};
+  SDL_BlendMode prevBlend;
+  ApplyTextureBlend(tex, blend, &prevBlend);
   SDL_SetTextureColorMod(tex, tint.r, tint.g, tint.b);
   SDL_SetTextureAlphaMod(tex, tint.a);
   if (std::fabs(rotation) < 0.001f) {
@@ -316,15 +356,16 @@ void Renderer::DrawTexturePro(TextureHandle texture, Rect source, Rect dest,
   }
   SDL_SetTextureColorMod(tex, 255, 255, 255);
   SDL_SetTextureAlphaMod(tex, 255);
+  RestoreTextureBlend(tex, prevBlend);
 }
 
-void Renderer::ProcessEvents(std::function<void(const void*)>* onEvent) {
+void Renderer::ProcessEvents(std::function<bool(const void*)>* consumeFirst) {
   if (!s_impl || !s_impl->window)
     return;
   SDL_Event e;
   while (SDL_PollEvent(&e)) {
-    if (onEvent)
-      (*onEvent)(&e);
+    if (consumeFirst && (*consumeFirst)(&e))
+      continue;
     if (e.type == SDL_EVENT_QUIT)
       s_impl->quitRequested = true;
     if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_ESCAPE)
@@ -448,7 +489,9 @@ TextureHandle Renderer::LoadTexture(const std::string& path) {
   unsigned char* pixels = stbi_load_from_memory(buf.data(), static_cast<int>(size), &w, &h, &comp, 4);
   if (!pixels || w <= 0 || h <= 0)
     return out;
-  SDL_Surface* surf = SDL_CreateSurfaceFrom(w, h, SDL_PIXELFORMAT_RGBA8888, pixels, w * 4);
+  /* stb: R,G,B,A byte order per pixel — use RGBA32 so SDL maps to native packed layout (see
+   * SDL_PIXELFORMAT_RGBA32 in SDL_pixels.h). RGBA8888 mis-interprets channels on LE. */
+  SDL_Surface* surf = SDL_CreateSurfaceFrom(w, h, SDL_PIXELFORMAT_RGBA32, pixels, w * 4);
   if (!surf) {
     stbi_image_free(pixels);
     return out;

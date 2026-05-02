@@ -8,6 +8,16 @@ constexpr int kMaxScancodes = 512;
 static bool s_prevKeys[kMaxScancodes] = {};
 } // namespace
 
+bool Input::suppressGameplayInput_ = false;
+
+void Input::SetSuppressGameplayInput(bool suppress) {
+  suppressGameplayInput_ = suppress;
+}
+
+bool Input::IsGameplayInputSuppressed() {
+  return suppressGameplayInput_;
+}
+
 bool Input::IsKeyDown(int key) {
   int numkeys = 0;
   const bool* state = SDL_GetKeyboardState(&numkeys);

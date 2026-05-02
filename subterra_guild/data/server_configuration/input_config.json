@@ -1,0 +1,29 @@
+{
+  "gamepad_input_config": {
+    "left_stick_deadzone": 0.22,
+    "right_stick_deadzone": 0.22,
+    "gamepad_mouse_speed": 2200
+  },
+  "keyboard_input_config": {
+    "keyboard_mouse_speed": 1200
+  },
+  "bindings": {
+    "respawn": { "keyboard_primary": "R", "gamepad_primary": "A" },
+    "inventory_toggle": { "keyboard_primary": "TAB", "gamepad_primary": "Y" },
+    "cancel_ui": { "keyboard_primary": "ESCAPE", "gamepad_primary": "B" },
+    "nav_up": { "keyboard_primary": "UP", "keyboard_secondary": "W", "gamepad_primary": "DPAD_UP" },
+    "nav_down": { "keyboard_primary": "DOWN", "keyboard_secondary": "S", "gamepad_primary": "DPAD_DOWN" },
+    "use_item": { "keyboard_primary": "U", "gamepad_primary": "X" },
+    "interact": { "keyboard_primary": "E", "gamepad_primary": "A" },
+    "confirm": { "keyboard_primary": "ENTER", "gamepad_primary": "A" },
+    "menu_left": { "keyboard_primary": "A", "keyboard_secondary": "LEFT", "gamepad_primary": "DPAD_LEFT" },
+    "menu_right": { "keyboard_primary": "D", "keyboard_secondary": "RIGHT", "gamepad_primary": "DPAD_RIGHT" },
+    "melee_attack": { "mouse_primary": "LEFT", "gamepad_primary": "RB" },
+    "spell_cast": { "mouse_primary": "RIGHT", "gamepad_primary": "LT" },
+    "move_left": { "keyboard_primary": "A" },
+    "move_right": { "keyboard_primary": "D" },
+    "move_up": { "keyboard_primary": "W" },
+    "move_down": { "keyboard_primary": "S" },
+    "run": { "keyboard_primary": "LEFT_SHIFT", "gamepad_primary": "LB" }
+  }
+}

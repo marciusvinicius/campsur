@@ -1,0 +1,106 @@
+// Effect lines (type increase | decrease):
+// - "duration" set (milliseconds, positive): Option A — amount is the TOTAL change over that window; per-second rate = amount / (duration_ms/1000). The line stops when its budget is spent (instance may continue if other lines run).
+// - "duration" null or omitted: RATE mode — amount is change PER SECOND until the status is removed (e.g. starving while food is 0; removed when food > 0).
+// prevent_regen / remove_all_debuffs: use "amount"/"duration" null as shown.
+[
+    {
+        "name": "starving",
+        "buffer_type": "dynamic",
+        "player_effect_flag": "starving",
+        "icon": "assets/icons/buffers.png",
+        "effect_animation": "data/animations/effect_starving.json",
+        "icon_position": [0, 0],
+        "description": "While food is empty: health loses `amount` HP per second (rate mode: duration null). Stamina cap is reduced; stamina regen is blocked.",
+        "effects": [{
+            "amount": 20.0,
+            "duration": null,
+            "type": "decrease",
+            "target": ["health"]
+        }, {
+            "amount": null,
+            "duration": null,
+            "type": "prevent_regen",
+            "target": ["stamina"]
+        }]
+    },
+    {
+        "name": "thirsty",
+        "buffer_type": "dynamic",
+        "player_effect_flag": "thirsty",
+        "icon": "assets/icons/buffers.png",
+        "effect_animation": "data/animations/effect_thirsty.json",
+        "icon_position": [1, 0],
+        "description": "You are thirsty. You are losing stamina slowly (Option A: amount over duration_ms). Health regen is blocked while active.",
+        "effects": [{
+            "amount": 10,
+            "duration": 10000,
+            "type": "decrease",
+            "target": ["stamina"]
+        }, {
+            "amount": null,
+            "duration": null,
+            "type": "prevent_regen",
+            "target": ["health"]
+        }]
+    },
+    {
+        "name": "bleeding",
+        "buffer_type": "dynamic",
+        "player_effect_flag": "bleeding",
+        "icon": "assets/icons/buffers.png",
+        "effect_animation": "data/animations/effect_bleeding.json",
+        "icon_position": [2, 0],
+        "description": "You are bleeding. You are losing health slowly (Option A).",
+        "effects": [{
+            "amount": 10,
+            "duration": 10000,
+            "type": "decrease",
+            "target": ["health"]
+        }]
+    },
+    {
+        "name": "poisoned",
+        "buffer_type": "dynamic",
+        "player_effect_flag": "poisoned",
+        "icon": "assets/icons/buffers.png",
+        "effect_animation": "data/animations/effect_poisoned.json",
+        "icon_position": [3, 0],
+        "description": "You are poisoned. You are losing health slowly (Option A).",
+        "effects": [{
+            "amount": 10,
+            "duration": 10000,
+            "type": "decrease",
+            "target": ["health"]
+        }]
+    },
+    {
+        "name": "burning",
+        "buffer_type": "dynamic",
+        "player_effect_flag": "burning",
+        "icon": "assets/icons/buffers.png",
+        "effect_animation": "data/animations/effect_burning.json",
+        "icon_position": [4, 0],
+        "description": "You are burning. You are losing health slowly (Option A).",
+        "effects": [{
+            "amount": 10,
+            "duration": 10000,
+            "type": "decrease",
+            "target": ["health"]
+        }]
+    },
+    {
+        "name": "frozen",
+        "buffer_type": "dynamic",
+        "player_effect_flag": "frozen",
+        "icon": "assets/icons/buffers.png",
+        "effect_animation": "data/animations/effect_frozen.json",
+        "icon_position": [5, 0],
+        "description": "You are frozen. You are losing health slowly (Option A).",
+        "effects": [{
+            "amount": 10,
+            "duration": 10000,
+            "type": "decrease",
+            "target": ["health"]
+        }]
+    }
+]

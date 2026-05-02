@@ -121,6 +121,8 @@ public:
   // Terrain
   Terrain2D &CreateTerrain2D(const std::string &name,
                              const std::string &texture_path);
+  /** Replace terrain (e.g. TilemapLoader::LoadFromTMX). Pass nullptr to clear. */
+  void SetTerrain(std::unique_ptr<Terrain2D> t);
   // Access terrain (may be null)
   Terrain2D *GetTerrain();
   void DeleteTerrain();

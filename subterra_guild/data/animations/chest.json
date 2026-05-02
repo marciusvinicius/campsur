@@ -1,0 +1,22 @@
+{
+    "name": "chest",
+    "description": "Chest – placeholder until a dedicated animation sprite sheet is available",
+    "type": "animation",
+    "texture": "assets/16x16 Assorted RPG Icons/all-assets-preview.png",
+    "loop": false,
+    "reverse": false,
+    "frames": [
+        {
+            "name": "chest_closed",
+            "duration": 220,
+            "frames": [0],
+            "requires": {"is_open": false}
+        },
+        {
+            "name": "chest_open",
+            "duration": 220,
+            "frames": [0],
+            "requires": {"is_open": true}
+        }
+    ]
+}

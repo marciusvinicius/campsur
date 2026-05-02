@@ -40,6 +40,14 @@ struct TextureHandle {
   bool valid() const { return opaque != nullptr; }
 };
 
+/** SDL texture blend mode for compositing (e.g. multiply for light maps). */
+enum class TextureBlendMode {
+  None,
+  Alpha,
+  Mod,
+  Mul,
+};
+
 // Common colors
 namespace Colors {
 constexpr Color White{255, 255, 255, 255};

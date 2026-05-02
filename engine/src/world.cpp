@@ -155,6 +155,9 @@ SerializedWorld World::Serialize() const {
     if (auto nameComp = GetComponent<Name>(entity_id)) {
       serialized_entity.components.push_back(nameComp->Serialize());
     }
+    if (auto rl = GetComponent<SpriteRenderLayer>(entity_id)) {
+      serialized_entity.components.push_back(rl->Serialize());
+    }
 
     if (auto cam = GetComponent<Camera>(entity_id)) {
       serialized_entity.components.push_back(cam->Serialize());
@@ -338,6 +341,9 @@ void World::Deserialize(const SerializedWorld &data) {
       } else if (type_name == "Name") {
         auto &nameComp = AddComponent<Name>(entity_id);
         nameComp.Deserialize(serialized_component);
+      } else if (type_name == "SpriteRenderLayer") {
+        auto &rl = AddComponent<SpriteRenderLayer>(entity_id);
+        rl.Deserialize(serialized_component);
       } else if (type_name == "BoxCollider") {
         auto &col = AddComponent<BoxCollider>(entity_id);
         col.Deserialize(serialized_component);
@@ -440,6 +446,8 @@ void World::AttachCamera3D(const box3d::FPCamera& cam) {
 }
 
 Terrain2D *World::GetTerrain() { return terrain.get(); }
+
+void World::SetTerrain(std::unique_ptr<Terrain2D> t) { terrain = std::move(t); }
 
 void World::DeleteTerrain() { terrain = nullptr; }
 

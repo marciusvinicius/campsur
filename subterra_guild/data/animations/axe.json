@@ -1,0 +1,12 @@
+{
+    "texture": "assets/sprites/axe-spritesheet.png",
+    "frame_width": 64,
+    "frame_height": 64,
+    "direction_order": ["up", "left", "down", "right"],
+    "animations": [
+        { "name": "idle",   "start_row": 8,  "frame_count": 1, "fps": 1,  "loop": true  },
+        { "name": "walk",   "start_row": 8,  "frame_count": 9, "fps": 10, "loop": true  },
+        { "name": "run",    "start_row": 8,  "frame_count": 9, "fps": 14, "loop": true  },
+        { "name": "attack", "start_row": 54, "frame_count": 6, "fps": 16, "loop": false }
+    ]
+}

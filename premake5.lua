@@ -52,6 +52,12 @@ function link_to(lib)
 	includedirs("../" .. lib .. "/")
 	if lib == "engine" then
 		includedirs("../enet-1.3.18/include")
+		-- TMX zlib tile layers pull uncompress into libengine.a; final link needs -lz.
+		filter("system:linux")
+		links({ "z" })
+		filter("system:macosx")
+		links({ "z" })
+		filter({})
 	end
 end
 
@@ -328,6 +334,10 @@ end
 
 if os.isdir("tiled_walk") then
 	include("tiled_walk")
+end
+
+if os.isdir("subterra_guild") then
+	include("subterra_guild")
 end
 
 if os.isdir("platformer") then

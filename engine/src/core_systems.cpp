@@ -9,9 +9,41 @@
 #include "math.h"
 #include "resources.h"
 #include "terrain.h"
+#include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <vector>
 
 namespace criogenio {
+
+namespace {
+
+bool NameLooksLikePlayer(const Name *nm) {
+  if (!nm)
+    return false;
+  static const char k[] = "player";
+  const std::string &s = nm->name;
+  if (s.size() != sizeof(k) - 1)
+    return false;
+  for (size_t i = 0; i < s.size(); ++i) {
+    if (std::tolower(static_cast<unsigned char>(s[i])) !=
+        static_cast<unsigned char>(k[i]))
+      return false;
+  }
+  return true;
+}
+
+/** Base layer from `SpriteRenderLayer` plus a large bias when `Name` is "player" (any case). */
+int EffectiveSpriteDrawOrder(const World &world, ecs::EntityId id) {
+  int order = 0;
+  if (auto *rl = world.GetComponent<SpriteRenderLayer>(id))
+    order += rl->layer;
+  if (NameLooksLikePlayer(world.GetComponent<Name>(id)))
+    order += 100000;
+  return order;
+}
+
+} // namespace
 
 void MovementSystem::Update(float dt) {
   auto ids = world.GetEntitiesWith<Controller>();
@@ -20,33 +52,50 @@ void MovementSystem::Update(float dt) {
     auto *ctrl = world.GetComponent<Controller>(id);
     auto *tr = world.GetComponent<Transform>(id);
     auto *anim = world.GetComponent<AnimationState>(id);
+    if (const auto *nm = world.GetComponent<Name>(id)) {
+      if (nm->name != "player")
+        continue;
+    }
 
     if (!ctrl || !tr || !anim)
       continue;
 
+    if (Input::IsGameplayInputSuppressed()) {
+      anim->current = AnimState::IDLE;
+      continue;
+    }
+
     float dx = 0, dy = 0;
 
-    if (Input::IsKeyDown(static_cast<int>(Key::Right))) {
+    if (Input::IsKeyDown(static_cast<int>(Key::Right)) ||
+        Input::IsKeyDown(static_cast<int>(Key::D))) {
       dx += 1;
       anim->facing = Direction::RIGHT;
     }
-    if (Input::IsKeyDown(static_cast<int>(Key::Left))) {
+    if (Input::IsKeyDown(static_cast<int>(Key::Left)) ||
+        Input::IsKeyDown(static_cast<int>(Key::A))) {
       dx -= 1;
       anim->facing = Direction::LEFT;
     }
-    if (Input::IsKeyDown(static_cast<int>(Key::Up))) {
+    if (Input::IsKeyDown(static_cast<int>(Key::Up)) ||
+        Input::IsKeyDown(static_cast<int>(Key::W))) {
       dy -= 1;
       anim->facing = Direction::UP;
     }
-    if (Input::IsKeyDown(static_cast<int>(Key::Down))) {
+    if (Input::IsKeyDown(static_cast<int>(Key::Down)) ||
+        Input::IsKeyDown(static_cast<int>(Key::S))) {
       dy += 1;
       anim->facing = Direction::DOWN;
     }
 
+    const bool run = Input::IsKeyDown(static_cast<int>(Key::LeftShift)) ||
+                     Input::IsKeyDown(static_cast<int>(Key::RightShift));
+    const float runMul = run ? 1.55f : 1.f;
+
     if (dx != 0 || dy != 0) {
-      tr->x += dx * ctrl->velocity.x * dt;
-      tr->y += dy * ctrl->velocity.y * dt;
-      anim->current = AnimState::WALKING;
+      tr->x += dx * ctrl->velocity.x * runMul * dt;
+      tr->y += dy * ctrl->velocity.y * runMul * dt;
+      anim->current = run ? AnimState::RUNNING : AnimState::WALKING;
     } else {
       anim->current = AnimState::IDLE;
     }
@@ -174,8 +223,9 @@ std::string AnimationSystem::BuildClipKey(const AnimationState &st) {
   case AnimState::IDLE:
     return "idle_" + FacingToString(st.facing);
   case AnimState::WALKING:
-  case AnimState::RUNNING:
     return "walk_" + FacingToString(st.facing);
+  case AnimState::RUNNING:
+    return "run_" + FacingToString(st.facing);
   case AnimState::JUMPING:
     return "jump_" + FacingToString(st.facing);
   case AnimState::ATTACKING:
@@ -205,6 +255,13 @@ void RenderSystem::Update(float) {}
 
 void RenderSystem::Render(Renderer &renderer) {
   auto ids = world.GetEntitiesWith<AnimatedSprite>();
+  std::sort(ids.begin(), ids.end(), [&](ecs::EntityId a, ecs::EntityId b) {
+    const int oa = EffectiveSpriteDrawOrder(world, a);
+    const int ob = EffectiveSpriteDrawOrder(world, b);
+    if (oa != ob)
+      return oa < ob;
+    return a < b;
+  });
   for (ecs::EntityId id : ids) {
     auto *animSprite = world.GetComponent<AnimatedSprite>(id);
     auto *tr = world.GetComponent<Transform>(id);
@@ -326,7 +383,8 @@ void CollisionSystem::Update(float dt) {
   auto dynamics = world.GetEntitiesWith<Transform, RigidBody, BoxCollider>();
   auto statics = world.GetEntitiesWith<Transform, BoxCollider>();
   Terrain2D *terrain = world.GetTerrain();
-  const int ts = terrain ? terrain->tileset.tileSize : 0;
+  const int tsx = terrain ? terrain->GridStepX() : 0;
+  const int tsy = terrain ? terrain->GridStepY() : 0;
   const float ox = terrain ? terrain->origin.x : 0;
   const float oy = terrain ? terrain->origin.y : 0;
 
@@ -368,20 +426,20 @@ void CollisionSystem::Update(float dt) {
     }
 
     // Collision against terrain tiles (solid tiles act as platforms)
-    if (!resolved && terrain && ts > 0 && !terrain->layers.empty()) {
-      int minTx = static_cast<int>(std::floor((dynLeft - ox) / ts));
-      int maxTx = static_cast<int>(std::floor((dynRight - ox - 0.001f) / ts));
-      int minTy = static_cast<int>(std::floor((dynTop - oy) / ts));
-      int maxTy = static_cast<int>(std::floor((dynBottom - oy - 0.001f) / ts));
+    if (!resolved && terrain && tsx > 0 && tsy > 0 && !terrain->layers.empty()) {
+      int minTx = static_cast<int>(std::floor((dynLeft - ox) / tsx));
+      int maxTx = static_cast<int>(std::floor((dynRight - ox - 0.001f) / tsx));
+      int minTy = static_cast<int>(std::floor((dynTop - oy) / tsy));
+      int maxTy = static_cast<int>(std::floor((dynBottom - oy - 0.001f) / tsy));
 
       for (int ty = minTy; ty <= maxTy && !resolved; ty++) {
         for (int tx = minTx; tx <= maxTx && !resolved; tx++) {
-          if (terrain->GetTile(0, tx, ty) < 0)
+          if (!terrain->CellHasTile(0, tx, ty))
             continue;
-          float platLeft = ox + tx * ts;
-          float platTop = oy + ty * ts;
-          float platRight = platLeft + ts;
-          float platBottom = platTop + ts;
+          float platLeft = ox + tx * tsx;
+          float platTop = oy + ty * tsy;
+          float platRight = platLeft + tsx;
+          float platBottom = platTop + tsy;
           dynLeft = tr->x + col->offsetX;
           dynTop = tr->y + col->offsetY;
           dynRight = dynLeft + col->width;
@@ -404,6 +462,13 @@ void SpriteSystem::Update(float dt) {}
 
 void SpriteSystem::Render(Renderer &renderer) {
   auto ids = world.GetEntitiesWith<Sprite>();
+  std::sort(ids.begin(), ids.end(), [&](ecs::EntityId a, ecs::EntityId b) {
+    const int oa = EffectiveSpriteDrawOrder(world, a);
+    const int ob = EffectiveSpriteDrawOrder(world, b);
+    if (oa != ob)
+      return oa < ob;
+    return a < b;
+  });
   for (ecs::EntityId id : ids) {
     auto *sprite = world.GetComponent<Sprite>(id);
     auto *tr = world.GetComponent<Transform>(id);

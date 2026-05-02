@@ -32,6 +32,15 @@
       "presentation": {"reveal": "silent", "panel": "shared"}
     },
     {
+      "label": "Build Subterra Guild",
+      "type": "shell",
+      "command": "make config=debug_arm64 campsur_subterra_guild",
+      "group": "build",
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": ["$gcc"],
+      "presentation": {"reveal": "silent", "panel": "shared"}
+    },
+    {
       "label": "Build Platformer",
       "type": "shell",
       "command": "make config=debug_arm64 campsur_platformer",

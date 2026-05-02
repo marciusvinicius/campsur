@@ -1,9 +1,12 @@
 #pragma once
 
+#include <cstdint>
+
 #include "graphics_types.h"
 #include "render.h"
 #include "resources.h"
 #include "serialization.h"
+#include "tmx_metadata.h"
 #include <map>
 #include <optional>
 #include <string>
@@ -26,9 +29,23 @@ struct ChunkedLayer {
 struct Tileset {
   std::shared_ptr<TextureResource> atlas;
   std::string tilesetPath;
-  int tileSize;
-  int columns;
-  int rows;
+  int tileSize = 32;
+  int columns = 1;
+  int rows = 1;
+  /** If 0, use tileSize for height (square tiles). */
+  int tileHeightPx = 0;
+  int margin = 0;
+  int spacing = 0;
+};
+
+/** One Tiled tileset range (global IDs from firstGid upward). Sorted by firstGid in Terrain2D. */
+struct TmxTilesetEntry {
+  int firstGid = 1;
+  Tileset sheet;
+  int tilePixelW = 32;
+  int tilePixelH = 32;
+  int margin = 0;
+  int spacing = 0;
 };
 
 // Think about the 3D terrain
@@ -68,10 +85,38 @@ public:
   void GetVisibleTileRange(const Camera2D &camera, float viewWidth, float viewHeight,
                            int &minTx, int &minTy, int &maxTx, int &maxTy) const;
 
+  int GridStepX() const { return mapTilePxW_ > 0 ? mapTilePxW_ : tileset.tileSize; }
+  int GridStepY() const { return mapTilePxH_ > 0 ? mapTilePxH_ : tileset.tileSize; }
+  bool UsesGidMode() const { return gidMode_; }
+  bool CellHasTile(int layerIndex, int worldTx, int worldTy) const;
+  void ClearTmxState();
+
+  /** TMX `<map width="…" height="…">` in tiles; 0 if not from TMX. */
+  int LogicalMapWidthTiles() const { return logicalMapTilesW_; }
+  int LogicalMapHeightTiles() const { return logicalMapTilesH_; }
+
+  /** Filled by `TilemapLoader::LoadFromTMX` (layer `index`, roof, windows, objects, …). */
+  TmxMapMetadata tmxMeta;
+
 public:
   Tileset tileset;
   std::vector<ChunkedLayer> layers;
   int chunkSize_ = kDefaultChunkSize;
+  std::vector<TmxTilesetEntry> tmxTilesets;
+
+private:
+  friend class TilemapLoader;
+  void BeginTmxMode(int mapTileW, int mapTileH, std::vector<TmxTilesetEntry> entries);
+  void SetTmxLogicalExtent(int tilesW, int tilesH);
+  const TmxTilesetEntry *FindTmxTileset(uint32_t gid) const;
+  void RenderChunkedLayerGid(Renderer &renderer, const ChunkedLayer &layer) const;
+  void RenderChunkedLayerTileIndex(Renderer &renderer, const ChunkedLayer &layer) const;
+
+  bool gidMode_ = false;
+  int mapTilePxW_ = 0;
+  int mapTilePxH_ = 0;
+  int logicalMapTilesW_ = 0;
+  int logicalMapTilesH_ = 0;
 };
 
 class Terrain3D : public Terrain {

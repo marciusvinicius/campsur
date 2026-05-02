@@ -7,6 +7,7 @@
 #include "network/replication_client.h"
 #include "network/replication_server.h"
 #include "network/transport.h"
+#include "debug_console.h"
 #include "render.h"
 #include "world.h"
 #include <memory>
@@ -38,16 +39,23 @@ public:
   void SetServerPlayerInput(const PlayerInput& input);
 
   void RegisterCoreComponents();
+  DebugConsole& GetDebugConsole();
 
 protected:
   virtual void OnGUI() {}
   virtual void OnFrame(float dt) { (void)dt; }
+  /** Register game-specific debug console commands; called once before the main loop. */
+  virtual void RegisterDebugCommands() {}
+  /** Return true to skip default handling (quit, escape, resize) for this SDL_Event. */
+  virtual bool OnPollEvent(const void* sdlEvent);
 
 private:
   Renderer* renderer = nullptr;
   World* world = nullptr;
   EventBus eventBus;
   float previousTime = 0;
+  DebugConsole debugConsole_;
+  bool debugCommandsInitialized_ = false;
 
   NetworkMode networkMode = NetworkMode::Off;
   std::unique_ptr<ENetTransport> transport;

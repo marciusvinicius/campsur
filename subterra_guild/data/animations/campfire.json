@@ -1,0 +1,22 @@
+{
+    "name": "campfire",
+    "description": "Campfire – placeholder until a dedicated animation sprite sheet is available",
+    "type": "animation",
+    "texture": "assets/16x16 Assorted RPG Icons/all-assets-preview.png",
+    "loop": true,
+    "reverse": false,
+    "frames": [
+        {
+            "name": "campfire_burning",
+            "duration": 100,
+            "frames": [0],
+            "requires": {"is_burning": true}
+        },
+        {
+            "name": "campfire_not_burning",
+            "duration": 100,
+            "frames": [0],
+            "requires": {"is_burning": false}
+        }
+    ]
+}

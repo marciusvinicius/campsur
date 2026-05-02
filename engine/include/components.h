@@ -321,6 +321,25 @@ public:
   }
 };
 
+/** Optional draw order for `RenderSystem` / `SpriteSystem`. Higher draws later (on top). */
+class SpriteRenderLayer : public Component {
+public:
+  int layer = 0;
+
+  SpriteRenderLayer() = default;
+  explicit SpriteRenderLayer(int l) : layer(l) {}
+
+  std::string TypeName() const override { return "SpriteRenderLayer"; }
+  SerializedComponent Serialize() const override {
+    return {"SpriteRenderLayer", {{"layer", layer}}};
+  }
+
+  void Deserialize(const SerializedComponent &data) override {
+    if (auto it = data.fields.find("layer"); it != data.fields.end())
+      layer = GetInt(it->second);
+  }
+};
+
 class Gravity : public GlobalComponent {
 public:
   Gravity() = default;

@@ -29,16 +29,23 @@ public:
   void DrawCircle(float x, float y, float r, Color color);
   void DrawTextString(const std::string& text, int x, int y, int size,
                       Color color);
+  /** SDL_RenderDebugText: tiny ASCII debug font, screen space (call outside world camera). */
+  void DrawDebugText(float x, float y, const char* utf8);
   void DrawTexturePro(TextureHandle texture, Rect source, Rect dest, Vec2 origin,
-                     float rotation, Color tint);
+                     float rotation, Color tint,
+                     TextureBlendMode blend = TextureBlendMode::Alpha);
   void DrawTextureRec(TextureHandle texture, Rect source, Vec2 position,
-                      Color tint);
+                      Color tint,
+                      TextureBlendMode blend = TextureBlendMode::Alpha);
   void DrawLine(float x1, float y1, float x2, float y2, Color color);
   void DrawGrid(int slices, float spacing);
 
   bool WindowShouldClose() const;
-  // Call each frame. If onEvent is set, it is called for each SDL event (so e.g. ImGui can process it).
-  void ProcessEvents(std::function<void(const void* sdlEvent)>* onEvent = nullptr);
+  /**
+   * Process SDL events. If consumeFirst is set and returns true for an event, default handling
+   * (quit on Escape, window resize bookkeeping) is skipped for that event.
+   */
+  void ProcessEvents(std::function<bool(const void* sdlEvent)>* consumeFirst = nullptr);
 
   int GetViewportWidth() const;
   int GetViewportHeight() const;

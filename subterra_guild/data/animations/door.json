@@ -1,0 +1,22 @@
+{
+    "name": "door",
+    "description": "Door – placeholder until a dedicated animation sprite sheet is available",
+    "type": "animation",
+    "texture": "assets/16x16 Assorted RPG Icons/all-assets-preview.png",
+    "loop": false,
+    "reverse": false,
+    "frames": [
+        {
+            "name": "door_closed",
+            "duration": 100,
+            "frames": [0],
+            "requires": {"is_open": false}
+        },
+        {
+            "name": "door_open",
+            "duration": 100,
+            "frames": [0],
+            "requires": {"is_open": true}
+        }
+    ]
+}

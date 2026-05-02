@@ -65,6 +65,7 @@ links({
 	"m",
 	"dl",
 	"X11",
+	"z",
 })
 
 filter("system:windows")

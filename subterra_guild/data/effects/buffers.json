@@ -1,0 +1,56 @@
+// Effect lines (type increase | decrease) — same semantics as debuffers.json:
+// - "duration" set (milliseconds, positive): Option A — amount is the TOTAL change over that window; rate = amount / (duration_ms/1000) per second until the line budget is spent.
+// - "duration" null or omitted: RATE mode — amount is change PER SECOND until the status is removed.
+// - prevent_regen / remove_all_debuffs: use "amount"/"duration" null as shown.
+[
+    {
+        "name": "regen",
+        "buffer_type": "dynamic",
+        "player_effect_flag": "regen",
+        "icon": "assets/icons/buffers.png",
+        "effect_animation": "data/animations/effect_regen.json",
+        "icon_position": [6, 0],
+        "description": "You are regaining health slowly (Option A: amount over duration_ms; here ~1 HP/s for 10s).",
+        "effects": [{
+            "amount": 10,
+            "duration": 10000,
+            "type": "increase",
+            "target": ["health"]
+        }]
+    },
+    {
+        "name": "divine_blessing",
+        "buffer_type": "dynamic",
+        "player_effect_flag": "divine_blessing",
+        "icon": "assets/icons/buffers.png",
+        "effect_animation": "data/animations/effect_divine_blessing.json",
+        "icon_position": [7, 0],
+        "description": "Blessing: health, stamina, and food tick up by Option A over duration_ms; also clears debuffs once.",
+        "effects": [{
+            "amount": 10,
+            "duration": 10000,
+            "type": "increase",
+            "target": ["health", "stamina", "food"]
+        }, {
+            "amount": null,
+            "duration": null,
+            "type": "remove_all_debuffs",
+            "target": null
+        }]
+    },
+    {
+        "name": "GOD_MODE",
+        "buffer_type": "dynamic",
+        "player_effect_flag": "god_mode",
+        "icon": "assets/icons/buffers.png",
+        "effect_animation": "data/animations/effect_god_mode.json",
+        "icon_position": [8, 0],
+        "description": "You are in god mode. You are invincible and can fly.",
+        "effects": [{
+            "amount": null, // infinite health, stamina, and food
+            "duration": null, // infinite duration
+            "type": "prevent_decrease",
+            "target": ["health", "stamina", "food"]
+        }]
+    }
+]

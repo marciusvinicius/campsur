@@ -1,7 +1,12 @@
 #include "terrain.h"
 #include "asset_manager.h"
 #include "graphics_types.h"
+#include "resources.h"
+#include "tmx_metadata.h"
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <numeric>
 
 namespace criogenio {
 
@@ -21,6 +26,23 @@ void worldToChunkLocal(int worldTx, int worldTy, int chunkSize, int &outCx,
     outLx += chunkSize;
   if (outLy < 0)
     outLy += chunkSize;
+}
+
+void renderTmxImageLayer(Renderer &renderer, const TiledImageLayerMeta &im, Vec2 terrainOrigin) {
+  if (!im.visible || !im.image || !im.image->texture.valid())
+    return;
+  const float x = terrainOrigin.x + im.offsetX;
+  const float y = terrainOrigin.y + im.offsetY;
+  const float tw = static_cast<float>(im.image->texture.width);
+  const float th = static_cast<float>(im.image->texture.height);
+  const float dw = im.widthPx > 0 ? static_cast<float>(im.widthPx) : tw;
+  const float dh = im.heightPx > 0 ? static_cast<float>(im.heightPx) : th;
+  Color tint = Colors::White;
+  tint.a = static_cast<unsigned char>(std::clamp(im.opacity, 0.f, 1.f) * 255.f);
+  Rect src{0.f, 0.f, tw, th};
+  Rect dst{x, y, dw, dh};
+  renderer.DrawTexturePro(im.image->texture, src, dst, {0.f, 0.f}, 0.f, tint,
+                          TextureBlendMode::Alpha);
 }
 
 } // namespace
@@ -44,52 +66,153 @@ void Terrain2D::SetChunkSize(int size) {
 void Terrain2D::GetVisibleTileRange(const Camera2D &camera, float viewWidth,
                                     float viewHeight, int &minTx, int &minTy,
                                     int &maxTx, int &maxTy) const {
-  float ts = static_cast<float>(tileset.tileSize);
+  float tsx = static_cast<float>(GridStepX());
+  float tsy = static_cast<float>(GridStepY());
   Vec2 worldMin = ScreenToWorld2D({0, 0}, camera, viewWidth, viewHeight);
   Vec2 worldMax =
       ScreenToWorld2D({viewWidth, viewHeight}, camera, viewWidth, viewHeight);
-  // Tile indices are relative to terrain.origin: worldPos = origin + (tx*ts, ty*ts)
   float minWx = std::min(worldMin.x, worldMax.x) - origin.x;
   float minWy = std::min(worldMin.y, worldMax.y) - origin.y;
   float maxWx = std::max(worldMin.x, worldMax.x) - origin.x;
   float maxWy = std::max(worldMin.y, worldMax.y) - origin.y;
-  minTx = static_cast<int>(std::floor(minWx / ts)) - 1;
-  minTy = static_cast<int>(std::floor(minWy / ts)) - 1;
-  maxTx = static_cast<int>(std::floor(maxWx / ts)) + 1;
-  maxTy = static_cast<int>(std::floor(maxWy / ts)) + 1;
+  minTx = static_cast<int>(std::floor(minWx / tsx)) - 1;
+  minTy = static_cast<int>(std::floor(minWy / tsy)) - 1;
+  maxTx = static_cast<int>(std::floor(maxWx / tsx)) + 1;
+  maxTy = static_cast<int>(std::floor(maxWy / tsy)) + 1;
+}
+
+void Terrain2D::RenderChunkedLayerGid(Renderer &renderer,
+                                      const ChunkedLayer &layer) const {
+  const int stepX = GridStepX();
+  const int stepY = GridStepY();
+  for (const auto &[key, tiles] : layer.chunks) {
+    int cx = key.first;
+    int cy = key.second;
+    if (static_cast<int>(tiles.size()) != chunkSize_ * chunkSize_)
+      continue;
+    for (int ly = 0; ly < chunkSize_; ly++) {
+      for (int lx = 0; lx < chunkSize_; lx++) {
+        int stored = tiles[ly * chunkSize_ + lx];
+        if (stored <= 0)
+          continue;
+        auto gid = static_cast<uint32_t>(stored);
+        const TmxTilesetEntry *ts = FindTmxTileset(gid);
+        if (!ts || !ts->sheet.atlas)
+          continue;
+        int local = static_cast<int>(gid) - ts->firstGid;
+        if (local < 0)
+          continue;
+        int tw = ts->tilePixelW;
+        int th = ts->tilePixelH;
+        int col = local % ts->sheet.columns;
+        int row = local / ts->sheet.columns;
+        int m = ts->margin;
+        int sp = ts->spacing;
+        float sx = static_cast<float>(m + col * (tw + sp));
+        float sy = static_cast<float>(m + row * (th + sp));
+        Rect sourceRect = {sx, sy, static_cast<float>(tw), static_cast<float>(th)};
+        float worldX = static_cast<float>((cx * chunkSize_ + lx) * stepX);
+        float worldY = static_cast<float>((cy * chunkSize_ + ly) * stepY);
+        Rect destRect = {origin.x + worldX, origin.y + worldY,
+                         static_cast<float>(stepX), static_cast<float>(stepY)};
+        renderer.DrawTexturePro(ts->sheet.atlas->texture, sourceRect, destRect,
+                                {0.f, 0.f}, 0.f, Colors::White);
+      }
+    }
+  }
+}
+
+void Terrain2D::RenderChunkedLayerTileIndex(Renderer &renderer,
+                                            const ChunkedLayer &layer) const {
+  if (!tileset.atlas)
+    return;
+  const int ts = tileset.tileSize;
+  for (const auto &[key, tiles] : layer.chunks) {
+    int cx = key.first;
+    int cy = key.second;
+    int n = chunkSize_ * chunkSize_;
+    if (static_cast<int>(tiles.size()) != n)
+      continue;
+    for (int ly = 0; ly < chunkSize_; ly++) {
+      for (int lx = 0; lx < chunkSize_; lx++) {
+        int tileIndex = tiles[ly * chunkSize_ + lx];
+        if (tileIndex < 0)
+          continue;
+        int worldX = (cx * chunkSize_ + lx) * ts;
+        int worldY = (cy * chunkSize_ + ly) * ts;
+        int tileX = (tileIndex % tileset.columns) * ts;
+        int tileY = (tileIndex / tileset.columns) * ts;
+        Rect sourceRect = {static_cast<float>(tileX),
+                           static_cast<float>(tileY),
+                           static_cast<float>(ts), static_cast<float>(ts)};
+        Vec2 position = {origin.x + static_cast<float>(worldX),
+                         origin.y + static_cast<float>(worldY)};
+        renderer.DrawTextureRec(tileset.atlas->texture, sourceRect, position,
+                                Colors::White);
+      }
+    }
+  }
 }
 
 void Terrain2D::Render(Renderer &renderer) {
+  if (gidMode_) {
+    if (!tmxMeta.drawLayerOrder.empty()) {
+      for (const TmxDrawLayerStep &step : tmxMeta.drawLayerOrder) {
+        if (step.kind == TmxDrawLayerKind::Tile) {
+          if (step.index >= 0 && step.index < static_cast<int>(layers.size()))
+            RenderChunkedLayerGid(renderer, layers[static_cast<size_t>(step.index)]);
+        } else {
+          if (step.index >= 0 &&
+              step.index < static_cast<int>(tmxMeta.imageLayers.size()))
+            renderTmxImageLayer(renderer,
+                                tmxMeta.imageLayers[static_cast<size_t>(step.index)], origin);
+        }
+      }
+      return;
+    }
+    const bool sortLayers = tmxMeta.layerInfo.size() == layers.size() &&
+                            !tmxMeta.layerInfo.empty();
+    if (!sortLayers) {
+      for (const auto &layer : layers)
+        RenderChunkedLayerGid(renderer, layer);
+    } else {
+      std::vector<size_t> order(layers.size());
+      std::iota(order.begin(), order.end(), 0);
+      std::stable_sort(order.begin(), order.end(),
+                       [this](size_t a, size_t b) {
+                         int ia = tmxMeta.layerInfo[a].mapLayerIndex;
+                         int ib = tmxMeta.layerInfo[b].mapLayerIndex;
+                         if (ia != ib)
+                           return ia < ib;
+                         return a < b;
+                       });
+      for (size_t idx : order)
+        RenderChunkedLayerGid(renderer, layers[idx]);
+    }
+    return;
+  }
+
   if (!tileset.atlas)
     return;
 
-  const int ts = tileset.tileSize;
-  for (const auto &layer : layers) {
-    for (const auto &[key, tiles] : layer.chunks) {
-      int cx = key.first;
-      int cy = key.second;
-      int n = chunkSize_ * chunkSize_;
-      if (static_cast<int>(tiles.size()) != n)
-        continue;
-      for (int ly = 0; ly < chunkSize_; ly++) {
-        for (int lx = 0; lx < chunkSize_; lx++) {
-          int tileIndex = tiles[ly * chunkSize_ + lx];
-          if (tileIndex < 0)
-            continue;
-          int worldX = (cx * chunkSize_ + lx) * ts;
-          int worldY = (cy * chunkSize_ + ly) * ts;
-          int tileX = (tileIndex % tileset.columns) * ts;
-          int tileY = (tileIndex / tileset.columns) * ts;
-          Rect sourceRect = {static_cast<float>(tileX),
-                             static_cast<float>(tileY),
-                             static_cast<float>(ts), static_cast<float>(ts)};
-          Vec2 position = {origin.x + static_cast<float>(worldX),
-                           origin.y + static_cast<float>(worldY)};
-          renderer.DrawTextureRec(tileset.atlas->texture, sourceRect, position,
-                                  Colors::White);
-        }
-      }
-    }
+  const bool sortLayers = tmxMeta.layerInfo.size() == layers.size() &&
+                          !tmxMeta.layerInfo.empty();
+  if (!sortLayers) {
+    for (const auto &layer : layers)
+      RenderChunkedLayerTileIndex(renderer, layer);
+  } else {
+    std::vector<size_t> order(layers.size());
+    std::iota(order.begin(), order.end(), 0);
+    std::stable_sort(order.begin(), order.end(),
+                     [this](size_t a, size_t b) {
+                       int ia = tmxMeta.layerInfo[a].mapLayerIndex;
+                       int ib = tmxMeta.layerInfo[b].mapLayerIndex;
+                       if (ia != ib)
+                         return ia < ib;
+                       return a < b;
+                     });
+    for (size_t idx : order)
+      RenderChunkedLayerTileIndex(renderer, layers[idx]);
   }
 }
 
@@ -107,10 +230,10 @@ int Terrain2D::GetTile(int layerIndex, int worldTx, int worldTy) const {
   const auto &layer = layers[layerIndex];
   auto it = layer.chunks.find(key);
   if (it == layer.chunks.end())
-    return -1;
+    return gidMode_ ? 0 : -1;
   const auto &tiles = it->second;
   if (static_cast<int>(tiles.size()) != chunkSize_ * chunkSize_)
-    return -1;
+    return gidMode_ ? 0 : -1;
   return tiles[ly * chunkSize_ + lx];
 }
 
@@ -123,11 +246,53 @@ Terrain2D &Terrain2D::SetTile(int layerIndex, int worldTx, int worldTy,
   ChunkKey key{cx, cy};
   auto &layer = layers[layerIndex];
   auto &tiles = layer.chunks[key];
+  const int emptyFill = gidMode_ ? 0 : -1;
   if (static_cast<int>(tiles.size()) != chunkSize_ * chunkSize_) {
-    tiles.resize(chunkSize_ * chunkSize_, -1);
+    tiles.assign(chunkSize_ * chunkSize_, emptyFill);
   }
   tiles[ly * chunkSize_ + lx] = tileId;
   return *this;
+}
+
+bool Terrain2D::CellHasTile(int layerIndex, int worldTx, int worldTy) const {
+  int v = GetTile(layerIndex, worldTx, worldTy);
+  if (gidMode_)
+    return v > 0;
+  return v >= 0;
+}
+
+void Terrain2D::ClearTmxState() {
+  gidMode_ = false;
+  mapTilePxW_ = mapTilePxH_ = 0;
+  logicalMapTilesW_ = logicalMapTilesH_ = 0;
+  tmxTilesets.clear();
+  tmxMeta.clear();
+}
+
+void Terrain2D::SetTmxLogicalExtent(int tilesW, int tilesH) {
+  logicalMapTilesW_ = tilesW;
+  logicalMapTilesH_ = tilesH;
+}
+
+void Terrain2D::BeginTmxMode(int mapTileW, int mapTileH,
+                             std::vector<TmxTilesetEntry> entries) {
+  ClearTmxState();
+  gidMode_ = true;
+  mapTilePxW_ = mapTileW;
+  mapTilePxH_ = mapTileH;
+  tmxTilesets = std::move(entries);
+  if (!tmxTilesets.empty())
+    tileset = tmxTilesets[0].sheet;
+}
+
+const TmxTilesetEntry *Terrain2D::FindTmxTileset(uint32_t gid) const {
+  if (gid == 0)
+    return nullptr;
+  for (int i = static_cast<int>(tmxTilesets.size()) - 1; i >= 0; --i) {
+    if (gid >= static_cast<uint32_t>(tmxTilesets[static_cast<size_t>(i)].firstGid))
+      return &tmxTilesets[static_cast<size_t>(i)];
+  }
+  return nullptr;
 }
 
 void Terrain2D::FillLayer(int layerIndex, int tileId) {
@@ -187,6 +352,7 @@ SerializedTerrain2D Terrain2D::Serialize() const {
 }
 
 void Terrain2D::Deserialize(const SerializedTerrain2D &data) {
+  ClearTmxState();
   tileset.tileSize = data.tileset.tileSize;
   tileset.tilesetPath = data.tileset.tilesetPath;
   tileset.atlas =
@@ -194,6 +360,9 @@ void Terrain2D::Deserialize(const SerializedTerrain2D &data) {
           tileset.tilesetPath);
   tileset.columns = data.tileset.columns;
   tileset.rows = data.tileset.rows;
+  tileset.tileHeightPx = 0;
+  tileset.margin = 0;
+  tileset.spacing = 0;
 
   chunkSize_ = data.chunkSize > 0 ? data.chunkSize : kDefaultChunkSize;
   layers.clear();

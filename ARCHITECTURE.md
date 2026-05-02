@@ -1,5 +1,7 @@
 # Criogenio Engine Architecture Documentation
 
+**Engine module (capabilities, accurate stack, TMX, file layout):** see **[engine/ARCHITECTURE.md](engine/ARCHITECTURE.md)**.
+
 ## Overview
 
 The Criogenio Engine is a 2D game engine built in C++ using an Entity Component System (ECS) architecture. It provides a modular, data-driven approach to game development with support for animations, terrain rendering, serialization, asset management, and **server-authoritative multiplayer** over ENet.
@@ -555,12 +557,14 @@ Send Input → Receive Snapshot → ApplySnapshot (create/update entities, set T
 
 ## Dependencies
 
-- **Raylib**: Rendering, window management, input
+- **SDL3** and **OpenGL**: Window, rendering, and input (engine `Renderer` / `Input`)
 - **ENet**: UDP networking (used by `ENetTransport` for multiplayer)
+- **Box2D v3** (C): Linked with the engine library where physics samples need it
 - **nlohmann/json**: JSON serialization
 - **Standard Library**: STL containers, threading, memory management
 
 ## Related Documentation
 
+- **[engine/ARCHITECTURE.md](engine/ARCHITECTURE.md)**: Authoritative **engine/** capabilities, main-loop order, terrain/TMX, and directory map.
 - **ENGINE_IMPROVEMENTS.md**: Suggested improvements (global state, ECS scope, system order, network, testing, etc.).
 - **TODO.md**: Project and editor task list.

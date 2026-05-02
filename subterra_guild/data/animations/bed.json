@@ -1,0 +1,15 @@
+{
+    "name": "bed",
+    "description": "Bed – placeholder until a dedicated animation sprite sheet is available",
+    "type": "animation",
+    "texture": "assets/16x16 Assorted RPG Icons/all-assets-preview.png",
+    "loop": true,
+    "reverse": false,
+    "frames": [
+        {
+            "name": "bed_idle",
+            "duration": 200,
+            "frames": [0]
+        }
+    ]
+}
