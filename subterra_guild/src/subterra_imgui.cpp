@@ -412,11 +412,29 @@ void SubterraImGuiDrawEntityInspector(SubterraSession &session) {
       criogenio::ecs::EntityId id = mobIds[static_cast<size_t>(selIdx)];
       auto *tr = session.world->GetComponent<criogenio::Transform>(id);
       auto *nm = session.world->GetComponent<criogenio::Name>(id);
+      auto prefIt = session.mobPrefabByEntity.find(id);
+      auto dataIt = session.mobEntityDataByEntity.find(id);
       if (tr) {
         ImGui::Text("entity #%d", static_cast<int>(id));
         ImGui::Text("name: %s", nm ? nm->name.c_str() : "(none)");
+        ImGui::Text("prefab: %s",
+                    prefIt != session.mobPrefabByEntity.end() ? prefIt->second.c_str()
+                                                               : "(unknown)");
         ImGui::Text("position: (%.1f, %.1f)", tr->x, tr->y);
         ImGui::Text("scale: %.2f %.2f", tr->scale_x, tr->scale_y);
+        if (dataIt != session.mobEntityDataByEntity.end() && dataIt->second.is_object()) {
+          const auto &st = dataIt->second;
+          const char *brain =
+              (st.contains("brain_type") && st["brain_type"].is_string())
+                  ? st["brain_type"].get_ref<const std::string &>().c_str()
+                  : "(none)";
+          const bool hidden =
+              st.contains("hidden") &&
+              ((st["hidden"].is_boolean() && st["hidden"].get<bool>()) ||
+               (st["hidden"].is_number_integer() && st["hidden"].get<int>() != 0));
+          ImGui::Text("brain: %s", brain);
+          ImGui::Text("hidden: %s", hidden ? "yes" : "no");
+        }
         float mcx = tr->x + static_cast<float>(session.playerW) * tr->scale_x * 0.5f;
         float mcy = tr->y + static_cast<float>(session.playerH) * tr->scale_y * 0.5f;
         if (session.player != criogenio::ecs::NULL_ENTITY && ImGui::Button("TP player to mob"))

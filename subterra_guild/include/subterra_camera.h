@@ -26,6 +26,9 @@ struct SubterraCameraConfig {
   float zoom = 1.15f;
   bool follow_player = true;
   criogenio::Vec2 follow_offset{0.f, 0.f};
+  float follow_deadzone_half_w = 0.f;
+  float follow_deadzone_half_h = 0.f;
+  float follow_smoothing_speed = 0.f;
   bool zoom_active = false;
   SubterraCameraZoomEventCfg zoom_on_run_start;
   SubterraCameraZoomEventCfg zoom_on_run_stop;
@@ -74,7 +77,7 @@ void SubterraCameraTick(SubterraSession &session, float dt, bool runHeld);
  * Sets camera target to player center + follow offset, base `zoom` from config × run zoom mul,
  * then applies shake offset to `target` (reference applies shake to target).
  */
-void SubterraCameraApplyToView(SubterraSession &session, criogenio::Camera2D *cam, float playerCx,
-                               float playerCy);
+/** Applies zoom and runtime shake offsets over an already resolved camera target. */
+void SubterraCameraApplyRuntimeEffectsToView(SubterraSession &session, criogenio::Camera2D *cam);
 
 } // namespace subterra

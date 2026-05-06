@@ -6,6 +6,8 @@
 #include "inventory.h"
 #include "log.h"
 #include "resources.h"
+#include <algorithm>
+#include <cmath>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -506,5 +508,69 @@ Terrain2D *World::GetTerrain() { return terrain.get(); }
 void World::SetTerrain(std::unique_ptr<Terrain2D> t) { terrain = std::move(t); }
 
 void World::DeleteTerrain() { terrain = nullptr; }
+
+ecs::EntityId World::FindEntityByReplicatedNetId(uint32_t netId) const {
+  static thread_local std::vector<ecs::EntityId> ids;
+  const_cast<World *>(this)->GetEntitiesWith<ReplicatedNetId, Transform>(ids);
+  for (ecs::EntityId id : ids) {
+    auto *nid = const_cast<World *>(this)->GetComponent<ReplicatedNetId>(id);
+    if (nid && nid->id == netId)
+      return id;
+  }
+  return ecs::NULL_ENTITY;
+}
+
+bool World::TryGetEntityCenter2D(ecs::EntityId id, float width, float height, Vec2 *outCenter) const {
+  if (!outCenter || id == ecs::NULL_ENTITY)
+    return false;
+  auto *tr = const_cast<World *>(this)->GetComponent<Transform>(id);
+  if (!tr)
+    return false;
+  outCenter->x = tr->x + width * 0.5f;
+  outCenter->y = tr->y + height * 0.5f;
+  return true;
+}
+
+bool UpdateCameraFollow2D(World &world, Camera2D *cam, ecs::EntityId followEntity, float entityWidth,
+                          float entityHeight, float dt, const CameraFollow2DConfig &cfg) {
+  if (!cam || followEntity == ecs::NULL_ENTITY)
+    return false;
+
+  Vec2 center{};
+  if (!world.TryGetEntityCenter2D(followEntity, entityWidth, entityHeight, &center))
+    return false;
+
+  const float rawTargetX = center.x + cfg.followOffset.x;
+  const float rawTargetY = center.y + cfg.followOffset.y;
+
+  float desiredX = rawTargetX;
+  float desiredY = rawTargetY;
+
+  if (cfg.deadzoneHalfWidth > 0.f) {
+    const float dx = rawTargetX - cam->target.x;
+    if (std::fabs(dx) <= cfg.deadzoneHalfWidth)
+      desiredX = cam->target.x;
+    else
+      desiredX = rawTargetX - (dx > 0.f ? cfg.deadzoneHalfWidth : -cfg.deadzoneHalfWidth);
+  }
+  if (cfg.deadzoneHalfHeight > 0.f) {
+    const float dy = rawTargetY - cam->target.y;
+    if (std::fabs(dy) <= cfg.deadzoneHalfHeight)
+      desiredY = cam->target.y;
+    else
+      desiredY = rawTargetY - (dy > 0.f ? cfg.deadzoneHalfHeight : -cfg.deadzoneHalfHeight);
+  }
+
+  if (cfg.smoothingSpeed > 0.f) {
+    const float alpha = std::clamp(dt * cfg.smoothingSpeed, 0.f, 1.f);
+    cam->target.x += (desiredX - cam->target.x) * alpha;
+    cam->target.y += (desiredY - cam->target.y) * alpha;
+  } else {
+    cam->target.x = desiredX;
+    cam->target.y = desiredY;
+  }
+
+  return true;
+}
 
 } // namespace criogenio

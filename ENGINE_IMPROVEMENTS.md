@@ -4,15 +4,13 @@ Suggestions based on a review of the Criogenio engine. Ordered by impact vs effo
 
 ---
 
-## 1. **Remove global `netToEntity` (network)**
+## 1. **Remove global `netToEntity` (network)** ✅ DONE
 
-**Current:** `extern std::unordered_map<NetEntityId, Entity> netToEntity` is shared and written by both `ReplicationServer` and `ReplicationClient`.
+**Previous state:** `extern std::unordered_map<NetEntityId, Entity> netToEntity` was shared globally.
 
-**Issues:** Hard to test, unclear ownership, and listen-server (server + client in one process) would share one map.
-
-**Improvement:**  
-- Keep the map inside `ReplicationClient` (and optionally inside `ReplicationServer` if needed for debugging).  
-- Pass the client’s map (or a lookup interface) only where needed; remove the global.
+**Implemented:**  
+- `ReplicationClient` now owns an instance-local `NetEntityId -> EntityId` map.  
+- Global map usage/remnants were removed from server/client code paths.
 
 ---
 
@@ -29,7 +27,7 @@ Suggestions based on a review of the Criogenio engine. Ordered by impact vs effo
 
 ---
 
-## 3. **ECS view performance and allocations**
+## 3. **ECS view performance and allocations** ⚠️ PARTIALLY DONE
 
 **Current:** `Query::build()` allocates a `std::vector<EntityId>` every call and iterates all alive entities + signature check.
 
@@ -37,9 +35,13 @@ Suggestions based on a review of the Criogenio engine. Ordered by impact vs effo
 - `GetEntitiesWith<T,U>()` allocates every frame per system.  
 - View is O(alive entities) per query, no archetype-style grouping.
 
-**Improvements:**  
-- **Short term:** Reuse a thread-local or system-local `std::vector<EntityId>` and clear/fill in place (e.g. `view<T,U>(output)`), or return a non-owning span if you can.  
-- **Medium term:** Cache views per (T, U, …) and invalidate on add/remove component; or introduce archetypes and iterate only matching archetypes.
+**Current progress:**  
+- `Registry::view<T...>(out)` and `World::GetEntitiesWith<T...>(out)` now support in-place fill to avoid per-call vector allocations.
+- Hot paths (core movement/animation/render/collision and replication snapshot entity queries) were migrated to reuse vectors.
+- Query results are cached by signature and invalidated on ECS mutation, reducing repeated signature scans across systems in stable frames.
+
+**Remaining improvements:**  
+- Cache views per signature or move to archetype/chunk iteration for better large-world scaling.
 
 ---
 
@@ -87,9 +89,15 @@ Suggestions based on a review of the Criogenio engine. Ordered by impact vs effo
 
 **Current:** Full snapshot every frame for all replicated entities.
 
-**Improvement:**  
-- Add a dirty flag or “last sent state” per entity; only serialize and send when transform (or other replicated data) changed.  
-- Reduces bandwidth when many entities are idle; you can still send full snapshots periodically for reliability.
+**Current progress:**  
+- Server tracks last-sent transforms and only serializes changed entities between periodic full snapshots.
+- Non-full ticks with no changed entities are skipped entirely.
+- Transform payloads are field-masked, sending only changed transform subfields.
+- Optional compatibility-gated quantized payload mode is available (int16 scaled fields, default off).
+
+**Remaining improvements:**  
+- Quantization and/or entropy compression for transform fields.
+- Optional per-connection relevance culling.
 
 ---
 
@@ -118,9 +126,14 @@ Suggestions based on a review of the Criogenio engine. Ordered by impact vs effo
 
 ---
 
-## 11. **Event system usage**
+## 11. **Event system usage** ⚠️ PARTIALLY DONE
 
 **Current:** `EventBus` exists; usage in core loop and systems is limited.
+
+**Current progress:**  
+- Subterra now has an explicit gameplay event path using `MapEventBus` + `GameplayActionRegistry`.
+- Data-driven listeners are active for interactables and mobs (`required_data` filtering + named actions).
+- Item light emitters can dispatch overlap-driven gameplay events from item prefab definitions.
 
 **Improvement:**  
 - Use events for “entity spawned”, “entity destroyed”, “collision”, “input consumed” so gameplay and UI can react without direct coupling.  

@@ -5,6 +5,7 @@
 #include "systems.h"
 #include "world.h"
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -19,12 +20,44 @@ namespace criogenio {
  */
 using PlayerMovementAxisOverrideFn =
     bool (*)(World &world, ecs::EntityId id, float *outDx, float *outDy);
+/** @deprecated Prefer SetWorldMovementInputProvider(world, ...). */
+[[deprecated("Prefer SetWorldMovementInputProvider(world, ...)")]]
 void SetPlayerMovementAxisOverride(PlayerMovementAxisOverrideFn fn);
+/** @deprecated Prefer SetWorldMovementInputProvider(world, ...). */
+[[deprecated("Prefer SetWorldMovementInputProvider(world, ...)")]]
 PlayerMovementAxisOverrideFn GetPlayerMovementAxisOverride();
 
 /** When non-null, used instead of LeftShift/RightShift for run speed multiplier. */
 using PlayerRunHeldOverrideFn = bool (*)();
+/** @deprecated Prefer SetWorldMovementInputProvider(world, ...). */
+[[deprecated("Prefer SetWorldMovementInputProvider(world, ...)")]]
 void SetPlayerRunHeldOverride(PlayerRunHeldOverrideFn fn);
+
+/** Preferred instance-scoped movement input provider (world-local; replaces global hook patterns). */
+using WorldMovementAxisProviderFn =
+    bool (*)(void *user, World &world, ecs::EntityId id, float *outDx, float *outDy);
+using WorldRunHeldProviderFn = bool (*)(void *user);
+using WorldMovementBlockProviderFn = bool (*)(void *user, World &world, ecs::EntityId id,
+                                              float rectLeft, float rectTop, float rectW,
+                                              float rectH);
+void SetWorldMovementInputProvider(World &world, WorldMovementAxisProviderFn axisFn,
+                                   WorldRunHeldProviderFn runHeldFn = nullptr,
+                                   void *user = nullptr);
+void ClearWorldMovementInputProvider(World &world);
+void SetWorldMovementBlockProvider(World &world, WorldMovementBlockProviderFn blockFn,
+                                   void *user = nullptr);
+void ClearWorldMovementBlockProvider(World &world);
+
+struct CoreSystemPerfCounters {
+  uint64_t movementSamples = 0;
+  double movementAvgMs = 0.0;
+  double movementMaxMs = 0.0;
+  uint64_t animationSamples = 0;
+  double animationAvgMs = 0.0;
+  double animationMaxMs = 0.0;
+};
+const CoreSystemPerfCounters &GetCoreSystemPerfCounters();
+void ResetCoreSystemPerfCounters();
 
 class MovementSystem : public ISystem {
 public:

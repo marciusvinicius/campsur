@@ -51,6 +51,43 @@ void Terrain3D::Update(float dt) {}
 
 void Terrain2D::Update(float dt) {}
 
+void ComputeMovementBoundsPx(const Terrain2D *terrain, float entityW, float entityH,
+                             int fallbackTilesW, int fallbackTilesH, int fallbackStepX,
+                             int fallbackStepY, float *outMinX, float *outMinY, float *outMaxX,
+                             float *outMaxY) {
+  if (!outMinX || !outMinY || !outMaxX || !outMaxY)
+    return;
+  float minX = 0.f, minY = 0.f, maxX = 0.f, maxY = 0.f;
+
+  if (terrain && terrain->UsesGidMode() && terrain->LogicalMapWidthTiles() > 0) {
+    const float sx = static_cast<float>(terrain->GridStepX());
+    const float sy = static_cast<float>(terrain->GridStepY());
+    const auto &m = terrain->tmxMeta;
+    minX = static_cast<float>(m.boundsMinTx) * sx;
+    minY = static_cast<float>(m.boundsMinTy) * sy;
+    maxX = static_cast<float>(m.boundsMaxTx) * sx - entityW;
+    maxY = static_cast<float>(m.boundsMaxTy) * sy - entityH;
+  } else if (terrain && terrain->LogicalMapWidthTiles() > 0) {
+    minX = 0.f;
+    minY = 0.f;
+    maxX = terrain->LogicalMapWidthTiles() * static_cast<float>(terrain->GridStepX()) - entityW;
+    maxY = terrain->LogicalMapHeightTiles() * static_cast<float>(terrain->GridStepY()) - entityH;
+  } else {
+    minX = minY = 0.f;
+    maxX = (fallbackTilesW - 1) * static_cast<float>(fallbackStepX) - entityW;
+    maxY = (fallbackTilesH - 1) * static_cast<float>(fallbackStepY) - entityH;
+  }
+
+  if (maxX < minX)
+    maxX = minX;
+  if (maxY < minY)
+    maxY = minY;
+  *outMinX = minX;
+  *outMinY = minY;
+  *outMaxX = maxX;
+  *outMaxY = maxY;
+}
+
 void Terrain2D::SetAtlas(int layer, const char *path) {
   tileset.atlas =
       AssetManager::instance().load<criogenio::TextureResource>(path);

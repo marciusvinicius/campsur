@@ -2,6 +2,7 @@
 
 #include "terrain.h"
 #include "tmx_metadata.h"
+#include "json.hpp"
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -29,6 +30,8 @@ struct MapEventPayload {
   bool manual = false;
   /** Optional JSON: array of action ids or `{"id":"…","param":…}`; overrides legacy branching when non-empty. */
   std::string gameplay_actions;
+  /** Optional event data for listener filters (e.g. light payload). */
+  nlohmann::json event_data = nlohmann::json::object();
 };
 
 struct MapEventTrigger {
@@ -78,7 +81,16 @@ std::string InteractableStateKey(const std::string &mapPath,
 /** Stored flags for this interactable key (0 when never toggled). */
 std::uint8_t InteractableFlagsEffective(const SubterraSession &session,
                                         const criogenio::TiledInteractable &it);
+nlohmann::json &EnsureInteractableEntityData(SubterraSession &session,
+                                             const criogenio::TiledInteractable &it);
+const nlohmann::json *FindInteractableEntityData(const SubterraSession &session,
+                                                 const criogenio::TiledInteractable &it);
+bool InteractableEntityDataBoolEffective(const SubterraSession &session,
+                                         const criogenio::TiledInteractable &it,
+                                         const char *key, bool defaultValue);
 void ApplyInteractableUse(SubterraSession &session, const criogenio::TiledInteractable &it);
+void EvaluateInteractableEventListeners(SubterraSession &session, const MapEventPayload &p);
+void EvaluateMobEventListeners(SubterraSession &session, const MapEventPayload &p);
 
 /**
  * Resolve teleport spawn key to player center (world px, Tiled coords).

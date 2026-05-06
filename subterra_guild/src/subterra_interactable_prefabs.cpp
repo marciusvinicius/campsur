@@ -14,6 +14,7 @@ namespace {
 
 std::unordered_set<std::string> g_interactablePrefabIds;
 std::unordered_map<std::string, SubterraInteractableRestDef> g_interactableRest;
+std::unordered_map<std::string, SubterraInteractablePrefabDef> g_interactableDefs;
 
 std::string lowerAscii(std::string s) {
   for (char &c : s)
@@ -72,16 +73,28 @@ bool typeFieldIsInteractable(const nlohmann::json &el) {
   return v == "interactable";
 }
 
+bool typeFieldIsInteractableEventListener(const nlohmann::json &el) {
+  if (!el.is_object() || !el.contains("type"))
+    return false;
+  const auto &t = el["type"];
+  if (!t.is_string())
+    return false;
+  std::string v = lowerAscii(t.get<std::string>());
+  return v == "interactable_event_listener";
+}
+
 } // namespace
 
 void SubterraInteractablePrefabsClear() {
   g_interactablePrefabIds.clear();
   g_interactableRest.clear();
+  g_interactableDefs.clear();
 }
 
 bool SubterraInteractablePrefabsTryLoadFromPath(const std::string &path) {
   g_interactablePrefabIds.clear();
   g_interactableRest.clear();
+  g_interactableDefs.clear();
   std::ifstream f(path, std::ios::binary);
   if (!f)
     return false;
@@ -99,7 +112,9 @@ bool SubterraInteractablePrefabsTryLoadFromPath(const std::string &path) {
   if (!root.is_object() || !root.contains("list") || !root["list"].is_array())
     return false;
   for (const auto &el : root["list"]) {
-    if (!typeFieldIsInteractable(el))
+    const bool is_interactable = typeFieldIsInteractable(el);
+    const bool is_listener_only = typeFieldIsInteractableEventListener(el);
+    if (!is_interactable && !is_listener_only)
       continue;
     std::string prefab;
     if (el.contains("prefab_name") && el["prefab_name"].is_string())
@@ -108,6 +123,28 @@ bool SubterraInteractablePrefabsTryLoadFromPath(const std::string &path) {
       continue;
     const std::string pkey = lowerAscii(prefab);
     g_interactablePrefabIds.insert(pkey);
+    SubterraInteractablePrefabDef &def = g_interactableDefs[pkey];
+    def.is_event_listener_only = is_listener_only;
+    def.default_entity_data = nlohmann::json::object();
+    def.event_listeners.clear();
+    if (el.contains("entity_data") && el["entity_data"].is_object())
+      def.default_entity_data = el["entity_data"];
+    if (el.contains("event_listeners") && el["event_listeners"].is_array()) {
+      for (const auto &evt : el["event_listeners"]) {
+        if (!evt.is_object())
+          continue;
+        if (!evt.contains("event") || !evt["event"].is_string())
+          continue;
+        if (!evt.contains("action") || !evt["action"].is_string())
+          continue;
+        SubterraInteractableEventListenerDef listener;
+        listener.event = lowerAscii(evt["event"].get<std::string>());
+        listener.action = evt["action"].get<std::string>();
+        if (evt.contains("required_data") && evt["required_data"].is_object())
+          listener.required_data = evt["required_data"];
+        def.event_listeners.push_back(std::move(listener));
+      }
+    }
     if (el.contains("rest_emission") && el["rest_emission"].is_object()) {
       const auto &re = el["rest_emission"];
       SubterraInteractableRestDef rd;
@@ -151,6 +188,32 @@ bool SubterraInteractableTryGetRest(std::string_view interactable_type_normalize
     return false;
   out = it->second;
   return true;
+}
+
+bool SubterraInteractableTryGetPrefabDef(std::string_view interactable_type_normalized,
+                                         SubterraInteractablePrefabDef &out) {
+  const std::string key = lowerAsciiView(interactable_type_normalized);
+  auto it = g_interactableDefs.find(key);
+  if (it == g_interactableDefs.end())
+    return false;
+  out = it->second;
+  return true;
+}
+
+bool SubterraInteractableTryGetDefaultEntityData(std::string_view interactable_type_normalized,
+                                                 nlohmann::json &out) {
+  SubterraInteractablePrefabDef def;
+  if (!SubterraInteractableTryGetPrefabDef(interactable_type_normalized, def))
+    return false;
+  out = def.default_entity_data;
+  return out.is_object();
+}
+
+bool SubterraInteractableTypeCanDirectUse(std::string_view interactable_type_normalized) {
+  SubterraInteractablePrefabDef def;
+  if (!SubterraInteractableTryGetPrefabDef(interactable_type_normalized, def))
+    return true;
+  return !def.is_event_listener_only;
 }
 
 } // namespace subterra

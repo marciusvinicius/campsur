@@ -14,6 +14,8 @@
 #include "subterra_loadout.h"
 #include "subterra_camera.h"
 #include "subterra_input_config.h"
+#include "subterra_item_event_dispatch.h"
+#include "subterra_mob_brains.h"
 #include "subterra_session.h"
 #include "terrain.h"
 #include <algorithm>
@@ -35,33 +37,10 @@ constexpr float kTileCollisionBodyH = 14.f;
 
 void movementBoundsPx(criogenio::World &w, float &minX, float &minY, float &maxX,
                      float &maxY) {
-  criogenio::Terrain2D *t = w.GetTerrain();
-  if (t && t->UsesGidMode() && t->LogicalMapWidthTiles() > 0) {
-    const float sx = static_cast<float>(t->GridStepX());
-    const float sy = static_cast<float>(t->GridStepY());
-    const auto &m = t->tmxMeta;
-    minX = static_cast<float>(m.boundsMinTx) * sx;
-    minY = static_cast<float>(m.boundsMinTy) * sy;
-    maxX = static_cast<float>(m.boundsMaxTx) * sx - static_cast<float>(g_playerDrawW);
-    maxY = static_cast<float>(m.boundsMaxTy) * sy - static_cast<float>(g_playerDrawH);
-  } else if (t && t->LogicalMapWidthTiles() > 0) {
-    minX = 0.f;
-    minY = 0.f;
-    maxX = t->LogicalMapWidthTiles() * static_cast<float>(t->GridStepX()) -
-           static_cast<float>(g_playerDrawW);
-    maxY = t->LogicalMapHeightTiles() * static_cast<float>(t->GridStepY()) -
-           static_cast<float>(g_playerDrawH);
-  } else {
-    minX = minY = 0.f;
-    maxX = (MapWidthTiles - 1) * static_cast<float>(TileSize) -
-           static_cast<float>(g_playerDrawW);
-    maxY = (MapHeightTiles - 1) * static_cast<float>(TileSize) -
-           static_cast<float>(g_playerDrawH);
-  }
-  if (maxX < minX)
-    maxX = minX;
-  if (maxY < minY)
-    maxY = minY;
+  criogenio::ComputeMovementBoundsPx(w.GetTerrain(), static_cast<float>(g_playerDrawW),
+                                     static_cast<float>(g_playerDrawH), MapWidthTiles,
+                                     MapHeightTiles, TileSize, TileSize, &minX, &minY, &maxX,
+                                     &maxY);
 }
 
 constexpr float kInteractPickupRadiusPx = 64.f;
@@ -189,15 +168,19 @@ void CameraFollowSystem::Update(float dt) {
   session.runHeldPrev = runHeld;
   SubterraCameraTick(session, dt, runHeld);
 
-  auto ids = world.GetEntitiesWith<PlayerTag, criogenio::Controller, criogenio::Transform,
-                                    criogenio::AnimationState>();
-  for (criogenio::ecs::EntityId id : ids) {
-    auto *tr = world.GetComponent<criogenio::Transform>(id);
-    if (!tr)
-      continue;
-    const float cx = tr->x + static_cast<float>(g_playerDrawW) * 0.5f;
-    const float cy = tr->y + static_cast<float>(g_playerDrawH) * 0.5f;
-    SubterraCameraApplyToView(session, cam, cx, cy);
+  const criogenio::ecs::EntityId followId = session.player != criogenio::ecs::NULL_ENTITY
+                                                ? session.player
+                                                : world.FindEntityByReplicatedNetId(0);
+  criogenio::CameraFollow2DConfig followCfg{};
+  if (session.camera.cfg.follow_player) {
+    followCfg.followOffset = session.camera.cfg.follow_offset;
+    followCfg.deadzoneHalfWidth = session.camera.cfg.follow_deadzone_half_w;
+    followCfg.deadzoneHalfHeight = session.camera.cfg.follow_deadzone_half_h;
+    followCfg.smoothingSpeed = session.camera.cfg.follow_smoothing_speed;
+  }
+  if (criogenio::UpdateCameraFollow2D(world, cam, followId, static_cast<float>(g_playerDrawW),
+                                      static_cast<float>(g_playerDrawH), dt, followCfg)) {
+    SubterraCameraApplyRuntimeEffectsToView(session, cam);
     return;
   }
   cam->zoom = session.camera.cfg.zoom > 1e-4f ? session.camera.cfg.zoom : DefaultCameraZoom;
@@ -254,6 +237,8 @@ void PickupSystem::Update(float /*dt*/) {
   float bestInteractD2 = useR2;
   for (int i = 0; i < static_cast<int>(session.tiledInteractables.size()); ++i) {
     const criogenio::TiledInteractable &it = session.tiledInteractables[static_cast<size_t>(i)];
+    if (!SubterraInteractableTypeCanDirectUse(it.interactable_type))
+      continue;
     float icx = 0.f, icy = 0.f;
     tiledInteractableCenter(it, icx, icy);
     float dx = pcx - icx;
@@ -277,9 +262,15 @@ void PickupSystem::Update(float /*dt*/) {
   } else if (bestInteract >= 0) {
     const criogenio::TiledInteractable &it =
         session.tiledInteractables[static_cast<size_t>(bestInteract)];
+    const bool locked = InteractableEntityDataBoolEffective(session, it, "locked", false);
     char hint[160];
-    std::snprintf(hint, sizeof hint, "[E] Interact (%s)",
-                  humanizeInteractableKind(it.interactable_type).c_str());
+    if (locked) {
+      std::snprintf(hint, sizeof hint, "[E] Locked (%s)",
+                    humanizeInteractableKind(it.interactable_type).c_str());
+    } else {
+      std::snprintf(hint, sizeof hint, "[E] Interact (%s)",
+                    humanizeInteractableKind(it.interactable_type).c_str());
+    }
     session.interactHint = hint;
   }
 
@@ -396,5 +387,13 @@ void VitalsSystem::Update(float dt) {
 }
 
 void VitalsSystem::Render(criogenio::Renderer &) {}
+
+void MobBrainSystem::Update(float dt) { SubterraMobBrainsTick(session, dt); }
+
+void MobBrainSystem::Render(criogenio::Renderer &) {}
+
+void ItemEventDispatchSystem::Update(float dt) { SubterraItemEventDispatchTick(session, dt); }
+
+void ItemEventDispatchSystem::Render(criogenio::Renderer &) {}
 
 } // namespace subterra

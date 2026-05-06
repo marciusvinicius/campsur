@@ -115,6 +115,12 @@ void SubterraGameplayQueuesTick(SubterraSession &session, float dt) {
 
 void RegisterSubterraGameplayMapEventHandler(SubterraSession &session) {
   session.mapEvents.addListener([&session](const MapEventPayload &p) {
+    EvaluateInteractableEventListeners(session, p);
+  });
+  session.mapEvents.addListener([&session](const MapEventPayload &p) {
+    EvaluateMobEventListeners(session, p);
+  });
+  session.mapEvents.addListener([&session](const MapEventPayload &p) {
     session.gameplay.dispatchFromMapEvent(session, p);
   });
 }
@@ -233,6 +239,117 @@ static void actionDamagePlayer(SubterraGameplayContext &ctx) {
   sessionLog(ctx.session, "Player took damage (gameplay action).");
 }
 
+static void actionUnlockDoor(SubterraGameplayContext &ctx) {
+  if (!ctx.actionParams.contains("interactable_key") ||
+      !ctx.actionParams["interactable_key"].is_string())
+    return;
+  const std::string key = ctx.actionParams["interactable_key"].get<std::string>();
+  if (key.empty())
+    return;
+  nlohmann::json &entityData = ctx.session.interactableEntityDataByKey[key];
+  if (!entityData.is_object())
+    entityData = nlohmann::json::object();
+  entityData["locked"] = false;
+  if (ctx.actionParams.contains("open_after_unlock") &&
+      ctx.actionParams["open_after_unlock"].is_boolean() &&
+      ctx.actionParams["open_after_unlock"].get<bool>()) {
+    entityData["open"] = true;
+    std::uint8_t &flags = ctx.session.interactableStateFlags[key];
+    flags |= InteractableState::Open;
+  }
+  sessionLog(ctx.session, "Interactable unlocked.");
+}
+
+static void actionSetInteractableState(SubterraGameplayContext &ctx) {
+  if (!ctx.actionParams.contains("interactable_key") ||
+      !ctx.actionParams["interactable_key"].is_string())
+    return;
+  const std::string key = ctx.actionParams["interactable_key"].get<std::string>();
+  if (key.empty())
+    return;
+  std::string field;
+  if (ctx.actionParams.contains("key") && ctx.actionParams["key"].is_string())
+    field = ctx.actionParams["key"].get<std::string>();
+  else if (ctx.actionParams.contains("field") && ctx.actionParams["field"].is_string())
+    field = ctx.actionParams["field"].get<std::string>();
+  if (field.empty() || !ctx.actionParams.contains("value"))
+    return;
+  nlohmann::json &entityData = ctx.session.interactableEntityDataByKey[key];
+  if (!entityData.is_object())
+    entityData = nlohmann::json::object();
+  entityData[field] = ctx.actionParams["value"];
+  if ((field == "open" || field == "burning") && ctx.actionParams["value"].is_boolean()) {
+    const bool on = ctx.actionParams["value"].get<bool>();
+    std::uint8_t &flags = ctx.session.interactableStateFlags[key];
+    if (field == "open") {
+      if (on)
+        flags |= InteractableState::Open;
+      else
+        flags &= static_cast<std::uint8_t>(~InteractableState::Open);
+    } else if (field == "burning") {
+      if (on)
+        flags |= InteractableState::Burning;
+      else
+        flags &= static_cast<std::uint8_t>(~InteractableState::Burning);
+    }
+  }
+}
+
+static void actionShowHideEnemyOnLightRange(SubterraGameplayContext &ctx) {
+  if (!ctx.session.world)
+    return;
+  if (!ctx.actionParams.contains("mob_entity_id") || !ctx.actionParams["mob_entity_id"].is_number_integer())
+    return;
+  const auto mobId = static_cast<criogenio::ecs::EntityId>(ctx.actionParams["mob_entity_id"].get<int>());
+  if (!ctx.session.world->HasEntity(mobId))
+    return;
+  nlohmann::json &state = ctx.session.mobEntityDataByEntity[mobId];
+  if (!state.is_object())
+    state = nlohmann::json::object();
+  bool visible = true;
+  if (ctx.actionParams.contains("visible") && ctx.actionParams["visible"].is_boolean())
+    visible = ctx.actionParams["visible"].get<bool>();
+  if (ctx.actionParams.contains("event_data") && ctx.actionParams["event_data"].is_object()) {
+    const auto &ev = ctx.actionParams["event_data"];
+    if (ev.contains("visible") && ev["visible"].is_boolean())
+      visible = ev["visible"].get<bool>();
+    else if (ev.contains("inside_light") && ev["inside_light"].is_boolean())
+      visible = ev["inside_light"].get<bool>();
+  }
+  state["hidden"] = !visible;
+  auto *tr = ctx.session.world->GetComponent<criogenio::Transform>(mobId);
+  if (tr) {
+    if (!state.contains("base_scale_x"))
+      state["base_scale_x"] = tr->scale_x;
+    if (!state.contains("base_scale_y"))
+      state["base_scale_y"] = tr->scale_y;
+    const float sx = state["base_scale_x"].is_number() ? state["base_scale_x"].get<float>() : 1.f;
+    const float sy = state["base_scale_y"].is_number() ? state["base_scale_y"].get<float>() : 1.f;
+    tr->scale_x = visible ? sx : 0.0001f;
+    tr->scale_y = visible ? sy : 0.0001f;
+  }
+}
+
+static void actionAttackPlayer(SubterraGameplayContext &ctx) {
+  if (!ctx.session.world || ctx.session.player == criogenio::ecs::NULL_ENTITY)
+    return;
+  auto *v = ctx.session.world->GetComponent<PlayerVitals>(ctx.session.player);
+  if (!v)
+    return;
+  float amount = 8.f;
+  if (ctx.actionParams.contains("damage") && ctx.actionParams["damage"].is_number())
+    amount = ctx.actionParams["damage"].get<float>();
+  if (ctx.actionParams.contains("mob_entity_id") && ctx.actionParams["mob_entity_id"].is_number_integer()) {
+    const auto mobId = static_cast<criogenio::ecs::EntityId>(ctx.actionParams["mob_entity_id"].get<int>());
+    auto it = ctx.session.mobEntityDataByEntity.find(mobId);
+    if (it != ctx.session.mobEntityDataByEntity.end() && it->second.is_object() &&
+        it->second.contains("attack_damage") && it->second["attack_damage"].is_number()) {
+      amount = it->second["attack_damage"].get<float>();
+    }
+  }
+  v->health = std::max(0.f, v->health - amount);
+}
+
 void RegisterDefaultSubterraGameplayActions(GameplayActionRegistry &reg) {
   reg.registerAction("notify_camera", actionNotifyCamera);
   reg.registerAction("spawn_monster_wave", actionSpawnMonsterWave);
@@ -243,6 +360,10 @@ void RegisterDefaultSubterraGameplayActions(GameplayActionRegistry &reg) {
   reg.registerAction("lock_player_input", actionLockPlayerInput);
   reg.registerAction("unlock_player_input", actionUnlockPlayerInput);
   reg.registerAction("damage_player", actionDamagePlayer);
+  reg.registerAction("unlock_door", actionUnlockDoor);
+  reg.registerAction("set_interactable_state", actionSetInteractableState);
+  reg.registerAction("show_hide_enemy_on_light_range", actionShowHideEnemyOnLightRange);
+  reg.registerAction("attack_player", actionAttackPlayer);
 }
 
 void SubterraEnqueueGameplayIntroDemo(SubterraSession &session) {

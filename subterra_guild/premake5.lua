@@ -34,13 +34,12 @@ entrypoint("mainCRTStartup")
 filter({})
 
 vpaths({
-	["Header Files/*"] = { "include/**.h", "include/**.hpp", "src/**.h", "src/**.hpp", "**.h", "**.hpp" },
-	["Source Files/*"] = { "src/**.c", "src/**.cpp", "**.c", "**.cpp" },
+	["Header Files/*"] = { "include/**.h", "include/**.hpp", "src/**.h", "src/**.hpp" },
+	["Source Files/*"] = { "src/**.c", "src/**.cpp" },
 })
 files({
-	"src/subterra_item_light.cpp",
-	"src/subterra_loadout.cpp",
-	"**.c", "**.cpp", "**.h", "**.hpp",
+	"src/**.c", "src/**.cpp", "src/**.h", "src/**.hpp",
+	"include/**.h", "include/**.hpp",
 	"../editor/thirdpart/imgui-docking/imgui.cpp",
 	"../editor/thirdpart/imgui-docking/imgui_draw.cpp",
 	"../editor/thirdpart/imgui-docking/imgui_tables.cpp",

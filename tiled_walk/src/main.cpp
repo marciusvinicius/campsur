@@ -36,7 +36,6 @@ int main(int argc, char **argv) {
   }
 
   World &world = engine.GetWorld();
-  engine.RegisterCoreComponents();
 
   world.AddSystem<TileMapSystem>(world);
   world.AddSystem<VelocityMovementSystem>(world);

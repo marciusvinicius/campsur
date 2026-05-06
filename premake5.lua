@@ -348,6 +348,19 @@ if os.isdir("fp_plane") then
 	include("fp_plane")
 end
 
+project("campsur_engine_helpers_test")
+kind("ConsoleApp")
+language("C++")
+location("./")
+targetname("campsur_engine_helpers_test")
+files({ "test_engine_helpers.cpp" })
+includedirs({ "engine/include", "engine/", "." })
+link_to("engine")
+link_sdl3()
+filter("system:linux")
+links({ "GL", "pthread", "m", "dl", "X11", "z" })
+filter({})
+
 if os.isfile("enet-1.3.18/premake5.lua") then
 	include("enet-1.3.18")
 end

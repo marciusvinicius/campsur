@@ -76,7 +76,8 @@ void ENetTransport::Send(ConnectionId to, const uint8_t *data, size_t size,
 }
 
 std::vector<NetworkMessage> ENetTransport::PollMessages() {
-  auto msgs = inbox;
+  std::vector<NetworkMessage> msgs;
+  msgs.swap(inbox);
   inbox.clear();
   return msgs;
 }

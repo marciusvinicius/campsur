@@ -1,0 +1,74 @@
+{
+    "type": "entities",
+    "list": [
+        {
+            "type": "enemy",
+            "name": "Skeleton",
+            "prefab_name": "skeleton",
+            "size": 64,
+            "texture": "assets/sprites/male_character-spritesheet.png",
+            "position_on_texture": [
+                0,
+                0
+            ],
+            "animation_path": "data/animations/mob1.json",
+            "entity_data": {// The default data for the entity when spawned
+                "health": 100,
+                "stamina": 100,
+                "food_satiety": 100,
+                "attack_damage": 10,
+                "defense": 10,
+                "speed": 10,
+                "brain_type": "simple",
+                "gender": "male",
+                "hidden": false
+            }
+        },
+        {
+            "type": "enemy",
+            "name": "Zombie",
+            "prefab_name": "zombie",
+            "size": 64,
+            "texture": "assets/sprites/male_character-spritesheet.png",
+            "position_on_texture": [
+                0,
+                0
+            ],
+            "animation_path": "data/animations/mob1.json",
+            "event_listeners": [
+                {
+                    "event": "on_player_in_range",
+                    "action": "attack_player",
+                    "required_data": {
+                        "range": 10
+                    }
+                },
+                {
+                    "event": "light_emission_touched",
+                    "required_data": {
+                        "light_radius": null, // When null, light source radius is not considered as a requirement
+                        "light_intensity": null, // When null, light source intensity is not considered as a requirement
+                        "light_color": [
+                            255,
+                            0,
+                            0
+                        ] // When null, light source color is not considered as a requirement
+                    },
+                    "action": "show_hide_enemy_on_light_range" // Action to perform when event "on_touch_light_source" is fired
+                }
+            ],
+            "entity_data": {
+                "health": 100,
+                "stamina": 100,
+                "food_satiety": 100,
+                "attack_damage": 10,
+                "defense": 10,
+                "speed": 10,
+                "brain_type": "simple_chase_player", // Code that controls enemy behavior
+                "brain_location": "simple_chase_player_location.odin", // Location of the brain code
+                "gender": "male",
+                "hidden": true
+            }
+        }
+    ]
+}

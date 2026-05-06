@@ -14,6 +14,7 @@
 #include "subterra_item_consumable.h"
 #include "subterra_item_light.h"
 #include "subterra_loadout.h"
+#include "subterra_mob_prefabs.h"
 #include "subterra_camera.h"
 #include "subterra_input_config.h"
 #include "subterra_player_vitals.h"
@@ -88,6 +89,11 @@ const char *kItemPrefabJsonPaths[] = {
 const char *kInteractablePrefabJsonPaths[] = {
     "data/prefabs/entities_interactable.json",
     "subterra_guild/data/prefabs/entities_interactable.json",
+};
+
+const char *kMobPrefabJsonPaths[] = {
+    "data/prefabs/entities_mobs.json",
+    "subterra_guild/data/prefabs/entities_mobs.json",
 };
 
 const char *kWorldConfigPaths[] = {
@@ -218,7 +224,6 @@ int main(int argc, char **argv) {
 
   World &world = engine.GetWorld();
   session.world = &world;
-  engine.RegisterCoreComponents();
   RegisterSubterraComponents();
   SubterraCameraApplyConfigDefaults(session.camera);
   SubterraInputApplyDefaults(session.input);
@@ -249,6 +254,18 @@ int main(int argc, char **argv) {
     std::fprintf(stderr,
                  "Warning: could not load entities_interactable.json — mis-tagged "
                  "spawn_prefab objects may spawn as pickups.\n");
+  bool mob_prefabs_loaded = false;
+  for (const char *p : kMobPrefabJsonPaths) {
+    if (SubterraMobPrefabsTryLoadFromPath(p)) {
+      std::printf("Mob prefabs: %s\n", p);
+      mob_prefabs_loaded = true;
+      break;
+    }
+  }
+  if (!mob_prefabs_loaded)
+    std::fprintf(stderr,
+                 "Warning: could not load entities_mobs.json — mob spawn_prefab ids "
+                 "will not resolve to enemies.\n");
 
   if (SubterraTryLoadServerConfigurationFromPaths(
           kWorldConfigPaths, sizeof(kWorldConfigPaths) / sizeof(kWorldConfigPaths[0]), session)) {
@@ -366,8 +383,11 @@ int main(int argc, char **argv) {
   }
 
   world.AddSystem<MovementSystem>(world);
+  world.AddSystem<MobBrainSystem>(session);
+  world.AddSystem<AIMovementSystem>(world);
   world.AddSystem<MapBoundsSystem>(world);
   world.AddSystem<MapEventSystem>(session);
+  world.AddSystem<ItemEventDispatchSystem>(session);
   world.AddSystem<AnimationSystem>(world);
   world.AddSystem<VitalsSystem>(session);
   world.AddSystem<CameraFollowSystem>(world, session);

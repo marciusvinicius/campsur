@@ -85,20 +85,34 @@ public:
   template <typename T> std::vector<ecs::EntityId> GetEntitiesWith() {
     return ecs::Registry::instance().view<T>();
   }
+  template <typename T> void GetEntitiesWith(std::vector<ecs::EntityId> &out) {
+    ecs::Registry::instance().view<T>(out);
+  }
 
   template <typename T, typename U>
   std::vector<ecs::EntityId> GetEntitiesWith() {
     return ecs::Registry::instance().view<T, U>();
+  }
+  template <typename T, typename U> void GetEntitiesWith(std::vector<ecs::EntityId> &out) {
+    ecs::Registry::instance().view<T, U>(out);
   }
 
   template <typename T, typename U, typename V>
   std::vector<ecs::EntityId> GetEntitiesWith() {
     return ecs::Registry::instance().view<T, U, V>();
   }
+  template <typename T, typename U, typename V>
+  void GetEntitiesWith(std::vector<ecs::EntityId> &out) {
+    ecs::Registry::instance().view<T, U, V>(out);
+  }
 
   template <typename T, typename U, typename V, typename W>
   std::vector<ecs::EntityId> GetEntitiesWith() {
     return ecs::Registry::instance().view<T, U, V, W>();
+  }
+  template <typename T, typename U, typename V, typename W>
+  void GetEntitiesWith(std::vector<ecs::EntityId> &out) {
+    ecs::Registry::instance().view<T, U, V, W>(out);
   }
 
   // System Management
@@ -151,6 +165,11 @@ public:
     return ecs::EntityManager::instance().get_alive_entities();
   }
 
+  /** Returns first entity with ReplicatedNetId == `netId`, or `NULL_ENTITY` when absent. */
+  ecs::EntityId FindEntityByReplicatedNetId(uint32_t netId) const;
+  /** Computes 2D center from Transform top-left plus explicit sprite extents. */
+  bool TryGetEntityCenter2D(ecs::EntityId id, float width, float height, Vec2 *outCenter) const;
+
 private:
   ecs::EntityId mainCameraEntity = ecs::NULL_ENTITY;
   ecs::EntityId mainCamera3DEntity = ecs::NULL_ENTITY;
@@ -162,5 +181,18 @@ private:
   // Entity name tracking (optional, for debugging)
   std::unordered_map<ecs::EntityId, std::string> entity_names;
 };
+
+struct CameraFollow2DConfig {
+  Vec2 followOffset{0.f, 0.f};
+  /** World-space half-extents around current camera target where no follow movement is applied. */
+  float deadzoneHalfWidth = 0.f;
+  float deadzoneHalfHeight = 0.f;
+  /** Units: 1/s. <= 0 snaps instantly to desired target. */
+  float smoothingSpeed = 0.f;
+};
+
+/** Updates camera target for a top-left anchored entity and optional smoothing/deadzone. */
+bool UpdateCameraFollow2D(World &world, Camera2D *cam, ecs::EntityId followEntity, float entityWidth,
+                          float entityHeight, float dt, const CameraFollow2DConfig &cfg);
 
 } // namespace criogenio

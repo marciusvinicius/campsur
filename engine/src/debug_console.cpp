@@ -27,6 +27,21 @@ std::string trim(std::string s) {
   return s;
 }
 
+bool parseOnOffArg(const std::string &arg, bool &out) {
+  std::string s = arg;
+  for (char &c : s)
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  if (s == "on" || s == "1" || s == "true") {
+    out = true;
+    return true;
+  }
+  if (s == "off" || s == "0" || s == "false") {
+    out = false;
+    return true;
+  }
+  return false;
+}
+
 } // namespace
 
 std::string DebugConsole::normalizeCommandName(std::string name) {
@@ -94,6 +109,64 @@ void DebugConsole::registerBuiltins(Engine &engine) {
 
   RegisterCommand("clear", [this](Engine &, const std::vector<std::string> &) {
     logLines_.clear();
+  });
+
+  RegisterCommand("netquant", [this](Engine &engine, const std::vector<std::string> &args) {
+    ReplicationServer *server = engine.GetReplicationServer();
+    if (!server) {
+      AddLogLine("netquant: server replication is not active.");
+      return;
+    }
+    if (args.size() <= 1) {
+      AddLogLine(server->IsQuantizedTransformPayloadEnabled() ? "netquant: on"
+                                                              : "netquant: off");
+      AddLogLine("Usage: netquant [on|off]");
+      return;
+    }
+    bool enabled = false;
+    if (!parseOnOffArg(args[1], enabled)) {
+      AddLogLine("Usage: netquant [on|off]");
+      return;
+    }
+    server->SetQuantizedTransformPayloadEnabled(enabled);
+    AddLogLine(enabled ? "netquant: enabled" : "netquant: disabled");
+  });
+
+  RegisterCommand("netstats", [this](Engine &engine, const std::vector<std::string> &args) {
+    ReplicationServer *server = engine.GetReplicationServer();
+    if (!server) {
+      AddLogLine("netstats: server replication is not active.");
+      return;
+    }
+    if (args.size() > 1) {
+      bool reset = false;
+      if (parseOnOffArg(args[1], reset) && reset) {
+        server->ResetStats();
+        AddLogLine("netstats: counters reset.");
+        return;
+      }
+      if (args[1] == "reset") {
+        server->ResetStats();
+        AddLogLine("netstats: counters reset.");
+        return;
+      }
+    }
+    const auto &st = server->GetStats();
+    char b[280];
+    std::snprintf(
+        b, sizeof b,
+        "netstats: built=%llu sent=%llu noop=%llu considered=%llu serialized=%llu "
+        "skipped=%llu bytes=%llu quant=%s",
+        static_cast<unsigned long long>(st.snapshotsBuilt),
+        static_cast<unsigned long long>(st.snapshotsSent),
+        static_cast<unsigned long long>(st.snapshotsSkippedNoop),
+        static_cast<unsigned long long>(st.entitiesConsidered),
+        static_cast<unsigned long long>(st.entitiesSerialized),
+        static_cast<unsigned long long>(st.entitiesDeltaSkipped),
+        static_cast<unsigned long long>(st.bytesSent),
+        server->IsQuantizedTransformPayloadEnabled() ? "on" : "off");
+    AddLogLine(b);
+    AddLogLine("Usage: netstats [reset]");
   });
 
   (void)engine;

@@ -53,6 +53,9 @@ public:
   std::string currentClipName;
   float timer = 0.0f;
   int frameIndex = 0;
+  AnimState cachedState = AnimState::Count;
+  Direction cachedFacing = Direction::Count;
+  bool hasCachedSelection = false;
 
   AnimatedSprite() = default;
   explicit AnimatedSprite(AssetId id) : animationId(id) {}
@@ -109,6 +112,7 @@ public:
       currentClipName = GetString(it->second);
     frameIndex = 0;
     timer = 0.0f;
+    hasCachedSelection = false;
   }
 };
 } // namespace criogenio

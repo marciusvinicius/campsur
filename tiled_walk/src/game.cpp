@@ -37,17 +37,17 @@ void VelocityMovementSystem::Update(float dt) {
     if (!ctrl || !tr) continue;
     tr->x += ctrl->velocity.x * PlayerMoveSpeed * dt;
     tr->y += ctrl->velocity.y * PlayerMoveSpeed * dt;
-    // Clamp to map bounds
-    float maxX = (MapWidthTiles - 1) * static_cast<float>(TileSize);
-    float maxY = (MapHeightTiles - 1) * static_cast<float>(TileSize);
-    if (tr->x < 0) tr->x = 0;
+    float minX = 0.f, minY = 0.f, maxX = 0.f, maxY = 0.f;
+    criogenio::ComputeMovementBoundsPx(world.GetTerrain(), 0.f, 0.f, MapWidthTiles, MapHeightTiles,
+                                       TileSize, TileSize, &minX, &minY, &maxX, &maxY);
+    if (tr->x < minX) tr->x = minX;
     if (tr->x > maxX) tr->x = maxX;
-    if (tr->y < 0) tr->y = 0;
+    if (tr->y < minY) tr->y = minY;
     if (tr->y > maxY) tr->y = maxY;
   }
 }
 
-void CameraFollowSystem::Update(float /*dt*/) {
+void CameraFollowSystem::Update(float dt) {
   criogenio::Camera2D *cam = world.GetActiveCamera();
   if (!cam) return;
 
@@ -61,15 +61,11 @@ void CameraFollowSystem::Update(float /*dt*/) {
   }
   // Server and offline: local player uses net id 0 (matches ReplicationServer).
 
-  auto ids = world.GetEntitiesWith<criogenio::ReplicatedNetId, criogenio::Transform>();
-  for (criogenio::ecs::EntityId id : ids) {
-    auto *netIdComp = world.GetComponent<criogenio::ReplicatedNetId>(id);
-    auto *tr = world.GetComponent<criogenio::Transform>(id);
-    if (!netIdComp || !tr || netIdComp->id != localNetId) continue;
-    cam->target.x = tr->x + TileSize * 0.5f;
-    cam->target.y = tr->y + TileSize * 0.5f;
+  const criogenio::ecs::EntityId localEntity = world.FindEntityByReplicatedNetId(localNetId);
+  criogenio::CameraFollow2DConfig followCfg{};
+  if (criogenio::UpdateCameraFollow2D(world, cam, localEntity, static_cast<float>(TileSize),
+                                      static_cast<float>(TileSize), dt, followCfg)) {
     cam->zoom = 1.f;
-    return;
   }
 }
 

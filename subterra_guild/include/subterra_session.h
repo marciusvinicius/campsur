@@ -12,6 +12,7 @@
 #include "subterra_world_rules.h"
 #include "tmx_metadata.h"
 #include "world.h"
+#include "json.hpp"
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -69,6 +70,17 @@ struct SubterraSession {
   int nearestInteractableIndex = -1;
   /** Per `InteractableStateKey`: door/chest open, campfire burning, etc. */
   std::unordered_map<std::string, std::uint8_t> interactableStateFlags;
+  /** Per interactable instance key: dynamic JSON state initialized from prefab `entity_data`. */
+  std::unordered_map<std::string, nlohmann::json> interactableEntityDataByKey;
+  /** Runtime mob state by entity id (prefab defaults + dynamic values). */
+  std::unordered_map<criogenio::ecs::EntityId, nlohmann::json> mobEntityDataByEntity;
+  /** Runtime mob prefab id by entity id. */
+  std::unordered_map<criogenio::ecs::EntityId, std::string> mobPrefabByEntity;
+  /** Item event dispatcher overlap cache (`source|event|target`). */
+  std::unordered_set<std::string> itemEventPairsInside;
+  /** Item event dispatcher cooldown expiry (seconds, session clock). */
+  std::unordered_map<std::string, float> itemEventCooldownUntilSec;
+  float itemEventDispatchClockSec = 0.f;
   /** Key = TMX filename (e.g. `City.tmx`). If present, `loadMap` restores pickups instead of TMX prefab spawn. */
   std::unordered_map<std::string, std::vector<PersistedPickup>> persistedPickupsByBasename;
   /** e.g. `[E] Pick up Torch x2` when something is in range. */

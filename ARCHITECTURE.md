@@ -9,9 +9,18 @@ The Criogenio Engine is a 2D game engine built in C++ using an Entity Component 
 ### Recent capability updates
 
 - **Decoupled gameplay action pipelines (Subterra):** map events can now route through a registry of named actions (camera shake, teleport, spawn wave, damage, input lock/unlock), with optional JSON action lists from TMX properties.
+- **Data-driven mob prefabs (Subterra):** `entities_mobs.json` is now loaded into a mob prefab registry (default `entity_data`, listeners, visual hints), and TMX `spawn_prefab` can resolve directly to mob spawning.
+- **Mob brain runtime (Subterra):** `brain_type` values are mapped to C++ brain handlers and executed per-frame before `AIMovementSystem` applies movement.
+- **Item event dispatch from light emitters (Subterra):** `entities_items.json` supports `event_dispatch`; active item light emitters can dispatch `MapEventPayload` with structured `event_data` (for example `light_emission_touched`) into the same listener/action flow used by interactables and mobs.
 - **Delayed command queue (engine):** `DelayedCommandQueue` allows scheduling callbacks for later execution (`push(delay, fn)` + `update(dt)`), useful for cutscene-like sequences.
 - **Richer TMX interactables:** `TiledInteractable` now carries raw object properties, enabling behaviors like lever-to-door links driven by map data (for example `opens_door`).
 - **Subterra animation JSON compatibility:** player/animation loading supports both strip-based Subterra JSON and engine clip-export JSON, with path resolution tolerant to `./` and repo/layout differences.
+- **Subterra-first uplift primitives (engine):** instance-scoped movement input provider, reusable camera-follow helpers on `World`, shared terrain movement bounds helper, and low-risk network/animation hot-path optimizations.
+- **Phase 2 follow-up:** replication net-id ownership is now instance-local in `ReplicationClient`, camera follow gained smoothing/deadzone helper support, and core movement/animation timing counters are available for quick profiling.
+- **Phase 4 perf/scalability pass:** non-alloc ECS query paths (`view(..., out)` / `GetEntitiesWith(..., out)`), delta transform replication with periodic full snapshots, and server-side replication counters were added.
+- **Phase 5 perf/scalability follow-up:** ECS query results are now cached per signature with mutation-based invalidation, and no-op delta ticks are not sent over the network.
+- **Phase 6 wire-size reduction:** transform snapshot payloads now use per-field masks (`x/y/rotation/scale`) so delta packets include only changed transform fields.
+- **Phase 7 optional quantization:** replication server can optionally quantize masked transform fields to int16 payloads (default off) for additional bandwidth reduction.
 
 ## Core Architecture
 
@@ -331,12 +340,17 @@ Multiplayer is **server-authoritative**: the server runs the simulation and send
 - **Client players**: For each connection in `GetConnectionIds()`, creates an entity with `NetReplicated`, `Transform`, `Controller`, `ReplicatedNetId(conn)`.
 - **Input**: Receives `MsgType::Input` messages, applies `PlayerInput` to the corresponding entity’s `Controller`.
 - **Snapshot**: Each frame builds a snapshot of all entities with `NetReplicated` + `Transform` (server player first with net id `0`, then others). Serializes transform (x, y, rotation, scale) and sends to every connection.
+- **Delta mode**: Snapshot build skips unchanged transforms between full-sync ticks (default every 30 ticks). New entities and periodic full syncs still send full transform payloads.
+- **No-op skip**: If a non-full tick has zero changed entities, snapshot send is skipped to reduce bandwidth.
+- **Field-masked transform payloads**: Transform serialization writes a one-byte field mask, then only the changed fields (absolute values) for compact deltas.
+- **Optional quantized payloads**: When enabled on `ReplicationServer`, transform payload header sets `TRANSFORM_PAYLOAD_QUANTIZED` and changed fields are serialized as scaled `int16`.
+- **Counters**: `ReplicationServer::GetStats()` reports snapshot/entity/bytes counters (including skipped no-op ticks) for validation.
 
 ### Replication Client
 
 - **ReplicationClient**: Applies received snapshots to the local `World`.
 - For each snapshot entity: create or find entity by `NetEntityId`, set `NetReplicated`, `Transform`, `ReplicatedNetId(id)`; overwrite transform from snapshot data.
-- **netToEntity**: Global map `NetEntityId → Entity` used by client (and written by server for consistency); see ENGINE_IMPROVEMENTS.md for moving this into the client.
+- **Entity mapping ownership**: `ReplicationClient` owns its own `NetEntityId → EntityId` map; replication server tracks only server-side entity/net-id associations.
 
 ### Message Types
 
@@ -422,6 +436,23 @@ eventBus.Subscribe(EventType::EntityCreated, callback);
 // Emit
 eventBus.Emit(EntityCreatedEvent(...));
 ```
+
+### Subterra map/item event pipeline
+
+Subterra gameplay uses `MapEventBus` (`subterra_guild/include/map_events.h`) as a game-level dispatch layer.
+
+- Event sources:
+  - TMX trigger overlap (`MapEventSystem`)
+  - Manual console emits (debug/testing)
+  - Item light overlap dispatch (`ItemEventDispatchSystem`)
+- Event payload:
+  - `MapEventPayload` includes IDs/triggers plus optional JSON `event_data`
+- Listener evaluation:
+  - Interactable listeners from `entities_interactable.json`
+  - Mob listeners from `entities_mobs.json`
+  - `required_data` subset matching with `null` as wildcard
+- Action execution:
+  - `GameplayActionRegistry` runs string-keyed actions (`unlock_door`, `show_hide_enemy_on_light_range`, `attack_player`, etc.)
 
 ## Terrain System
 
@@ -539,6 +570,15 @@ GetComponent<T>() → Registry → ComponentTypeRegistry → SparseSet → Compo
 Update(dt) → Query Entities → Get Components → Process Logic
 ```
 
+### Subterra gameplay event flow
+```
+TMX/item/manual source
+  → MapEventBus dispatch (MapEventPayload + event_data)
+  → Interactable/Mob listener evaluation (required_data filter)
+  → GameplayActionRegistry runAction(id, ctx)
+  → Session/runtime state mutation (entity_data, flags, vitals, etc.)
+```
+
 ### Rendering
 ```
 Render() → Query Entities → Get Components → Load Assets → Draw
@@ -563,6 +603,20 @@ Send Input → Receive Snapshot → ApplySnapshot (create/update entities, set T
 5. **Serialization**: Ensure all components implement `Serialize()`/`Deserialize()`
 6. **Animation IDs**: Use `AssetId` references, not direct texture paths
 7. **Network rendering**: Query `NetReplicated` + `Transform` (and `ReplicatedNetId` for color) so server and clients draw all replicated players
+
+## Subterra-First Migration Notes
+
+- Prefer `SetWorldMovementInputProvider(world, axisFn, runFn, user)` over the legacy global movement hooks (`SetPlayerMovementAxisOverride` / `SetPlayerRunHeldOverride`). The global API remains as compatibility fallback.
+- For camera follow, use `World::FindEntityByReplicatedNetId(netId)` plus `World::TryGetEntityCenter2D(entityId, width, height, &center)` to keep local-player resolution and center math out of game-specific systems.
+- Use `ComputeMovementBoundsPx(...)` from `terrain.h` for top-left transform clamping, instead of duplicating TMX/fallback bound math inside each game.
+- `AnimatedSprite` now caches state/facing clip selection; keep `AnimationState` authoritative and avoid forcing clip resets every frame from game code.
+- `Engine` already registers core components in its constructor. Sample games should not call `RegisterCoreComponents()` again unless they intentionally re-run setup in a custom bootstrap flow.
+- For movement+animation hotspot profiling in Subterra, use `perfcore reset`, run your representative scene for ~10-30s, then use `perfcore` and compare `Movement(ms)` / `Animation(ms)` avg/max before and after changes.
+- Subterra prefab registries are now split by gameplay domain:
+  - `entities_interactable.json` for interactables + listener defaults
+  - `entities_mobs.json` for mob prefabs + brain/listener defaults
+  - `entities_items.json` for item light emission + item event dispatch definitions
+- Item light overlap dispatch uses pair-tracking + cooldown to reduce repeated event spam while preserving `on_collision_enter`-style behavior.
 
 ## Extension Points
 
@@ -594,3 +648,64 @@ Send Input → Receive Snapshot → ApplySnapshot (create/update entities, set T
 - **[engine/ARCHITECTURE.md](engine/ARCHITECTURE.md)**: Authoritative **engine/** capabilities, main-loop order, terrain/TMX, and directory map.
 - **ENGINE_IMPROVEMENTS.md**: Suggested improvements (global state, ECS scope, system order, network, testing, etc.).
 - **TODO.md**: Project and editor task list.
+
+## Subterra Prefab Authoring Reference
+
+Use these examples as canonical schema references when wiring light-driven gameplay events.
+
+### `entities_items.json` (`event_dispatch`)
+
+```json
+{
+  "type": "item",
+  "name": "Energy Torch",
+  "prefab_name": "energy_torch",
+  "light_emission": {
+    "radius": 128,
+    "intensity": 1.0,
+    "color": [255, 0, 0]
+  },
+  "event_dispatch": [
+    {
+      "event": "light_emission_touched",
+      "event_trigger_when": "on_collision_enter",
+      "event_action_get_data": "energy_torch_activated",
+      "cooldown_ms": 250
+    }
+  ]
+}
+```
+
+Notes:
+- `event` is normalized to lowercase at runtime.
+- `event_trigger_when` currently supports enter/stay overlap semantics (`on_collision_enter`, `on_collision_stay`; aliases with `on_overlap_*` also work).
+- `event_action_get_data` maps to a runtime data-provider resolver that fills `MapEventPayload.event_data`.
+- `cooldown_ms` throttles repeated dispatch per `(source,event,target)` pair.
+
+### `entities_interactable.json` (`event_listeners`)
+
+```json
+{
+  "type": "interactable_event_listener",
+  "name": "Light Door",
+  "prefab_name": "light_door",
+  "entity_data": {
+    "open": false,
+    "locked": true
+  },
+  "event_listeners": [
+    {
+      "event": "light_emission_touched",
+      "required_data": {
+        "light_color": [255, 0, 0]
+      },
+      "action": "unlock_door"
+    }
+  ]
+}
+```
+
+Notes:
+- `required_data` uses subset matching against `event_data`; any field set to `null` behaves as wildcard.
+- `action` is resolved by `GameplayActionRegistry`.
+- Listener-only interactables are not directly use-interactable (`E`) and react through events instead.

@@ -88,8 +88,11 @@ void SubterraSession::destroyTransientEntities() {
   for (criogenio::ecs::EntityId id : world->GetEntitiesWith<WorldPickup>())
     kill.insert(id);
   for (criogenio::ecs::EntityId id : kill) {
-    if (id != player)
+    if (id != player) {
       world->DeleteEntity(id);
+      mobEntityDataByEntity.erase(id);
+      mobPrefabByEntity.erase(id);
+    }
   }
 }
 
@@ -112,6 +115,12 @@ bool SubterraSession::loadMap(const std::string &path, std::string &errOut) {
         c->movement_frozen = false;
     }
     interactableStateFlags.clear();
+    interactableEntityDataByKey.clear();
+    mobEntityDataByEntity.clear();
+    mobPrefabByEntity.clear();
+    itemEventPairsInside.clear();
+    itemEventCooldownUntilSec.clear();
+    itemEventDispatchClockSec = 0.f;
     nearestInteractableIndex = -1;
     runtimeTriggers.clear();
     runtimeTriggerSeq = 1;

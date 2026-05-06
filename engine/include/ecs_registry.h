@@ -3,6 +3,7 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <string>
 #include <unordered_map>
 
 namespace criogenio::ecs {
@@ -58,9 +59,10 @@ class Query {
 public:
   explicit Query(const Signature &required_sig) : required_sig(required_sig) {}
 
-  std::vector<EntityId> build() {
-    std::vector<EntityId> results;
+  void build_into(std::vector<EntityId> &results) {
+    results.clear();
     const auto &all_entities = EntityManager::instance().get_alive_entities();
+    results.reserve(all_entities.size());
 
     for (EntityId entity : all_entities) {
       const auto &sig = EntityManager::instance().get_signature_const(entity);
@@ -68,7 +70,11 @@ public:
         results.push_back(entity);
       }
     }
+  }
 
+  std::vector<EntityId> build() {
+    std::vector<EntityId> results;
+    build_into(results);
     return results;
   }
 
@@ -93,6 +99,7 @@ public:
 
   EntityId create_entity() {
     EntityId id = EntityManager::instance().create();
+    mark_mutated();
     return id;
   }
 
@@ -103,6 +110,7 @@ public:
     }
 
     EntityManager::instance().destroy(entity);
+    mark_mutated();
   }
 
   bool has_entity(EntityId entity) const {
@@ -134,6 +142,7 @@ public:
     // Update entity signature
     auto &sig = EntityManager::instance().get_signature(entity);
     sig.add(type_id);
+    mark_mutated();
 
     return comp_ref;
   }
@@ -189,6 +198,7 @@ public:
 
     // Update entity signature
     EntityManager::instance().get_signature(entity).remove(type_id);
+    mark_mutated();
   }
 
   // ========================================================================
@@ -197,41 +207,85 @@ public:
 
   template <typename T> std::vector<EntityId> view() {
     Signature sig;
-    sig.add(ComponentTypeRegistry::GetTypeId<T>());
+    const ComponentTypeId t = ComponentTypeRegistry::GetTypeId<T>();
+    sig.add(t);
+    return get_view_cached(sig, make_query_key({t}));
+  }
 
-    Query query(sig);
-    return query.build();
+  template <typename T> void view(std::vector<EntityId> &out) {
+    Signature sig;
+    const ComponentTypeId t = ComponentTypeRegistry::GetTypeId<T>();
+    sig.add(t);
+    get_view_cached_into(sig, make_query_key({t}), out);
   }
 
   template <typename T, typename U> std::vector<EntityId> view() {
     Signature sig;
-    sig.add(ComponentTypeRegistry::GetTypeId<T>());
-    sig.add(ComponentTypeRegistry::GetTypeId<U>());
+    const ComponentTypeId t = ComponentTypeRegistry::GetTypeId<T>();
+    const ComponentTypeId u = ComponentTypeRegistry::GetTypeId<U>();
+    sig.add(t);
+    sig.add(u);
+    return get_view_cached(sig, make_query_key({t, u}));
+  }
 
-    Query query(sig);
-    return query.build();
+  template <typename T, typename U> void view(std::vector<EntityId> &out) {
+    Signature sig;
+    const ComponentTypeId t = ComponentTypeRegistry::GetTypeId<T>();
+    const ComponentTypeId u = ComponentTypeRegistry::GetTypeId<U>();
+    sig.add(t);
+    sig.add(u);
+    get_view_cached_into(sig, make_query_key({t, u}), out);
   }
 
   template <typename T, typename U, typename V> std::vector<EntityId> view() {
     Signature sig;
-    sig.add(ComponentTypeRegistry::GetTypeId<T>());
-    sig.add(ComponentTypeRegistry::GetTypeId<U>());
-    sig.add(ComponentTypeRegistry::GetTypeId<V>());
+    const ComponentTypeId t = ComponentTypeRegistry::GetTypeId<T>();
+    const ComponentTypeId u = ComponentTypeRegistry::GetTypeId<U>();
+    const ComponentTypeId v = ComponentTypeRegistry::GetTypeId<V>();
+    sig.add(t);
+    sig.add(u);
+    sig.add(v);
+    return get_view_cached(sig, make_query_key({t, u, v}));
+  }
 
-    Query query(sig);
-    return query.build();
+  template <typename T, typename U, typename V>
+  void view(std::vector<EntityId> &out) {
+    Signature sig;
+    const ComponentTypeId t = ComponentTypeRegistry::GetTypeId<T>();
+    const ComponentTypeId u = ComponentTypeRegistry::GetTypeId<U>();
+    const ComponentTypeId v = ComponentTypeRegistry::GetTypeId<V>();
+    sig.add(t);
+    sig.add(u);
+    sig.add(v);
+    get_view_cached_into(sig, make_query_key({t, u, v}), out);
   }
 
   template <typename T, typename U, typename V, typename W>
   std::vector<EntityId> view() {
     Signature sig;
-    sig.add(ComponentTypeRegistry::GetTypeId<T>());
-    sig.add(ComponentTypeRegistry::GetTypeId<U>());
-    sig.add(ComponentTypeRegistry::GetTypeId<V>());
-    sig.add(ComponentTypeRegistry::GetTypeId<W>());
+    const ComponentTypeId t = ComponentTypeRegistry::GetTypeId<T>();
+    const ComponentTypeId u = ComponentTypeRegistry::GetTypeId<U>();
+    const ComponentTypeId v = ComponentTypeRegistry::GetTypeId<V>();
+    const ComponentTypeId w = ComponentTypeRegistry::GetTypeId<W>();
+    sig.add(t);
+    sig.add(u);
+    sig.add(v);
+    sig.add(w);
+    return get_view_cached(sig, make_query_key({t, u, v, w}));
+  }
 
-    Query query(sig);
-    return query.build();
+  template <typename T, typename U, typename V, typename W>
+  void view(std::vector<EntityId> &out) {
+    Signature sig;
+    const ComponentTypeId t = ComponentTypeRegistry::GetTypeId<T>();
+    const ComponentTypeId u = ComponentTypeRegistry::GetTypeId<U>();
+    const ComponentTypeId v = ComponentTypeRegistry::GetTypeId<V>();
+    const ComponentTypeId w = ComponentTypeRegistry::GetTypeId<W>();
+    sig.add(t);
+    sig.add(u);
+    sig.add(v);
+    sig.add(w);
+    get_view_cached_into(sig, make_query_key({t, u, v, w}), out);
   }
 
   // ========================================================================
@@ -272,11 +326,56 @@ public:
   void clear() {
     component_storage.clear();
     EntityManager::instance().clear();
+    query_cache_.clear();
+    mutation_counter_ = 1;
   }
 
 private:
+  struct CachedQueryResult {
+    uint64_t mutation = 0;
+    std::vector<EntityId> entities;
+  };
+
+  void mark_mutated() { ++mutation_counter_; }
+
+  static std::string make_query_key(std::initializer_list<ComponentTypeId> ids) {
+    std::vector<ComponentTypeId> sorted(ids.begin(), ids.end());
+    std::sort(sorted.begin(), sorted.end());
+    std::string key;
+    key.reserve(sorted.size() * 6);
+    for (size_t i = 0; i < sorted.size(); ++i) {
+      if (i > 0)
+        key.push_back('|');
+      key += std::to_string(sorted[i]);
+    }
+    return key;
+  }
+
+  std::vector<EntityId> get_view_cached(const Signature &sig, const std::string &key) {
+    CachedQueryResult &entry = query_cache_[key];
+    if (entry.mutation != mutation_counter_) {
+      Query query(sig);
+      query.build_into(entry.entities);
+      entry.mutation = mutation_counter_;
+    }
+    return entry.entities;
+  }
+
+  void get_view_cached_into(const Signature &sig, const std::string &key,
+                            std::vector<EntityId> &out) {
+    CachedQueryResult &entry = query_cache_[key];
+    if (entry.mutation != mutation_counter_) {
+      Query query(sig);
+      query.build_into(entry.entities);
+      entry.mutation = mutation_counter_;
+    }
+    out = entry.entities;
+  }
+
   std::unordered_map<ComponentTypeId, std::unique_ptr<IComponentStorage>>
       component_storage;
+  std::unordered_map<std::string, CachedQueryResult> query_cache_;
+  uint64_t mutation_counter_ = 1;
 };
 
 } // namespace criogenio::ecs

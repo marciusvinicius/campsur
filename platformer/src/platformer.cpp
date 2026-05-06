@@ -71,16 +71,18 @@ void PlatformerMovementSystem::Update(float dt) {
 
 void PlatformerMovementSystem::Render(criogenio::Renderer&) {}
 
-void CameraFollowSystem::Update(float) {
+void CameraFollowSystem::Update(float dt) {
   criogenio::Camera2D* cam = world.GetActiveCamera();
   if (!cam)
     return;
   auto ids = world.GetEntitiesWith<criogenio::Controller, criogenio::Transform>();
   if (ids.empty())
     return;
-  auto* tr = world.GetComponent<criogenio::Transform>(ids[0]);
-  if (tr)
-    cam->target = {tr->x, tr->y};
+  criogenio::CameraFollow2DConfig cfg{};
+  cfg.deadzoneHalfWidth = 64.f;
+  cfg.deadzoneHalfHeight = 40.f;
+  cfg.smoothingSpeed = 10.f;
+  (void)criogenio::UpdateCameraFollow2D(world, cam, ids[0], 20.f, 32.f, dt, cfg);
 }
 
 void CameraFollowSystem::Render(criogenio::Renderer&) {}

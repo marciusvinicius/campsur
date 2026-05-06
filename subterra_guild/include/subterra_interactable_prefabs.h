@@ -1,7 +1,10 @@
 #pragma once
 
+#include "json.hpp"
+
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace subterra {
 
@@ -11,6 +14,18 @@ struct SubterraInteractableRestDef {
   float stamina_per_sec = 0.f;
   float health_per_sec = 0.f;
   float food_per_sec = 0.f;
+};
+
+struct SubterraInteractableEventListenerDef {
+  std::string event;
+  nlohmann::json required_data = nlohmann::json::object();
+  std::string action;
+};
+
+struct SubterraInteractablePrefabDef {
+  bool is_event_listener_only = false;
+  nlohmann::json default_entity_data = nlohmann::json::object();
+  std::vector<SubterraInteractableEventListenerDef> event_listeners;
 };
 
 /**
@@ -27,5 +42,11 @@ void SubterraInteractablePrefabsClear();
 
 bool SubterraInteractableTryGetRest(std::string_view interactable_type_normalized,
                                     SubterraInteractableRestDef &out);
+
+bool SubterraInteractableTryGetPrefabDef(std::string_view interactable_type_normalized,
+                                         SubterraInteractablePrefabDef &out);
+bool SubterraInteractableTryGetDefaultEntityData(std::string_view interactable_type_normalized,
+                                                 nlohmann::json &out);
+bool SubterraInteractableTypeCanDirectUse(std::string_view interactable_type_normalized);
 
 } // namespace subterra

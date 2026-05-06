@@ -35,6 +35,8 @@ public:
   bool ConnectToServer(const char* host, uint16_t port);
   NetworkMode GetNetworkMode() const { return networkMode; }
   INetworkTransport* GetTransport();
+  ReplicationServer* GetReplicationServer();
+  const ReplicationServer* GetReplicationServer() const;
   void SendInputAsClient(const PlayerInput& input);
   void SetServerPlayerInput(const PlayerInput& input);
 

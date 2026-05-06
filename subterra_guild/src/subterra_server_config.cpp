@@ -81,6 +81,12 @@ void parseCameraFromRoot(const nlohmann::json &root, SubterraCameraBundle &cam) 
   cam.cfg.follow_player = jsonGetB(c, "follow_player", cam.cfg.follow_player);
   if (c.contains("follow_player_offset") && c["follow_player_offset"].is_object())
     parseVec2(c["follow_player_offset"], cam.cfg.follow_offset);
+  cam.cfg.follow_deadzone_half_w =
+      jsonGetF(c, "follow_deadzone_half_w", cam.cfg.follow_deadzone_half_w);
+  cam.cfg.follow_deadzone_half_h =
+      jsonGetF(c, "follow_deadzone_half_h", cam.cfg.follow_deadzone_half_h);
+  cam.cfg.follow_smoothing_speed =
+      jsonGetF(c, "follow_smoothing_speed", cam.cfg.follow_smoothing_speed);
   cam.cfg.zoom_active = jsonGetB(c, "zoom_active", cam.cfg.zoom_active);
   cam.cfg.shake_active = jsonGetB(c, "shake_active", cam.cfg.shake_active);
   if (c.contains("zoom_on") && c["zoom_on"].is_object()) {
@@ -308,6 +314,9 @@ bool SubterraSaveServerConfiguration(SubterraSession &session, std::string *logO
   c["zoom"] = cfg.zoom;
   c["follow_player"] = cfg.follow_player;
   c["follow_player_offset"] = {{"x", cfg.follow_offset.x}, {"y", cfg.follow_offset.y}};
+  c["follow_deadzone_half_w"] = cfg.follow_deadzone_half_w;
+  c["follow_deadzone_half_h"] = cfg.follow_deadzone_half_h;
+  c["follow_smoothing_speed"] = cfg.follow_smoothing_speed;
   c["zoom_active"] = cfg.zoom_active;
   c["shake_active"] = cfg.shake_active;
   c["zoom_on"] = {

@@ -135,4 +135,10 @@ public:
   void* texture = nullptr; // placeholder for future 3D backend
 };
 
+/** Shared helper for top-left anchored entity clamping against map extents. */
+void ComputeMovementBoundsPx(const Terrain2D *terrain, float entityW, float entityH,
+                             int fallbackTilesW, int fallbackTilesH, int fallbackStepX,
+                             int fallbackStepY, float *outMinX, float *outMinY, float *outMaxX,
+                             float *outMaxY);
+
 } // namespace criogenio

@@ -2,6 +2,7 @@
 
 #include "network/net_entity.h"
 #include <cstdint>
+#include <vector>
 
 namespace criogenio {
 struct SnapshotEntity {

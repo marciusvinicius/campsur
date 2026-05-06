@@ -539,8 +539,7 @@ static void extractSpawnPrefabs(TmxMapMetadata &meta) {
   meta.spawnPrefabs.clear();
   for (const auto &og : meta.objectGroups) {
     for (const auto &obj : og.objects) {
-      if (toLowerAscii(obj.objectType) != "spawn_prefab" &&
-          toLowerAscii(obj.name) != "spawn_prefab")
+      if (toLowerAscii(obj.objectType) != "spawn_prefab")
         continue;
       std::string prefab = spawnPrefabNameCI(obj.properties);
       if (prefab.empty())

@@ -43,7 +43,6 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  engine.RegisterCoreComponents();
   //auto& gravity = World.AddGlobalComponent<Gravity>();
   //gravity.strength = 980.0f;
 

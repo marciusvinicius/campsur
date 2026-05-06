@@ -7,6 +7,7 @@
 #include "map_events.h"
 #include "spawn_service.h"
 #include "subterra_interactable_prefabs.h"
+#include "subterra_mob_prefabs.h"
 #include "subterra_components.h"
 #include "subterra_day_night.h"
 #include "subterra_input_config.h"
@@ -29,14 +30,15 @@ namespace {
 
 SubterraSession *g_movementHookSession = nullptr;
 
-bool movementAxisHook(criogenio::World &w, criogenio::ecs::EntityId id, float *dx, float *dy) {
-  return g_movementHookSession &&
-         SubterraPollPlayerMovementAxes(*g_movementHookSession, w, id, dx, dy);
+bool movementAxisProvider(void *user, criogenio::World &w, criogenio::ecs::EntityId id, float *dx,
+                          float *dy) {
+  auto *session = static_cast<SubterraSession *>(user);
+  return session && SubterraPollPlayerMovementAxes(*session, w, id, dx, dy);
 }
 
-bool runHeldHook() {
-  return g_movementHookSession &&
-         SubterraInputActionDown(*g_movementHookSession, "run");
+bool runHeldProvider(void *user) {
+  auto *session = static_cast<SubterraSession *>(user);
+  return session && SubterraInputActionDown(*session, "run");
 }
 
 bool parseBoolArg(const std::string &a, bool *out) {
@@ -101,22 +103,24 @@ void parseWhTail(const std::vector<std::string> &args, size_t &i, float &w, floa
 } // namespace
 
 void SubterraUnregisterMovementHooks() {
+  if (g_movementHookSession && g_movementHookSession->world)
+    criogenio::ClearWorldMovementInputProvider(*g_movementHookSession->world);
   g_movementHookSession = nullptr;
-  criogenio::SetPlayerMovementAxisOverride(nullptr);
-  criogenio::SetPlayerRunHeldOverride(nullptr);
 }
 
 void RegisterSubterraConsoleCommands(SubterraEngine &engine) {
   criogenio::DebugConsole &c = engine.GetDebugConsole();
   SubterraSession &session = engine.GetSession();
   g_movementHookSession = &session;
-  criogenio::SetPlayerMovementAxisOverride(movementAxisHook);
-  criogenio::SetPlayerRunHeldOverride(runHeldHook);
+  if (session.world) {
+    criogenio::SetWorldMovementInputProvider(*session.world, movementAxisProvider, runHeldProvider,
+                                             &session);
+  }
 
   c.RegisterCommand("help", [&c](criogenio::Engine &, const std::vector<std::string> &) {
     c.AddLogLine(
-        "help clear where debug triggers event emit map reload [config] items egui entityinspector intro");
-    c.AddLogLine("spawn mob [n] | spawn item|pickup <id> [count] [at x y] [w W] [h H]");
+        "help clear where debug triggers event emit emitdata emitlight itempairs istate mstate map reload [config] items egui entityinspector intro perfcore netquant netstats");
+    c.AddLogLine("spawn mob [n]|<prefab_id> [n] | spawn item|pickup <id> [count] [at x y] [w W] [h H]");
     c.AddLogLine("spawn interact|trigger <text> [at x y] [w W] [h H] [id key] [monsters N] "
                   "[teleport path.tmx]");
     c.AddLogLine("spawn interact clear — remove runtime zones; give/take/drop/inv");
@@ -145,6 +149,23 @@ void RegisterSubterraConsoleCommands(SubterraEngine &engine) {
                                             const std::vector<std::string> &) {
     SubterraEnqueueGameplayIntroDemo(session);
     c.AddLogLine("Gameplay intro demo queued (lock → shake → damage → unlock).");
+  });
+
+  c.RegisterCommand("perfcore", [&c](criogenio::Engine &, const std::vector<std::string> &args) {
+    if (args.size() >= 2 && args[1] == "reset") {
+      criogenio::ResetCoreSystemPerfCounters();
+      c.AddLogLine("Core perf counters reset.");
+      return;
+    }
+    const auto &perf = criogenio::GetCoreSystemPerfCounters();
+    char b[256];
+    std::snprintf(b, sizeof b,
+                  "Movement(ms): avg=%.3f max=%.3f n=%llu | Animation(ms): avg=%.3f max=%.3f n=%llu",
+                  perf.movementAvgMs, perf.movementMaxMs,
+                  static_cast<unsigned long long>(perf.movementSamples), perf.animationAvgMs,
+                  perf.animationMaxMs, static_cast<unsigned long long>(perf.animationSamples));
+    c.AddLogLine(b);
+    c.AddLogLine("Usage: perfcore [reset]");
   });
 
   c.RegisterCommand("where", [&c, &session](criogenio::Engine &,
@@ -251,6 +272,134 @@ void RegisterSubterraConsoleCommands(SubterraEngine &engine) {
     std::string rest = joinArgsFrom(args, 1);
     session.emitManual("", rest, "manual");
     c.AddLogLine("Emitted manual trigger.");
+  });
+
+  c.RegisterCommand("emitdata", [&c, &session](criogenio::Engine &,
+                                               const std::vector<std::string> &args) {
+    if (args.size() < 3) {
+      c.AddLogLine("Usage: emitdata <trigger> <json_object>");
+      return;
+    }
+    std::string trigger = args[1];
+    std::string jsonText = joinArgsFrom(args, 2);
+    nlohmann::json data = nlohmann::json::object();
+    try {
+      data = nlohmann::json::parse(jsonText);
+    } catch (...) {
+      c.AddLogLine("emitdata: invalid JSON payload.");
+      return;
+    }
+    if (!data.is_object()) {
+      c.AddLogLine("emitdata: payload must be a JSON object.");
+      return;
+    }
+    MapEventPayload p;
+    p.event_trigger = trigger;
+    p.event_type = "manual";
+    p.manual = true;
+    p.event_data = std::move(data);
+    session.mapEvents.dispatch(p);
+    c.AddLogLine("Emitted manual trigger with event_data.");
+  });
+
+  c.RegisterCommand("emitlight", [&c, &session](criogenio::Engine &,
+                                                const std::vector<std::string> &args) {
+    if (args.size() < 2) {
+      c.AddLogLine("Usage: emitlight <event> [r g b] [radius] [intensity]");
+      return;
+    }
+    int r = 255, g = 180, b = 80;
+    float radius = 128.f;
+    float intensity = 1.f;
+    if (args.size() >= 5) {
+      r = std::clamp(std::atoi(args[2].c_str()), 0, 255);
+      g = std::clamp(std::atoi(args[3].c_str()), 0, 255);
+      b = std::clamp(std::atoi(args[4].c_str()), 0, 255);
+    }
+    if (args.size() >= 6)
+      radius = std::strtof(args[5].c_str(), nullptr);
+    if (args.size() >= 7)
+      intensity = std::strtof(args[6].c_str(), nullptr);
+    MapEventPayload p;
+    p.event_trigger = args[1];
+    p.event_type = "manual";
+    p.manual = true;
+    p.event_data = nlohmann::json::object();
+    p.event_data["light_color"] = nlohmann::json::array({r, g, b});
+    p.event_data["light_radius"] = radius;
+    p.event_data["light_intensity"] = intensity;
+    session.mapEvents.dispatch(p);
+    c.AddLogLine("Emitted light event payload.");
+  });
+
+  c.RegisterCommand("itempairs", [&c, &session](criogenio::Engine &,
+                                                const std::vector<std::string> &) {
+    c.AddLogLine("Item light overlap pairs: " +
+                 std::to_string(static_cast<int>(session.itemEventPairsInside.size())));
+    int shown = 0;
+    for (const std::string &k : session.itemEventPairsInside) {
+      c.AddLogLine(" - " + k);
+      shown++;
+      if (shown >= 20) {
+        c.AddLogLine(" ...");
+        break;
+      }
+    }
+  });
+
+  c.RegisterCommand("istate", [&c, &session](criogenio::Engine &,
+                                             const std::vector<std::string> &args) {
+    const criogenio::TiledInteractable *target = nullptr;
+    if (args.size() >= 2) {
+      const int objectId = std::atoi(args[1].c_str());
+      for (const auto &it : session.tiledInteractables) {
+        if (it.tiled_object_id == objectId) {
+          target = &it;
+          break;
+        }
+      }
+      if (!target) {
+        c.AddLogLine("istate: no interactable with that tiled object id.");
+        return;
+      }
+    } else if (session.nearestInteractableIndex >= 0 &&
+               session.nearestInteractableIndex < static_cast<int>(session.tiledInteractables.size())) {
+      target = &session.tiledInteractables[static_cast<size_t>(session.nearestInteractableIndex)];
+    } else {
+      c.AddLogLine("istate: no nearby interactable. Usage: istate [tiled_object_id]");
+      return;
+    }
+    const std::string key = InteractableStateKey(session.mapPath, *target);
+    nlohmann::json &entityData = EnsureInteractableEntityData(session, *target);
+    c.AddLogLine("Interactable key: " + key + " type: " + target->interactable_type);
+    c.AddLogLine("entity_data: " + entityData.dump());
+  });
+
+  c.RegisterCommand("mstate", [&c, &session](criogenio::Engine &,
+                                             const std::vector<std::string> &args) {
+    if (!session.world) {
+      c.AddLogLine("mstate: no world.");
+      return;
+    }
+    criogenio::ecs::EntityId target = criogenio::ecs::NULL_ENTITY;
+    if (args.size() >= 2) {
+      target = static_cast<criogenio::ecs::EntityId>(std::atoi(args[1].c_str()));
+    } else {
+      auto mobs = session.world->GetEntitiesWith<MobTag, criogenio::Transform>();
+      if (!mobs.empty())
+        target = mobs[0];
+    }
+    if (target == criogenio::ecs::NULL_ENTITY || !session.world->HasEntity(target)) {
+      c.AddLogLine("mstate: no valid mob target. Usage: mstate <entity_id>");
+      return;
+    }
+    auto pit = session.mobPrefabByEntity.find(target);
+    auto dit = session.mobEntityDataByEntity.find(target);
+    const std::string prefab = pit != session.mobPrefabByEntity.end() ? pit->second : "(unknown)";
+    const std::string data =
+        dit != session.mobEntityDataByEntity.end() ? dit->second.dump() : std::string("{}");
+    c.AddLogLine("mob #" + std::to_string(static_cast<int>(target)) + " prefab=" + prefab);
+    c.AddLogLine("mob_state: " + data);
   });
 
   c.RegisterCommand("items", [&c](criogenio::Engine &, const std::vector<std::string> &) {
@@ -392,9 +541,19 @@ void RegisterSubterraConsoleCommands(SubterraEngine &engine) {
     for (char &ch : kind)
       ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
     if (kind == "mob") {
+      std::string mobPrefabId = "skeleton";
       int n = 1;
-      if (args.size() >= 3)
-        n = std::atoi(args[2].c_str());
+      if (args.size() >= 3) {
+        if (isUintString(args[2])) {
+          n = std::atoi(args[2].c_str());
+        } else {
+          mobPrefabId = args[2];
+          if (!SubterraMobPrefabNameIsRegistered(mobPrefabId))
+            c.AddLogLine("spawn mob: unknown mob prefab id, using fallback behavior.");
+          if (args.size() >= 4 && isUintString(args[3]))
+            n = std::atoi(args[3].c_str());
+        }
+      }
       if (n < 1)
         n = 1;
       if (n > 50)
@@ -404,8 +563,8 @@ void RegisterSubterraConsoleCommands(SubterraEngine &engine) {
         c.AddLogLine("No player position.");
         return;
       }
-      SpawnMobsAround(session, cx, cy, n);
-      c.AddLogLine("Spawned " + std::to_string(n) + " mob(s).");
+      SpawnMobsAround(session, cx, cy, n, mobPrefabId);
+      c.AddLogLine("Spawned " + std::to_string(n) + " mob(s) of prefab " + mobPrefabId + ".");
       return;
     }
     if (kind == "item" || kind == "pickup") {

@@ -1,4 +1,6 @@
 #include "map_events.h"
+#include "subterra_interactable_prefabs.h"
+#include "subterra_mob_prefabs.h"
 #include "subterra_session.h"
 #include "tmx_metadata.h"
 #include <algorithm>
@@ -93,6 +95,47 @@ static void spawnWorldCenterForObject(const criogenio::TiledMapObject &o,
     cx = ox + ow * 0.5f;
     cy = oy - margin;
   }
+}
+
+static bool jsonBool(const nlohmann::json &obj, const char *key, bool fallback) {
+  if (!obj.is_object() || !key)
+    return fallback;
+  auto it = obj.find(key);
+  if (it == obj.end())
+    return fallback;
+  if (it->is_boolean())
+    return it->get<bool>();
+  if (it->is_number_integer())
+    return it->get<int>() != 0;
+  return fallback;
+}
+
+static bool jsonRequirementsMatch(const nlohmann::json &required, const nlohmann::json &eventData) {
+  if (!required.is_object())
+    return true;
+  if (!eventData.is_object())
+    return false;
+  for (auto it = required.begin(); it != required.end(); ++it) {
+    if (it->is_null())
+      continue;
+    auto jt = eventData.find(it.key());
+    if (jt == eventData.end())
+      return false;
+    if (*jt != *it)
+      return false;
+  }
+  return true;
+}
+
+static bool payloadMatchesListenerEvent(const MapEventPayload &p, std::string eventLower) {
+  eventLower = toLower(std::move(eventLower));
+  if (!p.event_trigger.empty() && toLower(p.event_trigger) == eventLower)
+    return true;
+  if (!p.event_id.empty() && toLower(p.event_id) == eventLower)
+    return true;
+  if (!p.event_type.empty() && toLower(p.event_type) == eventLower)
+    return true;
+  return false;
 }
 
 } // namespace
@@ -265,26 +308,100 @@ std::uint8_t InteractableFlagsEffective(const SubterraSession &session,
   return 0;
 }
 
+nlohmann::json &EnsureInteractableEntityData(SubterraSession &session,
+                                             const criogenio::TiledInteractable &it) {
+  const std::string key = InteractableStateKey(session.mapPath, it);
+  auto found = session.interactableEntityDataByKey.find(key);
+  if (found != session.interactableEntityDataByKey.end())
+    return found->second;
+
+  nlohmann::json def = nlohmann::json::object();
+  SubterraInteractableTryGetDefaultEntityData(toLower(it.interactable_type), def);
+  if (!def.is_object())
+    def = nlohmann::json::object();
+
+  std::uint8_t flags = InteractableFlagsEffective(session, it);
+  if (!def.contains("open") && (flags & InteractableState::Open) != 0)
+    def["open"] = true;
+  if (!def.contains("burning") && (flags & InteractableState::Burning) != 0)
+    def["burning"] = true;
+
+  auto inserted = session.interactableEntityDataByKey.emplace(key, std::move(def));
+  return inserted.first->second;
+}
+
+const nlohmann::json *FindInteractableEntityData(const SubterraSession &session,
+                                                 const criogenio::TiledInteractable &it) {
+  const std::string key = InteractableStateKey(session.mapPath, it);
+  auto found = session.interactableEntityDataByKey.find(key);
+  if (found == session.interactableEntityDataByKey.end())
+    return nullptr;
+  return &found->second;
+}
+
+bool InteractableEntityDataBoolEffective(const SubterraSession &session,
+                                         const criogenio::TiledInteractable &it,
+                                         const char *key, bool defaultValue) {
+  if (!key || key[0] == '\0')
+    return defaultValue;
+  if (const nlohmann::json *ed = FindInteractableEntityData(session, it))
+    return jsonBool(*ed, key, defaultValue);
+  const std::uint8_t flags = InteractableFlagsEffective(session, it);
+  const std::string low = toLower(key);
+  if (low == "open")
+    return (flags & InteractableState::Open) != 0;
+  if (low == "burning")
+    return (flags & InteractableState::Burning) != 0;
+  return defaultValue;
+}
+
 void ApplyInteractableUse(SubterraSession &session, const criogenio::TiledInteractable &it) {
   const std::string kindLower = toLower(it.interactable_type);
   const std::string key = InteractableStateKey(session.mapPath, it);
   std::uint8_t &flags = session.interactableStateFlags[key];
+  nlohmann::json &entityData = EnsureInteractableEntityData(session, it);
+
+  auto setOpenState = [&](bool open) {
+    entityData["open"] = open;
+    if (open)
+      flags |= InteractableState::Open;
+    else
+      flags &= static_cast<std::uint8_t>(~InteractableState::Open);
+  };
+  auto setBurningState = [&](bool burning) {
+    entityData["burning"] = burning;
+    if (burning)
+      flags |= InteractableState::Burning;
+    else
+      flags &= static_cast<std::uint8_t>(~InteractableState::Burning);
+  };
 
   if (kindLower == "door") {
-    flags ^= InteractableState::Open;
-    sessionLog(session, (flags & InteractableState::Open) ? "Door opened." : "Door closed.");
+    if (jsonBool(entityData, "locked", false)) {
+      sessionLog(session, "Door is locked.");
+      return;
+    }
+    const bool nextOpen = !jsonBool(entityData, "open", (flags & InteractableState::Open) != 0);
+    setOpenState(nextOpen);
+    sessionLog(session, nextOpen ? "Door opened." : "Door closed.");
     return;
   }
   if (kindLower == "chest") {
-    flags ^= InteractableState::Open;
-    sessionLog(session, (flags & InteractableState::Open) ? "Chest opened." : "Chest closed.");
+    if (jsonBool(entityData, "locked", false)) {
+      sessionLog(session, "Chest is locked.");
+      return;
+    }
+    const bool nextOpen = !jsonBool(entityData, "open", (flags & InteractableState::Open) != 0);
+    setOpenState(nextOpen);
+    sessionLog(session, nextOpen ? "Chest opened." : "Chest closed.");
     return;
   }
   if (kindLower == "campfire") {
-    const std::uint8_t cur = InteractableFlagsEffective(session, it);
-    flags = cur ^ InteractableState::Burning;
-    sessionLog(session,
-                (flags & InteractableState::Burning) ? "Campfire lit." : "Campfire extinguished.");
+    const bool nextBurning =
+        !jsonBool(entityData, "burning", (InteractableFlagsEffective(session, it) &
+                                          InteractableState::Burning) != 0);
+    setBurningState(nextBurning);
+    sessionLog(session, nextBurning ? "Campfire lit." : "Campfire extinguished.");
     return;
   }
   if (kindLower == "bed") {
@@ -309,9 +426,18 @@ void ApplyInteractableUse(SubterraSession &session, const criogenio::TiledIntera
       }
       const std::string dkey = InteractableStateKey(session.mapPath, *target);
       std::uint8_t &dflags = session.interactableStateFlags[dkey];
-      dflags ^= InteractableState::Open;
-      sessionLog(session, (dflags & InteractableState::Open) ? "Lever pulled: door opened."
-                                                              : "Lever pulled: door closed.");
+      nlohmann::json &targetData = EnsureInteractableEntityData(session, *target);
+      if (jsonBool(targetData, "locked", false)) {
+        sessionLog(session, "Lever pulled: door is locked.");
+        return;
+      }
+      const bool openNow = !jsonBool(targetData, "open", (dflags & InteractableState::Open) != 0);
+      targetData["open"] = openNow;
+      if (openNow)
+        dflags |= InteractableState::Open;
+      else
+        dflags &= static_cast<std::uint8_t>(~InteractableState::Open);
+      sessionLog(session, openNow ? "Lever pulled: door opened." : "Lever pulled: door closed.");
       return;
     }
   }
@@ -324,6 +450,69 @@ void ApplyInteractableUse(SubterraSession &session, const criogenio::TiledIntera
   char buf[192];
   std::snprintf(buf, sizeof buf, "Interact: %s", it.interactable_type.c_str());
   sessionLog(session, buf);
+}
+
+void EvaluateInteractableEventListeners(SubterraSession &session, const MapEventPayload &p) {
+  for (const criogenio::TiledInteractable &it : session.tiledInteractables) {
+    SubterraInteractablePrefabDef def;
+    if (!SubterraInteractableTryGetPrefabDef(toLower(it.interactable_type), def))
+      continue;
+    if (def.event_listeners.empty())
+      continue;
+    const std::string ikey = InteractableStateKey(session.mapPath, it);
+    for (const SubterraInteractableEventListenerDef &listener : def.event_listeners) {
+      if (listener.event.empty() || listener.action.empty())
+        continue;
+      if (!payloadMatchesListenerEvent(p, listener.event))
+        continue;
+      if (!jsonRequirementsMatch(listener.required_data, p.event_data))
+        continue;
+      nlohmann::json &entityData = EnsureInteractableEntityData(session, it);
+      SubterraGameplayContext ctx{session, &p, nlohmann::json::object()};
+      ctx.actionParams["interactable_key"] = ikey;
+      ctx.actionParams["interactable_type"] = toLower(it.interactable_type);
+      ctx.actionParams["interactable_object_id"] = it.tiled_object_id;
+      ctx.actionParams["event"] = listener.event;
+      ctx.actionParams["required_data"] = listener.required_data;
+      ctx.actionParams["event_data"] = p.event_data;
+      ctx.actionParams["entity_data"] = entityData;
+      session.gameplay.runAction(listener.action, ctx);
+    }
+  }
+}
+
+void EvaluateMobEventListeners(SubterraSession &session, const MapEventPayload &p) {
+  if (!session.world)
+    return;
+  for (const auto &kv : session.mobPrefabByEntity) {
+    const criogenio::ecs::EntityId mobId = kv.first;
+    const std::string &prefabId = kv.second;
+    if (!session.world->HasEntity(mobId))
+      continue;
+    SubterraMobPrefabDef def;
+    if (!SubterraMobTryGetPrefabDef(prefabId, def))
+      continue;
+    if (def.event_listeners.empty())
+      continue;
+    nlohmann::json &mobState = session.mobEntityDataByEntity[mobId];
+    if (!mobState.is_object())
+      mobState = nlohmann::json::object();
+    for (const SubterraMobEventListenerDef &listener : def.event_listeners) {
+      if (listener.event.empty() || listener.action.empty())
+        continue;
+      if (!payloadMatchesListenerEvent(p, listener.event))
+        continue;
+      if (!jsonRequirementsMatch(listener.required_data, p.event_data))
+        continue;
+      SubterraGameplayContext ctx{session, &p, nlohmann::json::object()};
+      ctx.actionParams["mob_entity_id"] = static_cast<int>(mobId);
+      ctx.actionParams["mob_prefab_id"] = prefabId;
+      ctx.actionParams["mob_entity_data"] = mobState;
+      ctx.actionParams["event_data"] = p.event_data;
+      ctx.actionParams["event"] = listener.event;
+      session.gameplay.runAction(listener.action, ctx);
+    }
+  }
 }
 
 void DispatchMapEventDefaults(SubterraSession &session, const MapEventPayload &p) {

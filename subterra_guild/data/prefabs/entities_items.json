@@ -5,7 +5,7 @@
   {
     "type": "item",
     "name": "Torch",
-    "item_type": "light_source",
+    "item_type": "tool",
     "prefab_name": "torch",
     "size": 16,
     "texture": "assets/16x16 Assorted RPG Icons/all-assets-preview.png",
@@ -29,6 +29,47 @@
     "health": 100,
     "health_max": 100
   },
+  {
+    "type": "item",
+    "name": "Energy Torch",
+    "item_type": "tool",
+    "prefab_name": "energy_torch",
+    "size": 16,
+    "texture": "assets/16x16 Assorted RPG Icons/all-assets-preview.png",
+    "position_on_texture": [0, 0],
+    "description": "A torch is a light source that can be used to see in the dark.",
+    "weight": 1,
+    "value": 10,
+    "light_emission": {
+      "radius": 128,
+      "intensity": 1.0,
+      "color": [255, 180, 80]
+    },
+    "stackable": false,
+    "stack_size": 1,
+    "stack_size_max": 1,
+    "inventory_role": "equipable",
+    "equip_slot": "left_hand",
+    "attack_damage": 1,
+    "defense": 1,
+    "speed": 1,
+    "health": 100,
+    "health_max": 100,
+    "event_dispatch": [
+      {
+        "event": "light_emission_touched",
+        "event_trigger_when": "on_collision_enter", //Event is triggered when the item collides with another entity (This is defined by the has_collider function on this entity)
+        //For this particular item, the collision is calculate using the light_range
+        "event_action_get_data": "energy_torch_activated" //Action to perform to get event data
+      },
+      {
+        "event": "light_color_changed",
+        "event_trigger_when": "on_item_property_changed", //Event is triggered when the item property changes
+        "event_action_get_data": "energy_torch_property_changed" //Action to perform to get event data
+      }
+    ]
+  },
+
 
   {
     "type": "item",

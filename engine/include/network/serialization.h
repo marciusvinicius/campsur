@@ -7,6 +7,13 @@ namespace criogenio {
 
 class NetWriter {
 public:
+  explicit NetWriter(size_t reserveBytes = 0) {
+    if (reserveBytes > 0)
+      buffer.reserve(reserveBytes);
+  }
+
+  void Reserve(size_t reserveBytes) { buffer.reserve(reserveBytes); }
+
   void WriteBytes(const void *data, size_t size) {
     const uint8_t *b = static_cast<const uint8_t *>(data);
     buffer.insert(buffer.end(), b, b + size);

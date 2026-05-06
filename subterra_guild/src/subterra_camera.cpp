@@ -148,8 +148,7 @@ void SubterraCameraTick(SubterraSession &session, float dt, bool runHeld) {
   }
 }
 
-void SubterraCameraApplyToView(SubterraSession &session, criogenio::Camera2D *cam, float playerCx,
-                                 float playerCy) {
+void SubterraCameraApplyRuntimeEffectsToView(SubterraSession &session, criogenio::Camera2D *cam) {
   if (!cam)
     return;
   SubterraCameraBundle &cb = session.camera;
@@ -157,13 +156,8 @@ void SubterraCameraApplyToView(SubterraSession &session, criogenio::Camera2D *ca
   if (cb.cfg.zoom_active)
     z *= cb.runZoom.current_mul;
   cam->zoom = z;
-  if (cb.cfg.follow_player) {
-    cam->target.x = playerCx + cb.cfg.follow_offset.x + cb.shake_tx;
-    cam->target.y = playerCy + cb.cfg.follow_offset.y + cb.shake_ty;
-  } else {
-    cam->target.x = playerCx + cb.shake_tx;
-    cam->target.y = playerCy + cb.shake_ty;
-  }
+  cam->target.x += cb.shake_tx;
+  cam->target.y += cb.shake_ty;
 }
 
 } // namespace subterra

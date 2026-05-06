@@ -107,6 +107,14 @@ INetworkTransport* Engine::GetTransport() {
   return transport.get();
 }
 
+ReplicationServer* Engine::GetReplicationServer() {
+  return replicationServer.get();
+}
+
+const ReplicationServer* Engine::GetReplicationServer() const {
+  return replicationServer.get();
+}
+
 void Engine::SendInputAsClient(const PlayerInput& input) {
   if (networkMode != NetworkMode::Client || !transport)
     return;
@@ -114,6 +122,7 @@ void Engine::SendInputAsClient(const PlayerInput& input) {
   if (ids.empty())
     return;
   std::vector<uint8_t> buf;
+  buf.reserve(1 + sizeof(PlayerInput));
   buf.push_back(static_cast<uint8_t>(MsgType::Input));
   buf.resize(1 + sizeof(PlayerInput));
   std::memcpy(buf.data() + 1, &input, sizeof(PlayerInput));
@@ -185,6 +194,11 @@ void Engine::Run() {
 }
 
 void Engine::RegisterCoreComponents() {
+  static bool registered = false;
+  if (registered)
+    return;
+  registered = true;
+
   ComponentFactory::Register("Transform", [](World& w, int e) {
     return &w.AddComponent<Transform>(e);
   });

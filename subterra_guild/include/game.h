@@ -64,4 +64,20 @@ public:
   void Render(criogenio::Renderer &renderer) override;
 };
 
+class MobBrainSystem : public criogenio::ISystem {
+public:
+  SubterraSession &session;
+  explicit MobBrainSystem(SubterraSession &s) : session(s) {}
+  void Update(float dt) override;
+  void Render(criogenio::Renderer &renderer) override;
+};
+
+class ItemEventDispatchSystem : public criogenio::ISystem {
+public:
+  SubterraSession &session;
+  explicit ItemEventDispatchSystem(SubterraSession &s) : session(s) {}
+  void Update(float dt) override;
+  void Render(criogenio::Renderer &renderer) override;
+};
+
 } // namespace subterra

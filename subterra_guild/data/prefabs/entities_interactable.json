@@ -16,7 +16,11 @@
       "size": 16,
       "texture": "assets/16x16 Assorted RPG Icons/all-assets-preview.png",
       "position_on_texture": [0, 0],
-      "animation_path": "data/animations/door.json"
+      "animation_path": "data/animations/door.json",
+      "entity_data": {
+        "open": false,
+        "locked": false
+      }
     },
     {
       "type": "interactable",
@@ -25,7 +29,11 @@
       "size": 16,
       "texture": "assets/16x16 Assorted RPG Icons/all-assets-preview.png",
       "animation_path": "data/animations/chest.json",
-      "position_on_texture": [1, 0]
+      "position_on_texture": [1, 0],
+      "entity_data": {
+        "open": false,
+        "locked": false
+      }
     },
     {
       "type": "interactable",
@@ -62,7 +70,30 @@
         "food_recovery_rate": 0,
         "health_recovery_rate": 100
       }
+    },
+    {
+      "type": "interactable_event_listener", // Dont show a interact option for this type, since its triggered by an event
+      "name": "Light Door",
+      "prefab_name": "light_door",
+      "size": 16,
+      "texture": "assets/16x16 Assorted RPG Icons/all-assets-preview.png",
+      "animation_path": "data/animations/light_door.json",
+      "position_on_texture": [4, 0],
+      "entity_data": {
+        "open": false,
+        "locked": true
+      },
+      "event_listeners": [
+        {
+          "event": "light_emission_touched", // Event name to listen for
+          "required_data":{ // Data required for the action to be performed this should come from the event dispatch
+            "light_radius": null, // When null, light source radius is not considered as a requirement
+            "light_intensity": null, // When null, light source intensity is not considered as a requirement
+            "light_color": [255, 0, 0] // When null, light source color is not considered as a requirement
+          },
+          "action": "unlock_door" // Action to perform when event "on_touch_light_source" is fired
+        }
+      ]
     }
-
   ]
 }

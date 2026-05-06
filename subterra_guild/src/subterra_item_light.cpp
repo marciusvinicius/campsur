@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cctype>
 #include <fstream>
+#include <iterator>
 #include <unordered_map>
 
 namespace subterra {
@@ -11,6 +12,7 @@ namespace subterra {
 namespace {
 
 std::unordered_map<std::string, ItemLightEmission> g_by_prefab;
+std::unordered_map<std::string, std::vector<ItemEventDispatchDef>> g_dispatch_by_prefab;
 
 std::string lowerAscii(std::string s) {
   for (char &c : s)
@@ -26,20 +28,70 @@ float json_number_to_float(const nlohmann::json &j) {
   return 0.f;
 }
 
+int json_number_to_int(const nlohmann::json &j, int fallback = 0) {
+  if (j.is_number_integer())
+    return j.get<int>();
+  if (j.is_number_float())
+    return static_cast<int>(j.get<float>());
+  return fallback;
+}
+
+/** Remove // comments outside JSON string literals. */
+std::string stripLineCommentsOutsideStrings(const std::string &in) {
+  std::string out;
+  out.reserve(in.size());
+  bool in_str = false;
+  bool esc = false;
+  for (size_t i = 0; i < in.size(); ++i) {
+    char c = in[i];
+    if (esc) {
+      out += c;
+      esc = false;
+      continue;
+    }
+    if (in_str) {
+      if (c == '\\')
+        esc = true;
+      else if (c == '"')
+        in_str = false;
+      out += c;
+      continue;
+    }
+    if (c == '"') {
+      in_str = true;
+      out += c;
+      continue;
+    }
+    if (c == '/' && i + 1 < in.size() && in[i + 1] == '/') {
+      while (i < in.size() && in[i] != '\n')
+        ++i;
+      continue;
+    }
+    out += c;
+  }
+  return out;
+}
+
 } // namespace
 
 namespace SubterraItemLight {
 
-void Clear() { g_by_prefab.clear(); }
+void Clear() {
+  g_by_prefab.clear();
+  g_dispatch_by_prefab.clear();
+}
 
 bool TryLoadFromPath(const std::string &path) {
   Clear();
   std::ifstream f(path, std::ios::binary);
   if (!f)
     return false;
+  std::string raw((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  if (raw.empty())
+    return false;
   nlohmann::json root;
   try {
-    f >> root;
+    root = nlohmann::json::parse(stripLineCommentsOutsideStrings(raw));
   } catch (...) {
     Clear();
     return false;
@@ -89,7 +141,28 @@ bool TryLoadFromPath(const std::string &path) {
                      0, 255));
     }
     em.lantern_style = (prefab == "lantern");
-    g_by_prefab[std::move(prefab)] = em;
+    g_by_prefab[prefab] = em;
+    if (el.contains("event_dispatch") && el["event_dispatch"].is_array()) {
+      auto &defs = g_dispatch_by_prefab[prefab];
+      defs.clear();
+      for (const auto &dv : el["event_dispatch"]) {
+        if (!dv.is_object())
+          continue;
+        if (!dv.contains("event") || !dv["event"].is_string())
+          continue;
+        ItemEventDispatchDef d;
+        d.event = lowerAscii(dv["event"].get<std::string>());
+        if (dv.contains("event_trigger_when") && dv["event_trigger_when"].is_string())
+          d.event_trigger_when = lowerAscii(dv["event_trigger_when"].get<std::string>());
+        if (dv.contains("event_action_get_data") && dv["event_action_get_data"].is_string())
+          d.event_action_get_data = lowerAscii(dv["event_action_get_data"].get<std::string>());
+        if (dv.contains("params") && dv["params"].is_object())
+          d.params = dv["params"];
+        if (dv.contains("cooldown_ms"))
+          d.cooldown_ms = std::max(0, json_number_to_int(dv["cooldown_ms"], 0));
+        defs.push_back(std::move(d));
+      }
+    }
   }
   return !g_by_prefab.empty();
 }
@@ -102,6 +175,17 @@ bool Lookup(const std::string &item_prefab_id, ItemLightEmission &out) {
     return false;
   out = it->second;
   return out.valid;
+}
+
+bool TryGetEventDispatchDefs(std::string_view item_prefab_id,
+                             const std::vector<ItemEventDispatchDef> *&out) {
+  out = nullptr;
+  std::string key = lowerAscii(std::string(item_prefab_id));
+  auto it = g_dispatch_by_prefab.find(key);
+  if (it == g_dispatch_by_prefab.end())
+    return false;
+  out = &it->second;
+  return true;
 }
 
 } // namespace SubterraItemLight

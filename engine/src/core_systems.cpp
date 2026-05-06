@@ -12,6 +12,7 @@
 #include "terrain.h"
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cmath>
 #include <vector>
 
@@ -21,6 +22,21 @@ namespace {
 
 PlayerMovementAxisOverrideFn g_playerMovementAxisOverride = nullptr;
 PlayerRunHeldOverrideFn g_playerRunHeldOverride = nullptr;
+struct WorldMovementInputProvider {
+  WorldMovementAxisProviderFn axisFn = nullptr;
+  WorldRunHeldProviderFn runHeldFn = nullptr;
+  void *user = nullptr;
+};
+std::unordered_map<World *, WorldMovementInputProvider> g_worldInputProviders;
+CoreSystemPerfCounters g_coreSystemPerfCounters;
+
+void RecordPerfSample(uint64_t &samples, double &avgMs, double &maxMs, double sampleMs) {
+  ++samples;
+  const double n = static_cast<double>(samples);
+  avgMs += (sampleMs - avgMs) / n;
+  if (sampleMs > maxMs)
+    maxMs = sampleMs;
+}
 
 bool NameLooksLikePlayer(const Name *nm) {
   if (!nm)
@@ -155,8 +171,25 @@ PlayerMovementAxisOverrideFn GetPlayerMovementAxisOverride() {
 
 void SetPlayerRunHeldOverride(PlayerRunHeldOverrideFn fn) { g_playerRunHeldOverride = fn; }
 
+void SetWorldMovementInputProvider(World &world, WorldMovementAxisProviderFn axisFn,
+                                   WorldRunHeldProviderFn runHeldFn, void *user) {
+  if (!axisFn && !runHeldFn) {
+    g_worldInputProviders.erase(&world);
+    return;
+  }
+  g_worldInputProviders[&world] = {axisFn, runHeldFn, user};
+}
+
+void ClearWorldMovementInputProvider(World &world) { g_worldInputProviders.erase(&world); }
+
+const CoreSystemPerfCounters &GetCoreSystemPerfCounters() { return g_coreSystemPerfCounters; }
+
+void ResetCoreSystemPerfCounters() { g_coreSystemPerfCounters = {}; }
+
 void MovementSystem::Update(float dt) {
-  auto ids = world.GetEntitiesWith<Controller>();
+  const auto t0 = std::chrono::high_resolution_clock::now();
+  static thread_local std::vector<ecs::EntityId> ids;
+  world.GetEntitiesWith<Controller>(ids);
 
   for (ecs::EntityId id : ids) {
     auto *ctrl = world.GetComponent<Controller>(id);
@@ -176,9 +209,14 @@ void MovementSystem::Update(float dt) {
     }
 
     float dx = 0, dy = 0;
-    const bool usedOverride =
-        g_playerMovementAxisOverride &&
-        g_playerMovementAxisOverride(world, id, &dx, &dy);
+    bool usedOverride = false;
+    auto wit = g_worldInputProviders.find(&world);
+    if (wit != g_worldInputProviders.end() && wit->second.axisFn) {
+      usedOverride = wit->second.axisFn(wit->second.user, world, id, &dx, &dy);
+    }
+    if (!usedOverride && g_playerMovementAxisOverride) {
+      usedOverride = g_playerMovementAxisOverride(world, id, &dx, &dy);
+    }
 
     if (!usedOverride) {
       if (Input::IsKeyDown(static_cast<int>(Key::Right)) ||
@@ -212,10 +250,15 @@ void MovementSystem::Update(float dt) {
         anim->facing = Direction::DOWN;
     }
 
-    const bool run = g_playerRunHeldOverride
-                         ? g_playerRunHeldOverride()
-                         : (Input::IsKeyDown(static_cast<int>(Key::LeftShift)) ||
-                            Input::IsKeyDown(static_cast<int>(Key::RightShift)));
+    bool run = false;
+    if (wit != g_worldInputProviders.end() && wit->second.runHeldFn) {
+      run = wit->second.runHeldFn(wit->second.user);
+    } else if (g_playerRunHeldOverride) {
+      run = g_playerRunHeldOverride();
+    } else {
+      run = Input::IsKeyDown(static_cast<int>(Key::LeftShift)) ||
+            Input::IsKeyDown(static_cast<int>(Key::RightShift));
+    }
     const float runMul = run ? 1.55f : 1.f;
 
     if (dx != 0 || dy != 0) {
@@ -247,12 +290,17 @@ void MovementSystem::Update(float dt) {
       anim->current = AnimState::IDLE;
     }
   }
+  const auto t1 = std::chrono::high_resolution_clock::now();
+  const double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+  RecordPerfSample(g_coreSystemPerfCounters.movementSamples, g_coreSystemPerfCounters.movementAvgMs,
+                   g_coreSystemPerfCounters.movementMaxMs, ms);
 }
 
 void MovementSystem::Render(Renderer &renderer) {}
 
 void MovementSystem3D::Update(float dt) {
-  auto ids = world.GetEntitiesWith<PlayerController3D, Transform3D>();
+  static thread_local std::vector<ecs::EntityId> ids;
+  world.GetEntitiesWith<PlayerController3D, Transform3D>(ids);
 
   for (ecs::EntityId id : ids) {
     auto *ctrl = world.GetComponent<PlayerController3D>(id);
@@ -293,7 +341,8 @@ void MovementSystem3D::Update(float dt) {
 void MovementSystem3D::Render(Renderer &renderer) { (void)renderer; }
 
 void AIMovementSystem::Update(float dt) {
-  auto ids = world.GetEntitiesWith<AIController>();
+  static thread_local std::vector<ecs::EntityId> ids;
+  world.GetEntitiesWith<AIController>(ids);
 
   for (ecs::EntityId id : ids) {
     auto *ctrl = world.GetComponent<AIController>(id);
@@ -360,7 +409,9 @@ std::string AnimationSystem::BuildClipKey(const AnimationState &st) {
 }
 
 void AnimationSystem::Update(float dt) {
-  auto ids = world.GetEntitiesWith<AnimatedSprite>();
+  const auto t0 = std::chrono::high_resolution_clock::now();
+  static thread_local std::vector<ecs::EntityId> ids;
+  world.GetEntitiesWith<AnimatedSprite>(ids);
   for (ecs::EntityId id : ids) {
     auto *sprite = world.GetComponent<AnimatedSprite>(id);
     auto *st = world.GetComponent<AnimationState>(id);
@@ -368,10 +419,21 @@ void AnimationSystem::Update(float dt) {
     if (!sprite || !st)
       continue;
 
-    sprite->SetClip(ResolveClipKeyForAnimation(sprite->animationId, *st));
+    if (!sprite->hasCachedSelection || sprite->cachedState != st->current ||
+        sprite->cachedFacing != st->facing) {
+      sprite->SetClip(ResolveClipKeyForAnimation(sprite->animationId, *st));
+      sprite->cachedState = st->current;
+      sprite->cachedFacing = st->facing;
+      sprite->hasCachedSelection = true;
+    }
     st->previous = st->current;
     sprite->Update(dt);
   }
+  const auto t1 = std::chrono::high_resolution_clock::now();
+  const double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+  RecordPerfSample(g_coreSystemPerfCounters.animationSamples,
+                   g_coreSystemPerfCounters.animationAvgMs, g_coreSystemPerfCounters.animationMaxMs,
+                   ms);
 }
 
 void AnimationSystem::Render(Renderer &renderer) {}
@@ -379,7 +441,8 @@ void AnimationSystem::Render(Renderer &renderer) {}
 void RenderSystem::Update(float) {}
 
 void RenderSystem::Render(Renderer &renderer) {
-  auto ids = world.GetEntitiesWith<AnimatedSprite>();
+  static thread_local std::vector<ecs::EntityId> ids;
+  world.GetEntitiesWith<AnimatedSprite>(ids);
   std::sort(ids.begin(), ids.end(), [&](ecs::EntityId a, ecs::EntityId b) {
     const int oa = EffectiveSpriteDrawOrder(world, a);
     const int ob = EffectiveSpriteDrawOrder(world, b);
@@ -429,7 +492,8 @@ void GravitySystem::Update(float dt) {
   auto *gravity = world.GetGlobalComponent<Gravity>();
   float strength = gravity ? gravity->strength : 980.0f;
 
-  auto ids = world.GetEntitiesWith<Transform, RigidBody>();
+  static thread_local std::vector<ecs::EntityId> ids;
+  world.GetEntitiesWith<Transform, RigidBody>(ids);
   for (ecs::EntityId id : ids) {
     auto *rb = world.GetComponent<RigidBody>(id);
     auto *tr = world.GetComponent<Transform>(id);
@@ -508,8 +572,10 @@ static bool ResolveAgainstPlatform(float &trX, float &trY, RigidBody *rb,
 
 void CollisionSystem::Update(float dt) {
   (void)dt;
-  auto dynamics = world.GetEntitiesWith<Transform, RigidBody, BoxCollider>();
-  auto statics = world.GetEntitiesWith<Transform, BoxCollider>();
+  static thread_local std::vector<ecs::EntityId> dynamics;
+  static thread_local std::vector<ecs::EntityId> statics;
+  world.GetEntitiesWith<Transform, RigidBody, BoxCollider>(dynamics);
+  world.GetEntitiesWith<Transform, BoxCollider>(statics);
   Terrain2D *terrain = world.GetTerrain();
   const int tsx = terrain ? terrain->GridStepX() : 0;
   const int tsy = terrain ? terrain->GridStepY() : 0;
@@ -589,7 +655,8 @@ void CollisionSystem::Render(Renderer &renderer) { (void)renderer; }
 void SpriteSystem::Update(float dt) {}
 
 void SpriteSystem::Render(Renderer &renderer) {
-  auto ids = world.GetEntitiesWith<Sprite>();
+  static thread_local std::vector<ecs::EntityId> ids;
+  world.GetEntitiesWith<Sprite>(ids);
   std::sort(ids.begin(), ids.end(), [&](ecs::EntityId a, ecs::EntityId b) {
     const int oa = EffectiveSpriteDrawOrder(world, a);
     const int ob = EffectiveSpriteDrawOrder(world, b);

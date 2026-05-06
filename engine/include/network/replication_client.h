@@ -7,8 +7,6 @@
 
 namespace criogenio {
 
-extern std::unordered_map<NetEntityId, Entity> netToEntity;
-
 /** Parse snapshot from wire format (MsgType::Snapshot + tick + entities). */
 Snapshot ParseSnapshotFromWire(const uint8_t *data, size_t size);
 
@@ -21,6 +19,7 @@ public:
 
 private:
   World &world;
+  std::unordered_map<NetEntityId, ecs::EntityId> netToEntity_;
 };
 
 }  // namespace criogenio
