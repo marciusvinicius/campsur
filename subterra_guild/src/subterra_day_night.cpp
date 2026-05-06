@@ -4,7 +4,7 @@
 #include "graphics_types.h"
 #include "render.h"
 #include "subterra_item_light.h"
-#include "subterra_loadout.h"
+#include "subterra_item_light_runtime.h"
 #include "subterra_session.h"
 #include "world.h"
 
@@ -13,7 +13,6 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
-#include <unordered_set>
 
 namespace subterra {
 
@@ -34,29 +33,6 @@ float lightMapDarkenMatch(float outdoorFactor, double dayTime) {
   const float nightAmt = 1.f - dayBri;
   const float x = (1.f - outdoorFactor) + outdoorFactor * nightAmt;
   return std::clamp(x, 0.f, 1.f);
-}
-
-std::string lowerAscii(std::string s) {
-  for (char &c : s)
-    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-  return s;
-}
-
-/** Reference `lantern_auto_light` + open-sky dim branch for carried lanterns. */
-float carrierLightLitMul(const ItemLightEmission &em, float day_ambient,
-                           float outdoor_factor) {
-  if (!em.valid)
-    return 0.f;
-  if (em.lantern_style) {
-    if (day_ambient < 0.45f)
-      return 1.f;
-    if (outdoor_factor >= 0.5f)
-      return 0.52f;
-    return 0.f;
-  }
-  if (day_ambient < 0.5f || outdoor_factor < 0.4f)
-    return 1.f;
-  return 0.f;
 }
 
 void drawMapLightStackScreen(criogenio::Renderer &r, const criogenio::Vec2 &screen, float wx,
@@ -293,56 +269,33 @@ void SubterraRenderAtmosphere(SubterraSession &session, criogenio::Renderer &r) 
     }
   }
 
-  if (session.world && cam && session.player != criogenio::ecs::NULL_ENTITY) {
-    const float day_amb = SubterraDayAmbientBrightness(dn.dayTime);
-    auto *ptr = session.world->GetComponent<criogenio::Transform>(session.player);
-    if (ptr) {
-      const float pcx = ptr->x + static_cast<float>(session.playerW) * 0.5f;
-      const float pcy = ptr->y + static_cast<float>(session.playerH) * 0.5f;
-      std::unordered_set<std::string> seen_player;
+  if (session.world && cam) {
+    auto emitterIds = session.world->GetEntitiesWith<ItemLightEmitterState, criogenio::Transform>();
+    for (criogenio::ecs::EntityId eid : emitterIds) {
+      auto *state = session.world->GetComponent<ItemLightEmitterState>(eid);
+      auto *tr = session.world->GetComponent<criogenio::Transform>(eid);
+      if (!state || !tr || !state->enabled || state->emitters.empty())
+        continue;
 
-      auto emit_carried = [&](const std::string &raw_id) {
-        if (raw_id.empty())
-          return;
-        const std::string key = lowerAscii(raw_id);
-        if (!seen_player.insert(key).second)
-          return;
-        ItemLightEmission em;
-        if (!SubterraItemLight::Lookup(key, em))
-          return;
-        const float lit = carrierLightLitMul(em, day_amb, dn.outdoorFactor);
-        if (lit <= 0.f)
-          return;
-        criogenio::Vec2 sc = criogenio::WorldToScreen2D({pcx, pcy}, *cam, vpW, vpH);
-        drawEmitterStackScreen(r, sc, pcx, pcy, em, dn.effectTime, *cam, lit);
-      };
-
-      if (auto *load = session.world->GetComponent<SubterraLoadout>(session.player)) {
-        int abi = load->active_action_slot;
-        if (abi < 0 || abi >= kActionBarSlots)
-          abi = 0;
-        emit_carried(load->action_bar[static_cast<size_t>(abi)]);
-        for (const std::string &eq : load->equipment)
-          emit_carried(eq);
+      float wx = tr->x;
+      float wy = tr->y;
+      if (eid == session.player) {
+        wx += static_cast<float>(session.playerW) * 0.5f;
+        wy += static_cast<float>(session.playerH) * 0.5f;
+      } else if (auto *pk = session.world->GetComponent<criogenio::WorldPickup>(eid)) {
+        wx += pk->width * 0.5f;
+        wy += pk->height * 0.5f;
       }
-
-      auto pickups =
-          session.world->GetEntitiesWith<criogenio::WorldPickup, criogenio::Transform>();
-      for (criogenio::ecs::EntityId pid : pickups) {
-        auto *pk = session.world->GetComponent<criogenio::WorldPickup>(pid);
-        auto *tr = session.world->GetComponent<criogenio::Transform>(pid);
-        if (!pk || !tr || pk->item_id.empty())
-          continue;
-        ItemLightEmission em;
-        if (!SubterraItemLight::Lookup(pk->item_id, em))
-          continue;
-        const float lit = carrierLightLitMul(em, day_amb, dn.outdoorFactor);
-        if (lit <= 0.f)
-          continue;
-        const float wx = tr->x + pk->width * 0.5f;
-        const float wy = tr->y + pk->height * 0.5f;
-        criogenio::Vec2 sc = criogenio::WorldToScreen2D({wx, wy}, *cam, vpW, vpH);
-        drawEmitterStackScreen(r, sc, wx, wy, em, dn.effectTime, *cam, lit);
+      const criogenio::Vec2 sc = criogenio::WorldToScreen2D({wx, wy}, *cam, vpW, vpH);
+      for (const ItemLightEmitterEntry &entry : state->emitters) {
+        ItemLightEmission em{};
+        em.valid = true;
+        em.radius = entry.radius;
+        em.intensity = entry.intensity;
+        em.r = entry.r;
+        em.g = entry.g;
+        em.b = entry.b;
+        drawEmitterStackScreen(r, sc, wx, wy, em, dn.effectTime, *cam, 1.f);
       }
     }
   }

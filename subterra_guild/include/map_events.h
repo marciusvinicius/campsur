@@ -88,6 +88,10 @@ const nlohmann::json *FindInteractableEntityData(const SubterraSession &session,
 bool InteractableEntityDataBoolEffective(const SubterraSession &session,
                                          const criogenio::TiledInteractable &it,
                                          const char *key, bool defaultValue);
+bool InteractableBlocksMovement(const SubterraSession &session,
+                                const criogenio::TiledInteractable &it);
+bool ClosedDoorOverlapsRect(const SubterraSession &session, float rectLeft, float rectTop,
+                            float rectW, float rectH);
 void ApplyInteractableUse(SubterraSession &session, const criogenio::TiledInteractable &it);
 void EvaluateInteractableEventListeners(SubterraSession &session, const MapEventPayload &p);
 void EvaluateMobEventListeners(SubterraSession &session, const MapEventPayload &p);

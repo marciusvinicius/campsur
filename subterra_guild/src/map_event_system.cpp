@@ -2,12 +2,18 @@
 #include "components.h"
 #include "map_events.h"
 #include "subterra_session.h"
+#include <algorithm>
 
 namespace subterra {
 
 static bool aabbOverlap(float ax, float ay, float aw, float ah, float bx, float by, float bw,
                         float bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+static bool triggerLooksLikeTeleport(const MapEventTrigger &trg) {
+  return TriggerStringIsTeleport(trg.event_trigger) || TriggerStringIsTeleport(trg.event_type) ||
+         TriggerStringIsTeleport(trg.object_type);
 }
 
 void MapEventSystem::Update(float /*dt*/) {
@@ -33,6 +39,12 @@ void MapEventSystem::Update(float /*dt*/) {
     insideNow.insert(trg.storage_key);
     if (session->triggerInsidePrevFrame.count(trg.storage_key))
       continue;
+    if (triggerLooksLikeTeleport(trg)) {
+      const float tw = std::max(trg.w, 1.f);
+      const float th = std::max(trg.h, 1.f);
+      if (ClosedDoorOverlapsRect(*session, trg.x, trg.y, tw, th))
+        continue;
+    }
 
     MapEventPayload p = MakePayloadFromTrigger(trg, false);
     session->mapEvents.dispatch(p);

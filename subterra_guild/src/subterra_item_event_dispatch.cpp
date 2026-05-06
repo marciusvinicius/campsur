@@ -3,7 +3,7 @@
 #include "components.h"
 #include "map_events.h"
 #include "subterra_item_light.h"
-#include "subterra_loadout.h"
+#include "subterra_item_light_runtime.h"
 #include "subterra_session.h"
 #include "subterra_components.h"
 
@@ -68,53 +68,39 @@ const std::unordered_map<std::string, DataProviderFn> &providerRegistry() {
 }
 
 void collectActiveEmitters(SubterraSession &session, std::vector<ActiveLightEmitter> &out) {
-  if (!session.world || session.player == criogenio::ecs::NULL_ENTITY)
+  if (!session.world)
     return;
-  auto *ptr = session.world->GetComponent<criogenio::Transform>(session.player);
-  if (!ptr)
-    return;
-  const float pcx = ptr->x + static_cast<float>(session.playerW) * 0.5f;
-  const float pcy = ptr->y + static_cast<float>(session.playerH) * 0.5f;
-
-  std::unordered_set<std::string> seenCarried;
-  auto appendEmitter = [&](const std::string &prefab, int sourceId, float ex, float ey) {
-    if (prefab.empty())
-      return;
-    ItemLightEmission em;
-    if (!SubterraItemLight::Lookup(prefab, em))
-      return;
-    ActiveLightEmitter a;
-    a.prefab = lowerAscii(prefab);
-    a.source_entity_id = sourceId;
-    a.x = ex;
-    a.y = ey;
-    a.light = em;
-    out.push_back(std::move(a));
-  };
-
-  if (auto *load = session.world->GetComponent<SubterraLoadout>(session.player)) {
-    int abi = load->active_action_slot;
-    if (abi < 0 || abi >= kActionBarSlots)
-      abi = 0;
-    const std::string activeItem = load->action_bar[static_cast<size_t>(abi)];
-    if (!activeItem.empty() && seenCarried.insert(lowerAscii(activeItem)).second)
-      appendEmitter(activeItem, static_cast<int>(session.player), pcx, pcy);
-    for (const std::string &eq : load->equipment) {
-      const std::string key = lowerAscii(eq);
-      if (eq.empty() || !seenCarried.insert(key).second)
-        continue;
-      appendEmitter(eq, static_cast<int>(session.player), pcx, pcy);
-    }
-  }
-
-  auto pickups = session.world->GetEntitiesWith<WorldPickup, criogenio::Transform>();
-  for (criogenio::ecs::EntityId id : pickups) {
-    auto *pk = session.world->GetComponent<WorldPickup>(id);
+  auto emitterIds = session.world->GetEntitiesWith<ItemLightEmitterState, criogenio::Transform>();
+  for (criogenio::ecs::EntityId id : emitterIds) {
+    auto *state = session.world->GetComponent<ItemLightEmitterState>(id);
     auto *tr = session.world->GetComponent<criogenio::Transform>(id);
-    if (!pk || !tr || pk->item_id.empty())
+    if (!state || !tr || !state->enabled || state->emitters.empty())
       continue;
-    appendEmitter(pk->item_id, static_cast<int>(id), tr->x + pk->width * 0.5f,
-                  tr->y + pk->height * 0.5f);
+
+    float ex = tr->x;
+    float ey = tr->y;
+    if (id == session.player) {
+      ex += static_cast<float>(session.playerW) * 0.5f;
+      ey += static_cast<float>(session.playerH) * 0.5f;
+    } else if (auto *pk = session.world->GetComponent<WorldPickup>(id)) {
+      ex += pk->width * 0.5f;
+      ey += pk->height * 0.5f;
+    }
+
+    for (const ItemLightEmitterEntry &entry : state->emitters) {
+      ActiveLightEmitter a;
+      a.prefab = lowerAscii(entry.source_item_prefab);
+      a.source_entity_id = static_cast<int>(id);
+      a.x = ex;
+      a.y = ey;
+      a.light.valid = true;
+      a.light.radius = entry.radius;
+      a.light.intensity = entry.intensity;
+      a.light.r = entry.r;
+      a.light.g = entry.g;
+      a.light.b = entry.b;
+      out.push_back(std::move(a));
+    }
   }
 }
 

@@ -13,6 +13,7 @@
 #include "subterra_interactable_prefabs.h"
 #include "subterra_item_consumable.h"
 #include "subterra_item_light.h"
+#include "subterra_item_light_runtime.h"
 #include "subterra_loadout.h"
 #include "subterra_mob_prefabs.h"
 #include "subterra_camera.h"
@@ -149,6 +150,9 @@ void RegisterSubterraComponents() {
   });
   ComponentFactory::Register("PlayerVitals", [](World &w, int e) -> Component * {
     return &w.AddComponent<PlayerVitals>(e);
+  });
+  ComponentFactory::Register("ItemLightEmitterState", [](World &w, int e) -> Component * {
+    return &w.AddComponent<ItemLightEmitterState>(e);
   });
 }
 
@@ -387,6 +391,7 @@ int main(int argc, char **argv) {
   world.AddSystem<AIMovementSystem>(world);
   world.AddSystem<MapBoundsSystem>(world);
   world.AddSystem<MapEventSystem>(session);
+  world.AddSystem<ItemLightSyncSystem>(session);
   world.AddSystem<ItemEventDispatchSystem>(session);
   world.AddSystem<AnimationSystem>(world);
   world.AddSystem<VitalsSystem>(session);

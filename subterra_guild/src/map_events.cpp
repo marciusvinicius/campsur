@@ -355,6 +355,31 @@ bool InteractableEntityDataBoolEffective(const SubterraSession &session,
   return defaultValue;
 }
 
+bool InteractableBlocksMovement(const SubterraSession &session,
+                                const criogenio::TiledInteractable &it) {
+  if (it.is_point || it.w <= 0.f || it.h <= 0.f)
+    return false;
+  const std::string kindLower = toLower(it.interactable_type);
+  if (kindLower.find("door") == std::string::npos)
+    return false;
+  return !InteractableEntityDataBoolEffective(session, it, "open", false);
+}
+
+bool ClosedDoorOverlapsRect(const SubterraSession &session, float rectLeft, float rectTop,
+                            float rectW, float rectH) {
+  if (rectW <= 0.f || rectH <= 0.f)
+    return false;
+  for (const auto &it : session.tiledInteractables) {
+    if (!InteractableBlocksMovement(session, it))
+      continue;
+    const bool overlap = rectLeft < (it.x + it.w) && (rectLeft + rectW) > it.x &&
+                         rectTop < (it.y + it.h) && (rectTop + rectH) > it.y;
+    if (overlap)
+      return true;
+  }
+  return false;
+}
+
 void ApplyInteractableUse(SubterraSession &session, const criogenio::TiledInteractable &it) {
   const std::string kindLower = toLower(it.interactable_type);
   const std::string key = InteractableStateKey(session.mapPath, it);

@@ -27,7 +27,12 @@ struct WorldMovementInputProvider {
   WorldRunHeldProviderFn runHeldFn = nullptr;
   void *user = nullptr;
 };
+struct WorldMovementBlockProvider {
+  WorldMovementBlockProviderFn blockFn = nullptr;
+  void *user = nullptr;
+};
 std::unordered_map<World *, WorldMovementInputProvider> g_worldInputProviders;
+std::unordered_map<World *, WorldMovementBlockProvider> g_worldBlockProviders;
 CoreSystemPerfCounters g_coreSystemPerfCounters;
 
 void RecordPerfSample(uint64_t &samples, double &avgMs, double &maxMs, double sampleMs) {
@@ -182,6 +187,17 @@ void SetWorldMovementInputProvider(World &world, WorldMovementAxisProviderFn axi
 
 void ClearWorldMovementInputProvider(World &world) { g_worldInputProviders.erase(&world); }
 
+void SetWorldMovementBlockProvider(World &world, WorldMovementBlockProviderFn blockFn,
+                                   void *user) {
+  if (!blockFn) {
+    g_worldBlockProviders.erase(&world);
+    return;
+  }
+  g_worldBlockProviders[&world] = {blockFn, user};
+}
+
+void ClearWorldMovementBlockProvider(World &world) { g_worldBlockProviders.erase(&world); }
+
 const CoreSystemPerfCounters &GetCoreSystemPerfCounters() { return g_coreSystemPerfCounters; }
 
 void ResetCoreSystemPerfCounters() { g_coreSystemPerfCounters = {}; }
@@ -265,25 +281,40 @@ void MovementSystem::Update(float dt) {
       const float stepX = dx * ctrl->velocity.x * runMul * dt;
       const float stepY = dy * ctrl->velocity.y * runMul * dt;
       Terrain2D *terrain = world.GetTerrain();
+      auto bit = g_worldBlockProviders.find(&world);
+      const bool hasDynamicBlocker =
+          bit != g_worldBlockProviders.end() && bit->second.blockFn != nullptr;
+      auto blockedByDynamic = [&](float left, float top, float w, float h) {
+        return hasDynamicBlocker && bit->second.blockFn(bit->second.user, world, id, left, top, w, h);
+      };
+      const bool hasMoveFootprint = ctrl->tile_collision_w > 0.f && ctrl->tile_collision_h > 0.f;
+      const float ox = ctrl->tile_collision_offset_x;
+      const float oy = ctrl->tile_collision_offset_y;
+      const float cw = hasMoveFootprint ? ctrl->tile_collision_w : 1.f;
+      const float ch = hasMoveFootprint ? ctrl->tile_collision_h : 1.f;
       const bool useTileCol =
-          terrain && ctrl->tile_collision_w > 0.f && ctrl->tile_collision_h > 0.f &&
+          terrain && hasMoveFootprint &&
           !terrain->tmxMeta.collisionSolid.empty();
       if (useTileCol) {
-        const float ox = ctrl->tile_collision_offset_x;
-        const float oy = ctrl->tile_collision_offset_y;
-        const float cw = ctrl->tile_collision_w;
-        const float ch = ctrl->tile_collision_h;
         const float x0 = tr->x;
         const float y0 = tr->y;
         const float tryX = x0 + stepX;
-        if (!terrain->TmxFootprintOverlapsSolid(tryX + ox, y0 + oy, cw, ch))
+        if (!blockedByDynamic(tryX + ox, y0 + oy, cw, ch) &&
+            !terrain->TmxFootprintOverlapsSolid(tryX + ox, y0 + oy, cw, ch))
           tr->x = tryX;
         const float tryY = y0 + stepY;
-        if (!terrain->TmxFootprintOverlapsSolid(tr->x + ox, tryY + oy, cw, ch))
+        if (!blockedByDynamic(tr->x + ox, tryY + oy, cw, ch) &&
+            !terrain->TmxFootprintOverlapsSolid(tr->x + ox, tryY + oy, cw, ch))
           tr->y = tryY;
       } else {
-        tr->x += stepX;
-        tr->y += stepY;
+        const float x0 = tr->x;
+        const float y0 = tr->y;
+        const float tryX = x0 + stepX;
+        if (!blockedByDynamic(tryX + ox, y0 + oy, cw, ch))
+          tr->x = tryX;
+        const float tryY = y0 + stepY;
+        if (!blockedByDynamic(tr->x + ox, tryY + oy, cw, ch))
+          tr->y = tryY;
       }
       anim->current = run ? AnimState::RUNNING : AnimState::WALKING;
     } else {

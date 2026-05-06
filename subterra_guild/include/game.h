@@ -80,4 +80,12 @@ public:
   void Render(criogenio::Renderer &renderer) override;
 };
 
+class ItemLightSyncSystem : public criogenio::ISystem {
+public:
+  SubterraSession &session;
+  explicit ItemLightSyncSystem(SubterraSession &s) : session(s) {}
+  void Update(float dt) override;
+  void Render(criogenio::Renderer &renderer) override;
+};
+
 } // namespace subterra

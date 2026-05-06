@@ -41,6 +41,12 @@ bool runHeldProvider(void *user) {
   return session && SubterraInputActionDown(*session, "run");
 }
 
+bool movementBlockProvider(void *user, criogenio::World &, criogenio::ecs::EntityId, float rectLeft,
+                           float rectTop, float rectW, float rectH) {
+  auto *session = static_cast<SubterraSession *>(user);
+  return session && ClosedDoorOverlapsRect(*session, rectLeft, rectTop, rectW, rectH);
+}
+
 bool parseBoolArg(const std::string &a, bool *out) {
   std::string l = a;
   for (char &c : l)
@@ -103,8 +109,10 @@ void parseWhTail(const std::vector<std::string> &args, size_t &i, float &w, floa
 } // namespace
 
 void SubterraUnregisterMovementHooks() {
-  if (g_movementHookSession && g_movementHookSession->world)
+  if (g_movementHookSession && g_movementHookSession->world) {
     criogenio::ClearWorldMovementInputProvider(*g_movementHookSession->world);
+    criogenio::ClearWorldMovementBlockProvider(*g_movementHookSession->world);
+  }
   g_movementHookSession = nullptr;
 }
 
@@ -115,6 +123,7 @@ void RegisterSubterraConsoleCommands(SubterraEngine &engine) {
   if (session.world) {
     criogenio::SetWorldMovementInputProvider(*session.world, movementAxisProvider, runHeldProvider,
                                              &session);
+    criogenio::SetWorldMovementBlockProvider(*session.world, movementBlockProvider, &session);
   }
 
   c.RegisterCommand("help", [&c](criogenio::Engine &, const std::vector<std::string> &) {

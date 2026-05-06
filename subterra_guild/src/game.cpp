@@ -15,6 +15,7 @@
 #include "subterra_camera.h"
 #include "subterra_input_config.h"
 #include "subterra_item_event_dispatch.h"
+#include "subterra_item_light_runtime.h"
 #include "subterra_mob_brains.h"
 #include "subterra_session.h"
 #include "terrain.h"
@@ -395,5 +396,9 @@ void MobBrainSystem::Render(criogenio::Renderer &) {}
 void ItemEventDispatchSystem::Update(float dt) { SubterraItemEventDispatchTick(session, dt); }
 
 void ItemEventDispatchSystem::Render(criogenio::Renderer &) {}
+
+void ItemLightSyncSystem::Update(float dt) { SubterraItemLightSyncTick(session, dt); }
+
+void ItemLightSyncSystem::Render(criogenio::Renderer &) {}
 
 } // namespace subterra
