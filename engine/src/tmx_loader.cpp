@@ -661,6 +661,7 @@ static void extractInteractables(TmxMapMetadata &meta) {
       ti.is_point = obj.point || (ti.w < 0.5f && ti.h < 0.5f);
       ti.tiled_object_id = obj.id;
       ti.interactable_type = std::move(kind);
+      ti.properties = obj.properties;
       meta.interactables.push_back(std::move(ti));
     }
   }

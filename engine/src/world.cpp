@@ -216,7 +216,8 @@ SerializedWorld World::Serialize() const {
   return world;
 }
 
-void World::Deserialize(const SerializedWorld &data) {
+void World::Deserialize(const SerializedWorld &data,
+                        const std::string &asset_root_dir) {
   ecs::Registry::instance().clear();
   mainCameraEntity = ecs::NULL_ENTITY;
   mainCamera3DEntity = ecs::NULL_ENTITY;
@@ -236,24 +237,23 @@ void World::Deserialize(const SerializedWorld &data) {
       continue;
     }
 
+    const std::string texPath =
+        ResolvePathRelativeToWorldFile(asset_root_dir, serializedAnim.texturePath);
+
     // Create animation in database
-    AssetId createdId = AnimationDatabase::instance().createAnimation(
-        serializedAnim.texturePath);
+    AssetId createdId = AnimationDatabase::instance().createAnimation(texPath);
 
     // Load texture through asset manager and cache it
-    auto texture = AssetManager::instance().load<TextureResource>(
-        serializedAnim.texturePath);
+    auto texture = AssetManager::instance().load<TextureResource>(texPath);
     if (!texture) {
       ENGINE_LOG(LOG_ERROR,
                  "Failed to load texture for animation ID %u (new ID: %u): %s",
-                 serializedAnim.id, createdId,
-                 serializedAnim.texturePath.c_str());
+                 serializedAnim.id, createdId, texPath.c_str());
       // Continue anyway - the animation will be created but texture won't be
       // available
     } else {
       ENGINE_LOG(LOG_INFO, "Loaded texture for animation ID %u (new ID: %u): %s",
-                 serializedAnim.id, createdId,
-                 serializedAnim.texturePath.c_str());
+                 serializedAnim.id, createdId, texPath.c_str());
     }
 
     // Restore clips
@@ -307,7 +307,7 @@ void World::Deserialize(const SerializedWorld &data) {
 
   if (!data.terrain.tileset.tilesetPath.empty()) {
     terrain = std::make_unique<Terrain2D>();
-    terrain->Deserialize(data.terrain);
+    terrain->Deserialize(data.terrain, asset_root_dir);
   }
 
   for (const auto &serialized_entity : data.entities) {

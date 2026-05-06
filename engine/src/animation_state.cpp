@@ -25,6 +25,9 @@ std::string anim_state_to_string(AnimState state) {
   case AnimState::ATTACKING:
     result = "ATTACKING";
     break;
+  case AnimState::Count:
+    result = "EXTRA";
+    break;
   }
 #pragma warning(pop)
   return result;
@@ -46,6 +49,9 @@ std::string direction_to_string(Direction direction) {
     break;
   case Direction::RIGHT:
     result = "right";
+    break;
+  case Direction::Count:
+    result = "down";
     break;
   }
 #pragma warning(pop)

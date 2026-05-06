@@ -1,6 +1,6 @@
 {
-    "male_sheet": "assets/sprites/male_character-spritesheet.png",
-    "female_sheet": "assets/sprites/female_character-spritesheet.png",
+    "male_sheet": "./assets/sprites/male_character-spritesheet.png",
+    "female_sheet": "./assets/sprites/female_character-spritesheet.png",
     "frame_width": 64,
     "frame_height": 64,
     "direction_count": 4,

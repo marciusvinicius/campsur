@@ -2,7 +2,9 @@
 
 #include "animation_database.h"
 #include "ecs_core.h"
+#include "delayed_command_queue.h"
 #include "map_events.h"
+#include "subterra_gameplay_actions.h"
 #include "subterra_camera.h"
 #include "subterra_day_night.h"
 #include "subterra_input_config.h"
@@ -49,11 +51,16 @@ struct SubterraSession {
   int runtimeTriggerSeq = 1;
   std::unordered_set<std::string> triggerInsidePrevFrame;
   MapEventBus mapEvents;
+  GameplayActionRegistry gameplay;
+  criogenio::DelayedCommandQueue gameplayCommandQueue;
+  int gameplayInputLockDepth = 0;
 
   /** Trigger hitbox overlay (MapEventSystem) and FPS line when toggled from the console. */
   bool debugOverlay = false;
   /** ImGui inventory panel visibility (toggle with Tab while playing). */
   bool showInventoryPanel = false;
+  /** ImGui entity inspector (console `egui` / `entityinspector`). */
+  bool showEntityInspector = false;
   /** Nearest `WorldPickup` within interact radius (for highlight + hint). */
   criogenio::ecs::EntityId nearestPickupEntity = criogenio::ecs::NULL_ENTITY;
   /** Cached from current terrain TMX (`rebuildTriggers`). */

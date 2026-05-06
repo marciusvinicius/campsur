@@ -1,6 +1,16 @@
 baseName = path.getbasename(os.getcwd())
 
--- Set by repo-root premake5.lua when included; default when run from this folder alone.
+-- This file is meant to be included from the campsur repo root premake5.lua (workspace + engine
+-- are defined there). Running `premake5` from inside subterra_guild leaves no active workspace.
+if _SCRIPT == _MAIN_SCRIPT then
+	error(
+		"\nsubterra_guild: run Premake from the campsur repo root, e.g.\n"
+			.. "  cd $(dirname this_folder) && premake5 gmake\n"
+			.. "Do not run premake inside subterra_guild alone.\n"
+	)
+end
+
+-- Set by repo-root premake5.lua when included.
 if not workspaceName then
 	workspaceName = path.getbasename(path.getdirectory(path.getdirectory(_SCRIPT)))
 end

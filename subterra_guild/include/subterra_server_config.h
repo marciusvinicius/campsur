@@ -21,4 +21,7 @@ bool SubterraTryLoadInputConfigFromPaths(const char *const *paths, size_t pathCo
 bool SubterraHotReloadServerConfiguration(SubterraSession &session, bool reloadMap,
                                          std::string *logOut);
 
+/** Persist current session world/camera/debug configuration to `session.worldConfigPath`. */
+bool SubterraSaveServerConfiguration(SubterraSession &session, std::string *logOut);
+
 } // namespace subterra

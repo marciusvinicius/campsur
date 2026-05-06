@@ -1,7 +1,6 @@
 #include "map_events.h"
-#include "spawn_service.h"
-#include "subterra_camera.h"
 #include "subterra_session.h"
+#include "tmx_metadata.h"
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
@@ -116,8 +115,13 @@ static bool shouldRegisterTrigger(const criogenio::TiledMapObject &o,
     const char *v = criogenio::TmxGetPropertyString(pr, key, nullptr);
     return v ? std::string(v) : std::string();
   };
-  if (propStr(props, "event_trigger").empty() && propStr(props, "event_id").empty())
-    return false;
+  const std::string ga = propStr(props, "gameplay_actions");
+  if (propStr(props, "event_trigger").empty() && propStr(props, "event_id").empty()) {
+    if (ga.empty())
+      return false;
+  }
+  if (!ga.empty())
+    return true;
   std::string t = o.objectType;
   std::transform(t.begin(), t.end(), t.begin(),
                  [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -163,6 +167,10 @@ std::vector<MapEventTrigger> BuildMapEventTriggers(const criogenio::Terrain2D &t
       tr.spawn_count = criogenio::TmxGetPropertyInt(o.properties, "spawn_count", 0);
       if (tr.spawn_count <= 0)
         tr.spawn_count = criogenio::TmxGetPropertyInt(o.properties, "monster_count", 0);
+      {
+        const char *j = criogenio::TmxGetPropertyString(o.properties, "gameplay_actions", nullptr);
+        tr.gameplay_actions = (j && j[0] != '\0') ? std::string(j) : std::string();
+      }
       out.push_back(std::move(tr));
     }
   }
@@ -198,6 +206,7 @@ MapEventPayload MakePayloadFromTrigger(const MapEventTrigger &t, bool manual) {
   p.is_point = t.is_point;
   p.spawn_count = t.spawn_count;
   p.manual = manual;
+  p.gameplay_actions = t.gameplay_actions;
   return p;
 }
 
@@ -282,6 +291,30 @@ void ApplyInteractableUse(SubterraSession &session, const criogenio::TiledIntera
     sessionLog(session, "Rest at bed (not wired to vitals yet).");
     return;
   }
+  if (kindLower == "lever") {
+    const int doorId = criogenio::TmxGetPropertyInt(it.properties, "opens_door", 0);
+    if (doorId > 0) {
+      const criogenio::TiledInteractable *target = nullptr;
+      for (const criogenio::TiledInteractable &cand : session.tiledInteractables) {
+        if (cand.tiled_object_id != doorId)
+          continue;
+        if (toLower(cand.interactable_type) != "door")
+          continue;
+        target = &cand;
+        break;
+      }
+      if (!target) {
+        sessionLog(session, "Lever: no door interactable with that opens_door id.");
+        return;
+      }
+      const std::string dkey = InteractableStateKey(session.mapPath, *target);
+      std::uint8_t &dflags = session.interactableStateFlags[dkey];
+      dflags ^= InteractableState::Open;
+      sessionLog(session, (dflags & InteractableState::Open) ? "Lever pulled: door opened."
+                                                              : "Lever pulled: door closed.");
+      return;
+    }
+  }
   if (kindLower == "sign" || kindLower == "lever" || kindLower == "npc") {
     char buf[160];
     std::snprintf(buf, sizeof buf, "Interact: %s", it.interactable_type.c_str());
@@ -294,39 +327,7 @@ void ApplyInteractableUse(SubterraSession &session, const criogenio::TiledIntera
 }
 
 void DispatchMapEventDefaults(SubterraSession &session, const MapEventPayload &p) {
-  if (!p.event_trigger.empty())
-    SubterraCameraNotifyTrigger(session, p.event_trigger);
-  if (TriggerStringIsMonsterWave(p.event_trigger)) {
-    float cx = p.world_x + p.world_w * 0.5f;
-    float cy = p.world_y + p.world_h * 0.5f;
-    if (p.is_point)
-      cx = p.world_x, cy = p.world_y;
-    int n = p.spawn_count > 0 ? p.spawn_count : 5;
-    SpawnMobsAround(session, cx, cy, n);
-    {
-      char buf[96];
-      std::snprintf(buf, sizeof buf, "Monster wave: spawned %d at (%.0f,%.0f)", n, cx, cy);
-      sessionLog(session, buf);
-    }
-    return;
-  }
-  if (!p.teleport_to.empty() && !TriggerStringIsMonsterWave(p.event_trigger)) {
-    fs::path base = fs::path(session.mapPath).parent_path();
-    fs::path dest = (base / p.teleport_to).lexically_normal();
-    std::string err;
-    if (session.loadMap(dest.string(), err)) {
-      session.placePlayerAtSpawn(p.spawn_point);
-      sessionLog(session, "Teleported to " + dest.string());
-    } else {
-      std::fprintf(stderr, "[MapEvent] teleport failed: %s\n", err.c_str());
-      sessionLog(session, std::string("Teleport failed: ") + err);
-    }
-    return;
-  }
-  if (!p.event_trigger.empty() || !p.event_id.empty()) {
-    std::fprintf(stderr, "[MapEvent] id=%s trigger=%s type=%s manual=%d\n", p.event_id.c_str(),
-                 p.event_trigger.c_str(), p.event_type.c_str(), p.manual ? 1 : 0);
-  }
+  session.gameplay.dispatchFromMapEvent(session, p);
 }
 
 } // namespace subterra

@@ -1,7 +1,8 @@
 #pragma once
 
-#include <stdexcept>
+#include <cctype>
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <variant>
@@ -32,6 +33,39 @@ inline std::string GetString(const Variant &v) {
   if (std::holds_alternative<std::string>(v))
     return std::get<std::string>(v);
   throw std::runtime_error("Expected string");
+}
+
+/** Directory containing a file path (`/a/b/world.json` → `/a/b`). `.` if there is no separator. */
+inline std::string DirnameOfFilePath(std::string path) {
+  while (!path.empty() && (path.back() == '/' || path.back() == '\\'))
+    path.pop_back();
+  const auto pos = path.find_last_of("/\\");
+  if (pos == std::string::npos)
+    return std::string(".");
+  return path.substr(0, pos);
+}
+
+/**
+ * Resolve a path saved in a world file: relative paths are taken from the world JSON's directory;
+ * absolute paths (Unix /, Windows drive, UNC) are unchanged.
+ */
+inline std::string ResolvePathRelativeToWorldFile(const std::string &worldFileDir,
+                                                 const std::string &path) {
+  if (path.empty())
+    return path;
+  if (!path.empty() && path[0] == '/')
+    return path;
+  if (path.size() >= 2 && path[1] == ':' &&
+      std::isalpha(static_cast<unsigned char>(path[0])))
+    return path;
+  if (path.size() >= 2 && path[0] == '\\' && path[1] == '\\')
+    return path;
+  if (worldFileDir.empty())
+    return path;
+  std::string root = worldFileDir;
+  while (!root.empty() && (root.back() == '/' || root.back() == '\\'))
+    root.pop_back();
+  return root + "/" + path;
 }
 
 struct SerializedComponent {

@@ -6,6 +6,13 @@
 
 The Criogenio Engine is a 2D game engine built in C++ using an Entity Component System (ECS) architecture. It provides a modular, data-driven approach to game development with support for animations, terrain rendering, serialization, asset management, and **server-authoritative multiplayer** over ENet.
 
+### Recent capability updates
+
+- **Decoupled gameplay action pipelines (Subterra):** map events can now route through a registry of named actions (camera shake, teleport, spawn wave, damage, input lock/unlock), with optional JSON action lists from TMX properties.
+- **Delayed command queue (engine):** `DelayedCommandQueue` allows scheduling callbacks for later execution (`push(delay, fn)` + `update(dt)`), useful for cutscene-like sequences.
+- **Richer TMX interactables:** `TiledInteractable` now carries raw object properties, enabling behaviors like lever-to-door links driven by map data (for example `opens_door`).
+- **Subterra animation JSON compatibility:** player/animation loading supports both strip-based Subterra JSON and engine clip-export JSON, with path resolution tolerant to `./` and repo/layout differences.
+
 ## Core Architecture
 
 ### Engine Class
@@ -260,6 +267,13 @@ Manages animation definitions and clips:
 - `AnimatedSprite` components reference animations by ID
 - Allows multiple entities to share the same animation
 
+**Subterra animation IO:**
+- `LoadSubterraGuildAnimationJson(...)` accepts:
+  - engine clip exports (`texturePath` + `clips`)
+  - strip/row animations (`animations[].start_row`, `direction_order`)
+  - asset placeholder JSON (`texture` + top-level `frames[]`)
+- Texture paths are resolved relative to JSON location and common project roots, reducing cwd/path-fragility.
+
 ### Resource Types
 
 #### TextureResource
@@ -291,6 +305,9 @@ Abstraction layer over Raylib rendering:
 2. Systems render (terrain, entities, etc.)
 3. GUI rendering (if in editor)
 4. `EndFrame()`: Swap buffers
+
+Camera transform note:
+- World-to-screen conversion already applies viewport half-centering internally. For a centered follow camera, use `camera.target = playerCenter` and keep `camera.offset` at `{0, 0}` unless an intentional screen-space shift is desired.
 
 ### Input
 
@@ -417,6 +434,8 @@ eventBus.Emit(EntityCreatedEvent(...));
 - Tileset support (texture atlas)
 - Tile manipulation (set, fill, clear)
 - Layer management (add, remove, resize)
+- TMX metadata extraction (object groups, triggers, interactables, map/layer properties)
+- `TiledInteractable` includes custom properties for data-driven gameplay links
 
 **Structure:**
 - `Tileset`: Texture atlas, tile size, grid dimensions
@@ -443,10 +462,13 @@ engine/
 │   ├── input.h               # Input abstraction (keys, mouse)
 │   ├── asset_manager.h       # Asset loading system
 │   ├── animation_database.h  # Animation management
+│   ├── delayed_command_queue.h # Delayed callback scheduling
 │   ├── event.h               # Event system (EventBus)
 │   ├── serialization.h       # Serialization types
 │   ├── json_serialization.h  # JSON conversion
 │   ├── terrain.h             # Terrain system
+│   ├── tmx_metadata.h        # TMX object/layer/property metadata types
+│   ├── subterra_player_json_io.h # Multi-format Subterra animation IO
 │   ├── resources.h           # Resource types
 │   └── network/
 │       ├── transport.h       # INetworkTransport interface
@@ -465,7 +487,11 @@ engine/
     ├── input.cpp
     ├── asset_manager.cpp
     ├── animation_database.cpp
+    ├── delayed_command_queue.cpp
     ├── json_serialization.cpp
+    ├── tmx_loader.cpp
+    ├── tmx_metadata.cpp
+    ├── subterra_player_json_io.cpp
     ├── terrain.cpp
     └── network/
         ├── enet_transport.cpp

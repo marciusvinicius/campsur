@@ -382,10 +382,12 @@ SerializedTerrain2D Terrain2D::Serialize() const {
   return out;
 }
 
-void Terrain2D::Deserialize(const SerializedTerrain2D &data) {
+void Terrain2D::Deserialize(const SerializedTerrain2D &data,
+                            const std::string &asset_root_dir) {
   ClearTmxState();
   tileset.tileSize = data.tileset.tileSize;
-  tileset.tilesetPath = data.tileset.tilesetPath;
+  tileset.tilesetPath =
+      ResolvePathRelativeToWorldFile(asset_root_dir, data.tileset.tilesetPath);
   tileset.atlas =
       criogenio::AssetManager::instance().load<TextureResource>(
           tileset.tilesetPath);

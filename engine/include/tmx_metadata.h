@@ -71,6 +71,8 @@ struct TiledInteractable {
   bool is_point = false;
   int tiled_object_id = 0;
   std::string interactable_type;
+  /** Raw Tiled properties (e.g. `opens_door` on a lever). */
+  std::vector<TmxProperty> properties;
 };
 
 /** Tiled `<imagelayer>`: full-image decoration between or above tile layers. */

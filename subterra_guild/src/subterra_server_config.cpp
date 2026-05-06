@@ -256,4 +256,109 @@ bool SubterraHotReloadServerConfiguration(SubterraSession &session, bool reloadM
   return ok;
 }
 
+bool SubterraSaveServerConfiguration(SubterraSession &session, std::string *logOut) {
+  auto log = [&](const char *line) {
+    if (!logOut)
+      return;
+    if (!logOut->empty())
+      *logOut += '\n';
+    *logOut += line;
+  };
+
+  if (session.worldConfigPath.empty()) {
+    log("[Save] no world_config path (never loaded successfully).");
+    return false;
+  }
+
+  std::ifstream in(session.worldConfigPath, std::ios::binary);
+  if (!in) {
+    log("[Save] world_config.json missing or unreadable.");
+    return false;
+  }
+
+  nlohmann::json root;
+  try {
+    std::string raw((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    root = nlohmann::json::parse(SubterraStripJsonLineComments(raw));
+  } catch (...) {
+    log("[Save] world_config.json parse error.");
+    return false;
+  }
+  if (!root.is_object())
+    root = nlohmann::json::object();
+
+  if (!root.contains("world") || !root["world"].is_object())
+    root["world"] = nlohmann::json::object();
+  auto &w = root["world"];
+  w["day_time_phase_size"] = session.dayNight.dayPhaseSize;
+  w["food_depletion_rate"] = session.worldRules.food_consumption_rate;
+  w["health_satiety_depletion_rate"] = session.worldRules.health_consumption_rate;
+  w["stamina_depletion_on_run_rate"] = session.worldRules.stamina_consumption_rate;
+  w["food_satiety_max"] = session.worldRules.food_max;
+  w["health_satiety_max"] = session.worldRules.health_max;
+  w["stamina_satiety_max"] = session.worldRules.stamina_max;
+  w["food_satiety_regen_rate"] = session.worldRules.food_regen_rate;
+  w["health_satiety_regen_rate"] = session.worldRules.health_regen_rate;
+  w["stamina_satiety_regen_rate"] = session.worldRules.stamina_regen_rate;
+
+  const auto &cfg = session.camera.cfg;
+  if (!root.contains("camera") || !root["camera"].is_object())
+    root["camera"] = nlohmann::json::object();
+  auto &c = root["camera"];
+  c["zoom"] = cfg.zoom;
+  c["follow_player"] = cfg.follow_player;
+  c["follow_player_offset"] = {{"x", cfg.follow_offset.x}, {"y", cfg.follow_offset.y}};
+  c["zoom_active"] = cfg.zoom_active;
+  c["shake_active"] = cfg.shake_active;
+  c["zoom_on"] = {
+      {"on_run_start",
+       {{"multiplier", cfg.zoom_on_run_start.multiplier}, {"speed", cfg.zoom_on_run_start.speed}}},
+      {"on_run_stop",
+       {{"multiplier", cfg.zoom_on_run_stop.multiplier}, {"speed", cfg.zoom_on_run_stop.speed}}},
+      {"on_run",
+       {{"multiplier", cfg.zoom_on_run_alias.multiplier}, {"speed", cfg.zoom_on_run_alias.speed}}},
+  };
+  c["shake_on"] = {
+      {"on_attack",
+       {{"intensity", cfg.shake_on_attack.intensity},
+        {"duration", cfg.shake_on_attack.duration},
+        {"frequency", cfg.shake_on_attack.frequency},
+        {"decay", cfg.shake_on_attack.decay},
+        {"direction",
+         {{"x", cfg.shake_on_attack.dir_x}, {"y", cfg.shake_on_attack.dir_y}}}}},
+      {"player_attack",
+       {{"intensity", cfg.shake_player_attack.intensity},
+        {"duration", cfg.shake_player_attack.duration},
+        {"frequency", cfg.shake_player_attack.frequency},
+        {"decay", cfg.shake_player_attack.decay},
+        {"direction",
+         {{"x", cfg.shake_player_attack.dir_x}, {"y", cfg.shake_player_attack.dir_y}}}}},
+      {"player_hit",
+       {{"intensity", cfg.shake_player_hit.intensity},
+        {"duration", cfg.shake_player_hit.duration},
+        {"frequency", cfg.shake_player_hit.frequency},
+        {"decay", cfg.shake_player_hit.decay},
+        {"direction",
+         {{"x", cfg.shake_player_hit.dir_x}, {"y", cfg.shake_player_hit.dir_y}}}}},
+  };
+
+  if (!root.contains("debug") || !root["debug"].is_object())
+    root["debug"] = nlohmann::json::object();
+  root["debug"]["debug_mode"] = session.debugModeFromConfig;
+
+  std::ofstream out(session.worldConfigPath, std::ios::binary | std::ios::trunc);
+  if (!out) {
+    log("[Save] failed to open world_config for writing.");
+    return false;
+  }
+  out << root.dump(2);
+  if (!out.good()) {
+    log("[Save] write failed.");
+    return false;
+  }
+
+  log("[Save] world_config.json written.");
+  return true;
+}
+
 } // namespace subterra

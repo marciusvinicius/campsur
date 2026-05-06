@@ -7,11 +7,18 @@ namespace criogenio {
 
 /**
  * Load Subterra Guild-style `player.json` (row strips + direction_order) into
- * AnimationDatabase. Produces clip names `idle_up`, `walk_left`, `jump_down`, …
- * matching AnimationSystem::BuildClipKey.
+ * AnimationDatabase.
  *
- * Texture paths in JSON are resolved relative to the folder containing
- * `subterra_guild` (the parent of `data/animations/`).
+ * - **Mapped** `animations[].name`: `idle`, `walk`, `run`, `jump`, `attack` → clips
+ *   `idle_up`, `walk_down`, … matching `AnimationSystem` / movement.
+ * - **Extra** names (`spell_cast`, `death`, `rest`, …) → clips `<name>_<dir>` with
+ *   `AnimState::Count` so they are not picked by automatic movement resolution but
+ *   remain available via `getClip(animId, "spell_cast_down")` or scripted playback.
+ *
+ * Texture paths (`male_sheet`, `female_sheet`, or `texture`) resolve in order:
+ * cwd if relative path exists, then `data/animations/`, `data/`, pack root
+ * (e.g. `subterra_guild/`), then repo root (parent of pack), each joined with the
+ * JSON-relative path (e.g. `assets/sprites/...`).
  */
 AssetId LoadSubterraPlayerAnimationJson(const std::string &jsonPath, int *outFrameW = nullptr,
                                         int *outFrameH = nullptr, std::string *errOut = nullptr);

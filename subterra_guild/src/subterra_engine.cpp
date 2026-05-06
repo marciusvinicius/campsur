@@ -2,6 +2,7 @@
 #include "subterra_console_commands.h"
 #include "subterra_components.h"
 #include "subterra_day_night.h"
+#include "subterra_gameplay_actions.h"
 #include "subterra_imgui.h"
 #include "subterra_input_config.h"
 #include "subterra_session.h"
@@ -25,6 +26,7 @@ void SubterraEngine::RegisterDebugCommands() {
 }
 
 void SubterraEngine::OnFrame(float dt) {
+  SubterraGameplayQueuesTick(*session_, dt);
   SubterraInputHotReloadTick(*session_, dt);
   SubterraUpdateOutdoorFactor(*session_, dt);
   SubterraAdvanceDayNight(session_->dayNight, dt);
@@ -53,6 +55,8 @@ void SubterraEngine::OnGUI() {
     session_->showInventoryPanel = !session_->showInventoryPanel;
   SubterraImGuiDrawHud(*session_);
   SubterraImGuiDrawSession(*session_);
+  if (session_->showEntityInspector)
+    SubterraImGuiDrawEntityInspector(*session_);
   if (session_->debugOverlay)
     SubterraImGuiDrawDebugConfig(*session_);
   if (session_->debugOverlay && session_->fpsSmooth > 0.1f) {

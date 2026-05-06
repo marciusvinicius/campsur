@@ -3,6 +3,7 @@
 #include "animation_database.h"
 #include "asset_manager.h"
 #include "components.h"
+#include "gameplay_tags.h"
 #include "graphics_types.h"
 #include "input.h"
 #include "keys.h"
@@ -36,12 +37,108 @@ bool NameLooksLikePlayer(const Name *nm) {
   return true;
 }
 
-/** Base layer from `SpriteRenderLayer` plus a large bias when `Name` is "player" (any case). */
+std::string FacingToken(Direction d) {
+  switch (d) {
+  case Direction::UP:
+    return "up";
+  case Direction::DOWN:
+    return "down";
+  case Direction::LEFT:
+    return "left";
+  case Direction::RIGHT:
+    return "right";
+  default:
+    return "down";
+  }
+}
+
+std::string BuildClipKeyFromState(const AnimationState &st) {
+  const std::string f = FacingToken(st.facing);
+  switch (st.current) {
+  case AnimState::IDLE:
+    return "idle_" + f;
+  case AnimState::WALKING:
+    return "walk_" + f;
+  case AnimState::RUNNING:
+    return "run_" + f;
+  case AnimState::JUMPING:
+    return "jump_" + f;
+  case AnimState::ATTACKING:
+    return "attack_" + f;
+  default:
+    return "idle_down";
+  }
+}
+
+const AnimationClip *PickClipForSprite(const AnimationDef *def, const AnimationState &st,
+                                       const std::string &preferredKey) {
+  if (!def || def->clips.empty())
+    return nullptr;
+  for (const auto &c : def->clips) {
+    if (c.name == preferredKey)
+      return &c;
+  }
+  for (const auto &c : def->clips) {
+    if (c.state == AnimState::Count)
+      continue;
+    if (c.state == st.current && c.direction == st.facing)
+      return &c;
+  }
+  for (const auto &c : def->clips) {
+    if (c.state == AnimState::Count)
+      continue;
+    if (c.state == st.current)
+      return &c;
+  }
+  if (st.current == AnimState::RUNNING || st.current == AnimState::JUMPING ||
+      st.current == AnimState::ATTACKING) {
+    for (const auto &c : def->clips) {
+      if (c.state == AnimState::Count)
+        continue;
+      if (c.state == AnimState::WALKING && c.direction == st.facing)
+        return &c;
+    }
+    for (const auto &c : def->clips) {
+      if (c.state == AnimState::Count)
+        continue;
+      if (c.state == AnimState::WALKING)
+        return &c;
+    }
+  }
+  for (const auto &c : def->clips) {
+    if (c.state == AnimState::Count)
+      continue;
+    if (c.state == AnimState::IDLE && c.direction == st.facing)
+      return &c;
+  }
+  for (const auto &c : def->clips) {
+    if (c.state == AnimState::Count)
+      continue;
+    if (c.state == AnimState::IDLE)
+      return &c;
+  }
+  for (const auto &c : def->clips) {
+    if (c.state != AnimState::Count)
+      return &c;
+  }
+  return &def->clips[0];
+}
+
+std::string ResolveClipKeyForAnimation(AssetId animId, const AnimationState &st) {
+  const std::string preferred = BuildClipKeyFromState(st);
+  const auto *def = AnimationDatabase::instance().getAnimation(animId);
+  if (const auto *clip = PickClipForSprite(def, st, preferred))
+    return clip->name;
+  return preferred;
+}
+
+/** Base layer from `SpriteRenderLayer` plus a large bias for the player (`Name` or `PlayerTag`). */
 int EffectiveSpriteDrawOrder(const World &world, ecs::EntityId id) {
   int order = 0;
   if (auto *rl = world.GetComponent<SpriteRenderLayer>(id))
     order += rl->layer;
-  if (NameLooksLikePlayer(world.GetComponent<Name>(id)))
+  if (NameLooksLikePlayer(world.GetComponent<Name>(id)) ||
+      world.HasComponent<PlayerTag>(id))
     order += 100000;
   return order;
 }
@@ -255,33 +352,11 @@ void AIMovementSystem::Update(float dt) {
 void AIMovementSystem::Render(Renderer &renderer) {};
 
 std::string AnimationSystem::FacingToString(Direction d) const {
-  switch (d) {
-  case Direction::UP:
-    return "up";
-  case Direction::DOWN:
-    return "down";
-  case Direction::LEFT:
-    return "left";
-  case Direction::RIGHT:
-    return "right";
-  }
-  return "down";
+  return FacingToken(d);
 }
 
 std::string AnimationSystem::BuildClipKey(const AnimationState &st) {
-  switch (st.current) {
-  case AnimState::IDLE:
-    return "idle_" + FacingToString(st.facing);
-  case AnimState::WALKING:
-    return "walk_" + FacingToString(st.facing);
-  case AnimState::RUNNING:
-    return "run_" + FacingToString(st.facing);
-  case AnimState::JUMPING:
-    return "jump_" + FacingToString(st.facing);
-  case AnimState::ATTACKING:
-    return "attack_" + FacingToString(st.facing);
-  }
-  return "idle_down";
+  return BuildClipKeyFromState(st);
 }
 
 void AnimationSystem::Update(float dt) {
@@ -293,7 +368,7 @@ void AnimationSystem::Update(float dt) {
     if (!sprite || !st)
       continue;
 
-    sprite->SetClip(BuildClipKey(*st));
+    sprite->SetClip(ResolveClipKeyForAnimation(sprite->animationId, *st));
     st->previous = st->current;
     sprite->Update(dt);
   }
@@ -334,8 +409,11 @@ void RenderSystem::Render(Renderer &renderer) {
     float sx = (tr->scale_x > 0.0f) ? tr->scale_x : 1.0f;
     float sy = (tr->scale_y > 0.0f) ? tr->scale_y : 1.0f;
     Rect src = animSprite->GetFrame();
+    if (src.width <= 0.f || src.height <= 0.f)
+      continue;
     Rect dest = {tr->x, tr->y, src.width * sx, src.height * sy};
-    Vec2 origin = {dest.width * 0.5f, dest.height * 0.5f};
+    // Transform is top-left across gameplay/collision/camera code, so keep render anchored too.
+    Vec2 origin = {0.f, 0.f};
 
     renderer.DrawTexturePro(texture->texture, src, dest, origin, tr->rotation,
                             Colors::White);

@@ -1,6 +1,7 @@
 #include "subterra_session.h"
 #include "components.h"
 #include "engine.h"
+#include "input.h"
 #include "map_events.h"
 #include "spawn_service.h"
 #include "subterra_components.h"
@@ -103,6 +104,13 @@ bool SubterraSession::loadMap(const std::string &path, std::string &errOut) {
       snapshotPickupsForBasename(*this, leavingBasename);
 
     destroyTransientEntities();
+    gameplayCommandQueue.clear();
+    gameplayInputLockDepth = 0;
+    criogenio::Input::SetSuppressGameplayInput(false);
+    if (world && player != criogenio::ecs::NULL_ENTITY) {
+      if (auto *c = world->GetComponent<criogenio::Controller>(player))
+        c->movement_frozen = false;
+    }
     interactableStateFlags.clear();
     nearestInteractableIndex = -1;
     runtimeTriggers.clear();
@@ -173,7 +181,6 @@ bool SubterraSession::fireTiledEventByKey(const std::string &key) {
       continue;
     MapEventPayload p = MakePayloadFromTrigger(trg, true);
     mapEvents.dispatch(p);
-    DispatchMapEventDefaults(*this, p);
     return true;
   }
   return false;
@@ -187,7 +194,6 @@ void SubterraSession::emitManual(const std::string &eventId, const std::string &
   p.event_type = eventType;
   p.manual = true;
   mapEvents.dispatch(p);
-  DispatchMapEventDefaults(*this, p);
 }
 
 } // namespace subterra

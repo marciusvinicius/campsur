@@ -116,7 +116,9 @@ public:
 
   // Serialization
   SerializedWorld Serialize() const;
-  void Deserialize(const SerializedWorld &data);
+  /** @param asset_root_dir Directory of the `.json` file (parent path); used for relative texture/tileset paths. */
+  void Deserialize(const SerializedWorld &data,
+                   const std::string &asset_root_dir = {});
 
   // Terrain
   Terrain2D &CreateTerrain2D(const std::string &name,

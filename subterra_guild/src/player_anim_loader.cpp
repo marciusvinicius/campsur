@@ -10,7 +10,7 @@ criogenio::AssetId LoadPlayerAnimationDatabaseFromJson(const std::string &jsonPa
   int fw = 64, fh = 64;
   std::string err;
   criogenio::AssetId id =
-      criogenio::LoadSubterraPlayerAnimationJson(jsonPath, &fw, &fh, &err);
+      criogenio::LoadSubterraGuildAnimationJson(jsonPath, &fw, &fh, &err);
   if (outCfg) {
     outCfg->frameW = fw;
     outCfg->frameH = fh;

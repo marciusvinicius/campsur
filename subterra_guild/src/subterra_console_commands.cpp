@@ -13,6 +13,7 @@
 #include "subterra_player_vitals.h"
 #include "subterra_server_config.h"
 #include "subterra_session.h"
+#include "subterra_gameplay_actions.h"
 #include "subterra_status_effects.h"
 
 #include <algorithm>
@@ -113,7 +114,8 @@ void RegisterSubterraConsoleCommands(SubterraEngine &engine) {
   criogenio::SetPlayerRunHeldOverride(runHeldHook);
 
   c.RegisterCommand("help", [&c](criogenio::Engine &, const std::vector<std::string> &) {
-    c.AddLogLine("help clear where debug triggers event emit map reload [config] items");
+    c.AddLogLine(
+        "help clear where debug triggers event emit map reload [config] items egui entityinspector intro");
     c.AddLogLine("spawn mob [n] | spawn item|pickup <id> [count] [at x y] [w W] [h H]");
     c.AddLogLine("spawn interact|trigger <text> [at x y] [w W] [h H] [id key] [monsters N] "
                   "[teleport path.tmx]");
@@ -123,6 +125,26 @@ void RegisterSubterraConsoleCommands(SubterraEngine &engine) {
     c.AddLogLine("vitals | vitals set <health|stamina|food> <n> — HUD + vitals (see reference)");
     c.AddLogLine("status apply <flag> | status clear — buffs/debuffers (buffers.json / debuffers.json)");
     c.AddLogLine("respawn — reset vitals + movement after death");
+  });
+
+  auto toggleEntityInspector = [&c, &session, &engine](criogenio::Engine &,
+                                                     const std::vector<std::string> &) {
+    session.showEntityInspector = !session.showEntityInspector;
+    if (session.showEntityInspector) {
+      engine.GetDebugConsole().Close(engine.GetRenderer().GetWindowHandle());
+      c.AddLogLine(
+          "Entity Inspector open. Tabs: Mobs, Items, Interactables, Players, States. Close with X.");
+    } else {
+      c.AddLogLine("Entity Inspector closed.");
+    }
+  };
+  c.RegisterCommand("egui", toggleEntityInspector);
+  c.RegisterCommand("entityinspector", toggleEntityInspector);
+
+  c.RegisterCommand("intro", [&c, &session](criogenio::Engine &,
+                                            const std::vector<std::string> &) {
+    SubterraEnqueueGameplayIntroDemo(session);
+    c.AddLogLine("Gameplay intro demo queued (lock → shake → damage → unlock).");
   });
 
   c.RegisterCommand("where", [&c, &session](criogenio::Engine &,

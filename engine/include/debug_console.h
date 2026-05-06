@@ -24,6 +24,9 @@ public:
 
   bool IsOpen() const { return open_; }
 
+  /** Close overlay and restore gameplay input (`sdlWindow` = SDL_Window* for SDL_StopTextInput). */
+  void Close(void *sdlWindow);
+
   /** SDL_Event from SDL3; sdlWindow is SDL_Window* for text input. Returns true if consumed. */
   bool HandleEvent(Engine &engine, const void *sdlEvent, void *sdlWindow);
 

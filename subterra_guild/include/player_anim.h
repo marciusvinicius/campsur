@@ -11,12 +11,11 @@ struct PlayerAnimConfig {
 };
 
 /**
- * Loads `player.json` (Subterra / Tiled format: direction_order, animations with
- * start_row, frame_count, fps) and registers clips named idle_*, walk_*, run_*
- * for use with criogenio::AnimationSystem / RenderSystem.
+ * Loads player animation JSON: **Subterra** strip format (`animations` + `start_row`,
+ * `male_sheet` / `female_sheet`) or **engine** clip export (`texturePath` + `clips`).
+ * Clips idle_*, walk_*, … integrate with criogenio movement/animation systems.
  *
- * Texture paths in JSON are resolved relative to the project root directory
- * that contains `assets/` (parent of `assets/animations/`).
+ * Texture paths are resolved via `ResolveAnimationTexturePathRelToJson` (cwd + pack roots).
  */
 criogenio::AssetId LoadPlayerAnimationDatabaseFromJson(const std::string &jsonPath,
                                                        PlayerAnimConfig *outCfg = nullptr);

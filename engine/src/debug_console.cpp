@@ -66,6 +66,16 @@ std::vector<std::string> DebugConsole::splitArgs(const std::string &line) {
 
 void DebugConsole::InitializeCommands(Engine &engine) { registerBuiltins(engine); }
 
+void DebugConsole::Close(void *sdlWindow) {
+  if (!open_)
+    return;
+  open_ = false;
+  Input::SetSuppressGameplayInput(false);
+  if (sdlWindow)
+    SDL_StopTextInput(static_cast<SDL_Window *>(sdlWindow));
+  inputLine_.clear();
+}
+
 void DebugConsole::registerBuiltins(Engine &engine) {
   if (builtinsRegistered_)
     return;

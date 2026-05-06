@@ -9,6 +9,7 @@
 #include "player_anim.h"
 #include "subterra_components.h"
 #include "subterra_engine.h"
+#include "subterra_gameplay_actions.h"
 #include "subterra_interactable_prefabs.h"
 #include "subterra_item_consumable.h"
 #include "subterra_item_light.h"
@@ -23,6 +24,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <string>
 
 using namespace criogenio;
@@ -31,7 +33,50 @@ using namespace subterra;
 namespace {
 
 const char *kDefaultMapPath = "assets/levels/Cave.tmx";
+
+const char *kDefaultMapSearchPaths[] = {
+    "assets/levels/Cave.tmx",
+    "subterra_guild/assets/levels/Cave.tmx",
+};
 const char *kDefaultPlayerJson = "assets/animations/player.json";
+
+const char *kPlayerJsonSearchPaths[] = {
+    "assets/animations/player.json",
+    "data/animations/player.json",
+    "subterra_guild/data/animations/player.json",
+};
+
+static bool FileReadable(const char *path) {
+  std::ifstream f(path);
+  return f.good();
+}
+
+static void ResolveDefaultMapPath(std::string &path) {
+  if (FileReadable(path.c_str()))
+    return;
+  for (const char *alt : kDefaultMapSearchPaths) {
+    if (path == alt)
+      continue;
+    if (FileReadable(alt)) {
+      path = alt;
+      return;
+    }
+  }
+}
+
+/** If `path` is missing, use the first existing path in kPlayerJsonSearchPaths. */
+static void ResolvePlayerJsonPath(std::string &path) {
+  if (FileReadable(path.c_str()))
+    return;
+  for (const char *alt : kPlayerJsonSearchPaths) {
+    if (path == alt)
+      continue;
+    if (FileReadable(alt)) {
+      path = alt;
+      return;
+    }
+  }
+}
 // Path order matches Odin reference: prefer cwd-relative data/... (SERVER_CONFIG_PATH,
 // ENTITIES_JSON_PATH, INPUT_CONFIG_PATH), then subterra_guild/data/... when the binary is run
 // from the campsur repo root.
@@ -68,7 +113,8 @@ const char *kDebuffersJsonPaths[] = {
 void printUsage(const char *argv0) {
   std::fprintf(stderr,
                "Usage: %s [--world <path.json>] [--map <path.tmx>] [--player-json <path>] "
-               "[--help]\n"
+               "[--gameplay-intro-demo] [--help]\n"
+               "  --gameplay-intro-demo  Scripted intro: lock input, camera shake, damage, unlock.\n"
                "  --world     Load a full editor scene (entities + terrain + animations).\n"
                "              Skips default TMX + spawned player; uses Name \"player\" or "
                "PlayerTag.\n"
@@ -137,6 +183,7 @@ int main(int argc, char **argv) {
   std::string mapPath = kDefaultMapPath;
   std::string playerJsonPath = kDefaultPlayerJson;
   std::string worldJsonPath;
+  bool gameplayIntroDemo = false;
 
   for (int i = 1; i < argc; ++i) {
     if (std::strcmp(argv[i], "--map") == 0 && i + 1 < argc) {
@@ -145,6 +192,10 @@ int main(int argc, char **argv) {
     }
     if (std::strcmp(argv[i], "--player-json") == 0 && i + 1 < argc) {
       playerJsonPath = argv[++i];
+      continue;
+    }
+    if (std::strcmp(argv[i], "--gameplay-intro-demo") == 0) {
+      gameplayIntroDemo = true;
       continue;
     }
     if (std::strcmp(argv[i], "--world") == 0 && i + 1 < argc) {
@@ -157,6 +208,9 @@ int main(int argc, char **argv) {
     }
   }
 
+  ResolvePlayerJsonPath(playerJsonPath);
+  ResolveDefaultMapPath(mapPath);
+
   SubterraSession session;
   session.mapPath = mapPath;
   SubterraEngine engine(session, ScreenWidth, ScreenHeight, "Subterra Guild");
@@ -168,6 +222,8 @@ int main(int argc, char **argv) {
   RegisterSubterraComponents();
   SubterraCameraApplyConfigDefaults(session.camera);
   SubterraInputApplyDefaults(session.input);
+  RegisterDefaultSubterraGameplayActions(session.gameplay);
+  RegisterSubterraGameplayMapEventHandler(session);
   bool item_lights_loaded = false;
   for (const char *p : kItemPrefabJsonPaths) {
     if (SubterraItemLight::TryLoadFromPath(p)) {
@@ -251,6 +307,10 @@ int main(int argc, char **argv) {
                    playerJsonPath.c_str());
       return 1;
     }
+    if (!world.GetComponent<PlayerTag>(session.player))
+      world.AddComponent<PlayerTag>(session.player);
+    if (!world.GetComponent<AnimationState>(session.player))
+      world.AddComponent<AnimationState>(session.player);
     if (!world.GetComponent<Inventory>(session.player))
       world.AddComponent<Inventory>(session.player);
     if (!world.GetComponent<SubterraLoadout>(session.player))
@@ -317,7 +377,7 @@ int main(int argc, char **argv) {
   if (!fromWorldJson) {
     session.player = world.CreateEntity("player");
     world.AddComponent<Name>(session.player, "player");
-    world.AddComponent<Transform>(session.player, 0.f, 0.f);
+    world.AddComponent<Transform>(session.player, 2.f, 2.f);
     world.AddComponent<Controller>(session.player, Vec2{PlayerMoveSpeed, PlayerMoveSpeed});
     world.AddComponent<AnimationState>(session.player);
     world.AddComponent<AnimatedSprite>(session.player, session.playerAnimId);
@@ -333,6 +393,7 @@ int main(int argc, char **argv) {
                                               static_cast<float>(session.playerH));
 
     Camera2D cam = {};
+    // Renderer world->screen already applies viewport half-centering.
     cam.offset = {0.f, 0.f};
     cam.target = {0.f, 0.f};
     cam.zoom = session.camera.cfg.zoom > 1e-4f ? session.camera.cfg.zoom : DefaultCameraZoom;
@@ -347,6 +408,9 @@ int main(int argc, char **argv) {
 
   if (session.debugModeFromConfig)
     session.debugOverlay = true;
+
+  if (gameplayIntroDemo)
+    SubterraEnqueueGameplayIntroDemo(session);
 
   engine.Run();
   return 0;

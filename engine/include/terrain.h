@@ -78,7 +78,8 @@ public:
   void SetTileset(const Tileset &newTileset);
   void SetTileSize(int newTileSize);
   SerializedTerrain2D Serialize() const;
-  void Deserialize(const SerializedTerrain2D &data);
+  void Deserialize(const SerializedTerrain2D &data,
+                   const std::string &asset_root_dir = {});
   void SetAtlas(int layer, const char *path);
 
   // Visible tile range in world coords (for editor grid / culling)

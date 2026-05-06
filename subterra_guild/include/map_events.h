@@ -27,6 +27,8 @@ struct MapEventPayload {
   bool is_point = false;
   int spawn_count = 0;
   bool manual = false;
+  /** Optional JSON: array of action ids or `{"id":"…","param":…}`; overrides legacy branching when non-empty. */
+  std::string gameplay_actions;
 };
 
 struct MapEventTrigger {
@@ -43,6 +45,7 @@ struct MapEventTrigger {
   std::string teleport_to;
   std::string spawn_point;
   int spawn_count = 0;
+  std::string gameplay_actions;
 };
 
 class MapEventBus {

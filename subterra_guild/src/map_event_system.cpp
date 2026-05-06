@@ -36,7 +36,6 @@ void MapEventSystem::Update(float /*dt*/) {
 
     MapEventPayload p = MakePayloadFromTrigger(trg, false);
     session->mapEvents.dispatch(p);
-    DispatchMapEventDefaults(*session, p);
   }
   session->triggerInsidePrevFrame = std::move(insideNow);
 }

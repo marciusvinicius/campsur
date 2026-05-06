@@ -1,4 +1,5 @@
 #include "criogenio_io.h"
+#include "animation_path_utils.h"
 #include "json_serialization.h"
 #include "terrain_loader.h"
 #include "asset_manager.h"
@@ -31,7 +32,7 @@ bool LoadWorldFromFile(World &world, const std::string &path) {
   file >> j;
 
   SerializedWorld sw = FromJson(j);
-  world.Deserialize(sw);
+  world.Deserialize(sw, DirnameOfFilePath(path));
   return true;
 }
 
@@ -124,7 +125,10 @@ AssetId LoadAnimationFromFile(const std::string &path) {
   SerializedAnimation anim;
   if (ja.contains("id"))
     anim.id = ja.at("id").get<uint32_t>();
-  anim.texturePath = ja.at("texturePath").get<std::string>();
+  {
+    std::string rawTex = ja.at("texturePath").get<std::string>();
+    anim.texturePath = ResolveAnimationTexturePathRelToJson(path, rawTex);
+  }
 
   if (ja.contains("clips")) {
     for (const auto &jc : ja.at("clips")) {

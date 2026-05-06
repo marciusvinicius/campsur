@@ -1,4 +1,5 @@
 #include "subterra_player_json_io.h"
+#include "animation_path_utils.h"
 #include "animation_state.h"
 #include "asset_manager.h"
 #include "criogenio_io.h"
@@ -98,9 +99,6 @@ AssetId LoadSubterraPlayerAnimationJson(const std::string &jsonPath, int *outFra
     return fail("invalid json");
   }
 
-  fs::path jsonP = fs::path(jsonPath).lexically_normal();
-  fs::path projectRoot = jsonP.parent_path().parent_path().parent_path();
-
   std::string texRel = j.value("male_sheet", std::string());
   if (texRel.empty())
     texRel = j.value("female_sheet", std::string());
@@ -109,8 +107,7 @@ AssetId LoadSubterraPlayerAnimationJson(const std::string &jsonPath, int *outFra
   if (texRel.empty())
     return fail("missing sheet path (male_sheet, female_sheet, or texture)");
 
-  fs::path texPath = projectRoot / texRel;
-  std::string texAbs = texPath.lexically_normal().string();
+  std::string texAbs = ResolveAnimationTexturePathRelToJson(jsonPath, texRel);
 
   const int frameW = j.value("frame_width", 64);
   const int frameH = j.value("frame_height", 64);
@@ -149,9 +146,11 @@ AssetId LoadSubterraPlayerAnimationJson(const std::string &jsonPath, int *outFra
     if (!animEl.is_object())
       continue;
     const std::string name = animEl.value("name", std::string());
-    AnimState state{};
-    if (!MapAnimName(name, &state))
+    if (name.empty())
       continue;
+
+    AnimState mappedState{};
+    const bool mapped = MapAnimName(name, &mappedState);
 
     const int startRow = animEl.value("start_row", 0);
     const int frameCount = animEl.value("frame_count", 1);
@@ -166,16 +165,21 @@ AssetId LoadSubterraPlayerAnimationJson(const std::string &jsonPath, int *outFra
       fps = 10.f;
     const float frameSpeed = 1.f / fps;
 
-    const char *prefix = StateClipPrefix(state);
-
     for (int di = 0; di < 4; ++di) {
       const auto d = static_cast<Direction>(di);
       const int row = startRow + dirIndex(d);
       AnimationClip clip;
-      clip.name = std::string(prefix) + "_" + direction_to_string(d);
       clip.frameSpeed = frameSpeed;
-      clip.state = state;
       clip.direction = d;
+      if (mapped) {
+        clip.state = mappedState;
+        clip.name = std::string(StateClipPrefix(mappedState)) + "_" + direction_to_string(d);
+      } else {
+        // spell_cast, death, rest, … — clips named `<name>_<dir>`; AnimState::Count excludes them
+        // from MovementSystem clip resolution (play via exact name / future scripted states).
+        clip.state = AnimState::Count;
+        clip.name = name + "_" + direction_to_string(d);
+      }
       for (int fi = 0; fi < frameCount; ++fi) {
         AnimationFrame fr;
         fr.rect = {static_cast<float>(fi * frameW), static_cast<float>(row * frameH),
@@ -347,13 +351,11 @@ static AssetId loadSubterraAssetPlaceholderJson(const std::string &jsonPath,
     return INVALID_ASSET_ID;
   };
 
-  fs::path jsonP = fs::path(jsonPath).lexically_normal();
-  fs::path projectRoot = jsonP.parent_path().parent_path().parent_path();
   std::string texRel = j.value("texture", std::string());
   if (texRel.empty())
     return fail("asset animation: missing texture");
 
-  std::string texAbs = (projectRoot / texRel).lexically_normal().string();
+  std::string texAbs = ResolveAnimationTexturePathRelToJson(jsonPath, texRel);
 
   int frameW = 16;
   if (j.contains("frame_width") && j["frame_width"].is_number_integer())

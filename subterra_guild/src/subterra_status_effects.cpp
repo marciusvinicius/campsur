@@ -229,12 +229,11 @@ bool SubterraLoadStatusEffectsFromPaths(const char *const *bufferPaths, size_t b
                                         const char *const *debufferPaths, size_t debufferCount,
                                         SubterraStatusRegistry &out, std::string &errOut) {
   out.clear();
-  auto loadOne = [&](const char *path, bool debuff) -> bool {
+  auto loadOne = [&](const char *path, bool debuff, bool *anyOpened) -> bool {
     std::ifstream f(path, std::ios::binary);
-    if (!f) {
-      errOut = std::string("cannot open ") + path;
-      return false;
-    }
+    if (!f)
+      return true; // skip: try next candidate path
+    *anyOpened = true;
     std::string raw((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     std::string localErr;
     if (!out.appendFromJsonArray(SubterraStripJsonLineComments(raw), debuff, localErr)) {
@@ -243,14 +242,28 @@ bool SubterraLoadStatusEffectsFromPaths(const char *const *bufferPaths, size_t b
     }
     return true;
   };
-  for (size_t i = 0; i < bufferCount; ++i) {
-    if (!loadOne(bufferPaths[i], false))
-      return false;
-  }
-  for (size_t i = 0; i < debufferCount; ++i) {
-    if (!loadOne(debufferPaths[i], true))
-      return false;
-  }
+  auto loadFirstReadable = [&](const char *const *paths, size_t count, bool debuff,
+                               const char *kindLabel) -> bool {
+    bool anyOpened = false;
+    for (size_t i = 0; i < count; ++i) {
+      if (!loadOne(paths[i], debuff, &anyOpened))
+        return false;
+      if (anyOpened)
+        return true;
+    }
+    errOut = std::string("cannot open any ") + kindLabel + " (tried ";
+    for (size_t i = 0; i < count; ++i) {
+      if (i)
+        errOut += ", ";
+      errOut += paths[i];
+    }
+    errOut += ")";
+    return false;
+  };
+  if (!loadFirstReadable(bufferPaths, bufferCount, false, "buffers.json"))
+    return false;
+  if (!loadFirstReadable(debufferPaths, debufferCount, true, "debuffers.json"))
+    return false;
   return true;
 }
 
