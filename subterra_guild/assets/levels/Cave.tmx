@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="64" tileheight="64" infinite="0" nextlayerid="5" nextobjectid="22">
+ <editorsettings>
+  <export format="json"/>
+ </editorsettings>
+ <properties>
+  <property name="roof" type="bool" value="true"/>
+ </properties>
+ <tileset firstgid="1" source="../../../../subterra_guild/assets/levels/ground-tiles-32x32.tsx"/>
+ <tileset firstgid="99" source="../../../../subterra_guild/assets/levels/terrain.tsx"/>
+ <tileset firstgid="1525" source="../../../../subterra_guild/assets/levels/terrain_experiment.tsx"/>
+ <layer id="1" name="Tile Layer 1" width="30" height="20">
+  <properties>
+   <property name="index" type="int" value="0"/>
+   <property name="roof" type="bool" value="true"/>
+  </properties>
+  <data encoding="csv">
+1533,1534,1534,1534,1534,1534,1534,1534,1534,1534,1534,1534,1534,1534,1534,1534,1534,1534,1534,1534,1534,1534,1534,1536,1536,1536,1536,1536,1536,1537,
+1549,1550,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1550,698,698,698,698,698,698,699,699,1550,1550,1550,1550,1551,1551,1553,
+1549,1551,1551,1551,1551,1551,699,699,699,699,699,1551,1551,699,1551,1550,1550,1550,1550,1550,1550,1550,1550,1550,698,699,699,1551,1551,1553,
+1549,1551,1551,1551,1551,1551,1551,1551,1551,1551,698,699,1551,1551,1551,1551,1551,1551,1551,1551,698,698,699,699,699,699,1551,1551,1551,1553,
+1549,1551,1551,1551,1551,698,698,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,699,698,699,1551,699,699,699,699,699,1551,699,1551,1553,
+1549,1551,1551,698,698,698,698,698,1551,699,1551,1551,699,1551,699,1551,1551,1551,699,699,698,1551,699,699,699,699,1551,1551,1551,1553,
+1549,1551,1551,1551,1551,699,699,699,1551,1551,699,1551,1551,1551,1551,1551,1551,1551,1551,1551,699,1551,699,698,652,1551,1551,699,1551,1553,
+1549,1551,699,698,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,698,698,1551,1551,699,1551,1553,
+1549,1551,1551,1551,1551,699,699,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,698,1551,1551,1551,699,1551,1553,
+1549,1551,699,699,699,699,698,1551,1551,1551,1551,1551,699,1551,1551,1551,699,699,699,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1553,
+1549,1551,1551,1551,1551,1551,1551,699,1551,1551,1551,1551,1551,699,699,699,698,699,699,1551,1551,1551,699,698,1551,1551,1551,699,1551,1553,
+1549,1551,699,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,699,699,699,699,1551,1551,699,1551,1551,1551,1551,699,699,1551,1551,1551,1553,
+1549,1551,699,698,699,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,698,699,1551,1551,1551,1551,699,699,699,1551,1551,1551,1553,
+1549,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,698,698,698,1551,1551,1551,1551,1553,
+1549,1551,699,699,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1553,
+1549,1551,698,698,1551,698,698,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,698,1551,1553,
+1549,1551,1551,698,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1553,
+1549,699,1551,698,698,699,698,699,1550,1550,1550,1551,1551,1551,1551,1551,1551,1551,1551,699,699,1551,1551,1551,1551,1551,698,698,1551,1553,
+1565,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1551,1569,
+1581,1582,1582,1582,1582,1582,1582,1582,1582,1582,1582,1582,1582,1582,1583,1583,1583,1551,1584,1584,1584,1584,1584,1584,1584,1584,1584,1584,1584,1585
+</data>
+ </layer>
+ <layer id="4" name="Windows" width="30" height="20" locked="1">
+  <properties>
+   <property name="windows" type="bool" value="true"/>
+  </properties>
+  <data encoding="csv">
+0,0,0,0,0,1541,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1541,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+1541,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,1550,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,1541,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1541,0,0,0,0,0,0
+</data>
+ </layer>
+ <objectgroup id="2" name="Object Layer 1" tintcolor="#aa55ff">
+  <object id="4" name="player_start_position" type="spawn_point" x="931" y="190.3">
+   <point/>
+  </object>
+  <object id="6" name="event_trigger_area" type="event_trigger_area" x="1538" y="467" width="54.33" height="174.3" visible="0">
+   <properties>
+    <property name="activated" type="bool" value="false"/>
+    <property name="event_id" value="monster_trigger_area_1"/>
+    <property name="event_trigger" value="spawn_monsters"/>
+    <property name="event_type" value="on_collider"/>
+   </properties>
+  </object>
+  <object id="10" name="event_trigger_area" type="teleport" x="1087.55" y="1256.45" width="64.36" height="23.15">
+   <properties>
+    <property name="activated" type="bool" value="false"/>
+    <property name="behind_door" value="light_door_1"/>
+    <property name="event_id" value="teleport_trigger_cave_to_city"/>
+    <property name="event_trigger" value="teleport_to"/>
+    <property name="event_type" value="on_collider"/>
+    <property name="requires" value="door_level_cave"/>
+    <property name="spawn_point" value="teleport_trigger_cave_outside"/>
+    <property name="teleport_to" value="City.tmx"/>
+   </properties>
+  </object>
+  <object id="11" name="teleport_trigger_cave_inside" type="spawn_point" x="1120" y="1144">
+   <properties>
+    <property name="event_id" value="teleport_spawn_city_cave"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="13" name="Torch" type="spawn_prefab" x="232" y="1115">
+   <properties>
+    <property name="quantity" type="int" value="1"/>
+    <property name="spawn_prefab" value="torch"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="14" name="Torch" type="spawn_prefab" x="208" y="362.7">
+   <properties>
+    <property name="quantity" type="int" value="1"/>
+    <property name="spawn_prefab" value="torch"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="15" name="Torch" type="spawn_prefab" x="1768" y="352">
+   <properties>
+    <property name="quantity" type="int" value="1"/>
+    <property name="spawn_prefab" value="torch"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="16" name="Torch" type="spawn_prefab" x="1776" y="1136">
+   <properties>
+    <property name="quantity" type="int" value="1"/>
+    <property name="spawn_prefab" value="torch"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="17" name="Torch" type="spawn_prefab" x="990.7" y="637.3">
+   <properties>
+    <property name="quantity" type="int" value="1"/>
+    <property name="spawn_prefab" value="torch"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="21" name="Light Door" type="spawn_prefab" x="1118.33" y="1237.33">
+   <properties>
+    <property name="quantity" type="int" value="1"/>
+    <property name="spawn_prefab" value="light_door"/>
+   </properties>
+   <point/>
+  </object>
+ </objectgroup>
+</map>

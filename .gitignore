@@ -33,8 +33,6 @@ logs.txt
 # Archives (e.g. premake download cache)
 *.zip
 
-# Assets
-*/assets/*
 
 # App / runtime
 imgui.ini
