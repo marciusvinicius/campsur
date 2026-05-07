@@ -618,6 +618,7 @@
         "drawAfterEntities": false,
         "mapLayerIndex": 0,
         "name": "Tile Layer 1",
+        "opacity": 1.0,
         "properties": [
           {
             "name": "index",
@@ -632,12 +633,14 @@
         ],
         "roof": true,
         "tiledLayerId": 1,
+        "visible": true,
         "windows": false
       },
       {
         "drawAfterEntities": false,
         "mapLayerIndex": 0,
         "name": "Windows",
+        "opacity": 1.0,
         "properties": [
           {
             "name": "windows",
@@ -647,6 +650,7 @@
         ],
         "roof": false,
         "tiledLayerId": 4,
+        "visible": true,
         "windows": true
       }
     ],
@@ -3209,7 +3213,7 @@
       "columns": 7,
       "rows": 14,
       "tileSize": 32,
-      "tilesetPath": "../subterra_guild/assets/tileset/caves/tiles/ground-tiles-32x32.png"
+      "tilesetPath": "/home/marcius/Workspace/criogenio/campsur/subterra_guild/assets/levels/../subterra_guild/assets/tileset/caves/tiles/ground-tiles-32x32.png"
     }
   }
 }

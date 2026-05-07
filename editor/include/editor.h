@@ -77,30 +77,50 @@ private:
 
   /** Currently loaded project (empty when no project is open). */
   std::optional<ProjectContext> project;
+  /** Absolute path to the opened `project.campsur` (for Save Project). */
+  std::optional<std::string> projectCampsurAbsPath;
+  /** Absolute path of the level file last opened or saved (editor document). */
+  std::optional<std::string> currentLevelPath;
+  /** True when the in-memory level differs from disk (best-effort). */
+  bool levelDirty = false;
 
   /** Refresh the asset browser on the next frame (set after open/save). */
   bool assetBrowserDirty = false;
 
   /** When true, draw BoxCollider outlines in the viewport. */
   bool showColliderDebug = true;
+  /** When true, selected entities show BoxCollider resize handles in the viewport. */
+  bool showColliderGizmo = true;
   /** Map event / interactable / spawn ECS zones (2D). */
   bool showMapAuthoringGizmos = true;
 
   /** Zone resize state: which handle is dragged, initial sizes, etc. */
   ZoneHandle activeZoneHandle = ZoneHandle::None;
+  /** BoxCollider gizmo drag state (same handle enum as zones). */
+  ZoneHandle activeColliderHandle = ZoneHandle::None;
   float zoneResizeInitX = 0.f, zoneResizeInitY = 0.f;
   float zoneResizeInitW = 0.f, zoneResizeInitH = 0.f;
   criogenio::Vec2 zoneResizeDragOrigin = {0.f, 0.f};
+  float colliderResizeInitX = 0.f, colliderResizeInitY = 0.f;
+  float colliderResizeInitW = 0.f, colliderResizeInitH = 0.f;
+  criogenio::Vec2 colliderResizeDragOrigin = {0.f, 0.f};
   SceneMode sceneMode = SceneMode::Scene2D;
+
+  char newLevelFilenameBuf[260] = "untitled.campsurlevel";
+  int newLevelTemplateKind = 0;
+  bool newLevelSetAsInit = false;
 
   void InitImGUI();
   void RenderSceneToTexture();
   void DrawColliderDebug(criogenio::Renderer& ren);
   void DrawMapAuthoringGizmos(criogenio::Renderer& ren);
   void DrawZoneResizeHandles(criogenio::Renderer& ren, int entity);
+  void DrawColliderResizeHandles(criogenio::Renderer& ren, int entity);
   void HandleZoneResize(criogenio::Vec2 worldMouse);
+  void HandleColliderResize(criogenio::Vec2 worldMouse);
   /** Returns the handle under worldPos (if entity has an ECS zone) or None. */
   ZoneHandle HitTestZoneHandle(int entity, criogenio::Vec2 worldPos);
+  ZoneHandle HitTestColliderHandle(int entity, criogenio::Vec2 worldPos);
   /** Snap world position to terrain tile grid when Ctrl is held. */
   criogenio::Vec2 SnapWorldToGrid(criogenio::Vec2 world);
   /** Bake all ECS zone entities into terrain.tmxMeta (for Level-JSON export). */
@@ -161,6 +181,13 @@ private:
   // Mouse position in screen coordinates (matches ImGui/viewportPos). Use this for
   // viewport hit-testing; GetMousePosition() returns window-relative coords.
   criogenio::Vec2 GetViewportMousePos() const;
+
+  /**
+   * World position under the cursor for 2D editing: maps the Viewport Image + scene
+   * render-target Y flip. Hides Engine::GetMouseWorld() (window coords) while the
+   * scene is shown in ImGui.
+   */
+  criogenio::Vec2 GetMouseWorld() const;
 
   // Helper to convert mouse screen position to world coordinates
   criogenio::Vec2 ScreenToWorldPosition(criogenio::Vec2 mouseScreen);
@@ -331,6 +358,16 @@ private:
   void DrawAssetBrowser();
   /** Slim info bar shown above the dockspace, displaying the active project. */
   void DrawProjectInfoBar();
+
+  void MarkLevelDirty();
+  void LoadLevelFromAbsolutePath(const std::string &absPath);
+  bool SaveCurrentLevel();
+  void SaveCurrentLevelAs();
+  void SaveProjectDescriptor();
+  void HandleEditorShortcuts();
+  void DrawNewLevelModal();
+  /** Template: 0 = 2D tilemap, 1 = 2D free-form, 2 = 3D (matches legacy New Scene). */
+  void ApplyLevelTemplateReset(int kind);
   // Draw grid overlay on terrain in viewport
   void DrawTerrainGridOverlay(const criogenio::Terrain2D &terrain,
                               const criogenio::Camera2D &camera);

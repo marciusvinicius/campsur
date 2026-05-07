@@ -2,6 +2,7 @@
 #include "editor_game_mode.h"
 #include "free_form_2d_editor_game_mode.h"
 #include "animation_database.h"
+#include "animated_component.h"
 #include "animation_state.h"
 #include "asset_manager.h"
 #include "animated_component.h"
@@ -312,6 +313,155 @@ void EditorApp::EditorAppReset() {
   RegisterEditorSystems();
 }
 
+void EditorApp::MarkLevelDirty() { levelDirty = true; }
+
+void EditorApp::LoadLevelFromAbsolutePath(const std::string &absPath) {
+  if (!criogenio::LoadWorldFromFile(GetWorld(), absPath)) {
+    std::fprintf(stderr, "[Editor] Failed to load level: %s\n", absPath.c_str());
+    return;
+  }
+  EditorAppReset();
+  currentLevelPath = fs::absolute(absPath).string();
+  levelDirty = false;
+}
+
+bool EditorApp::SaveCurrentLevel() {
+  if (!currentLevelPath.has_value()) {
+    SaveCurrentLevelAs();
+    return currentLevelPath.has_value();
+  }
+  if (!criogenio::SaveWorldToFile(GetWorld(), *currentLevelPath)) {
+    std::fprintf(stderr, "[Editor] Save failed: %s\n", currentLevelPath->c_str());
+    return false;
+  }
+  levelDirty = false;
+  return true;
+}
+
+void EditorApp::SaveCurrentLevelAs() {
+  std::string defName = "world.campsurlevel";
+  if (project.has_value() && !project->levelsDir.empty())
+    defName = (fs::path(project->levelsDir) / "world.campsurlevel").string();
+  const char *filters[] = {"*.campsurlevel", "*.json"};
+  const char *path = tinyfd_saveFileDialog("Save Level", defName.c_str(), 2, filters,
+                                          "Level (*.campsurlevel, *.json)");
+  if (path && path[0]) {
+    if (criogenio::SaveWorldToFile(GetWorld(), path)) {
+      currentLevelPath = fs::absolute(path).string();
+      levelDirty = false;
+    }
+  }
+}
+
+void EditorApp::SaveProjectDescriptor() {
+  if (!project.has_value() || !projectCampsurAbsPath.has_value()) {
+    std::fprintf(stderr, "[Editor] No project file path to save.\n");
+    return;
+  }
+  if (!ProjectContext::SaveToFile(*projectCampsurAbsPath, *project))
+    std::fprintf(stderr, "[Editor] Save project failed: %s\n",
+                 projectCampsurAbsPath->c_str());
+  else
+    std::printf("[Editor] Saved project: %s\n", projectCampsurAbsPath->c_str());
+}
+
+void EditorApp::HandleEditorShortcuts() {
+  ImGuiIO &io = ImGui::GetIO();
+  if (io.WantTextInput)
+    return;
+  if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false))
+    SaveCurrentLevel();
+}
+
+void EditorApp::ApplyLevelTemplateReset(int kind) {
+  auto &world = GetWorld();
+  for (auto id : world.GetAllEntities())
+    world.DeleteEntity(id);
+  world.DeleteTerrain();
+  terrainHistory.Clear();
+  selectedEntityId.reset();
+  tileSelection.reset();
+  if (kind == 2) {
+    sceneMode = SceneMode::Scene3D;
+    terrainEditMode = false;
+  } else {
+    sceneMode = SceneMode::Scene2D;
+    if (kind == 0) {
+      snapToGrid = true;
+      terrainEditMode = false;
+    } else {
+      snapToGrid = false;
+      terrainEditMode = false;
+    }
+  }
+  EditorAppReset();
+}
+
+void EditorApp::DrawNewLevelModal() {
+  ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+  ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+  if (ImGui::BeginPopupModal("NewLevelModal", nullptr,
+                             ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
+    ImGui::InputText("Filename", newLevelFilenameBuf, sizeof newLevelFilenameBuf);
+    ImGui::RadioButton("2D tilemap", &newLevelTemplateKind, 0);
+    ImGui::RadioButton("2D free-form", &newLevelTemplateKind, 1);
+    ImGui::RadioButton("3D", &newLevelTemplateKind, 2);
+    if (project.has_value())
+      ImGui::Checkbox("Set as project init level", &newLevelSetAsInit);
+    else
+      newLevelSetAsInit = false;
+
+    if (ImGui::Button("Create", ImVec2(120, 0))) {
+      std::string name = newLevelFilenameBuf;
+      if (name.empty())
+        name = "untitled.campsurlevel";
+      if (name.find('.') == std::string::npos)
+        name += ".campsurlevel";
+
+      std::string fullPath;
+      if (project.has_value() && !project->levelsDir.empty()) {
+        fullPath = (fs::path(project->levelsDir) / name).string();
+      } else {
+        const char *filters[] = {"*.campsurlevel", "*.json"};
+        const char *picked =
+            tinyfd_saveFileDialog("Save New Level", name.c_str(), 2, filters, "Level");
+        ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+        if (picked && picked[0]) {
+          ApplyLevelTemplateReset(newLevelTemplateKind);
+          std::string fp = fs::absolute(picked).string();
+          if (criogenio::SaveWorldToFile(GetWorld(), fp)) {
+            currentLevelPath = fp;
+            levelDirty = false;
+            if (newLevelSetAsInit && project.has_value()) {
+              project->initLevel = fp;
+              if (projectCampsurAbsPath.has_value())
+                ProjectContext::SaveToFile(*projectCampsurAbsPath, *project);
+            }
+          }
+        }
+        return;
+      }
+
+      ApplyLevelTemplateReset(newLevelTemplateKind);
+      if (criogenio::SaveWorldToFile(GetWorld(), fullPath)) {
+        currentLevelPath = fs::absolute(fullPath).string();
+        levelDirty = false;
+        if (newLevelSetAsInit && project.has_value()) {
+          project->initLevel = *currentLevelPath;
+          if (projectCampsurAbsPath.has_value())
+            ProjectContext::SaveToFile(*projectCampsurAbsPath, *project);
+        }
+      }
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel", ImVec2(120, 0)))
+      ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
+  }
+}
+
 void EditorApp::InitImGUI() {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
@@ -383,23 +533,48 @@ void EditorApp::Run() {
     ImGui_ImplSDLRenderer3_NewFrame();
     ImGui::NewFrame();
 
+    HandleEditorShortcuts();
+
     HandleInput(dt, mouseDelta);
     if (!isPlaying) {
       Vec2 worldMouse = ScreenToWorldPosition(GetViewportMousePos());
-      // Begin handle drag on click (before HandleEntityDrag consumes the event).
-      if (activeZoneHandle == ZoneHandle::None && ImGui::IsMouseClicked(0) &&
-          viewportHovered && selectedEntityId.has_value()) {
-        ZoneHandle h = HitTestZoneHandle(selectedEntityId.value(), worldMouse);
-        if (h != ZoneHandle::None) {
-          float zx, zy, zw, zh;
-          ComputeEntityPickBounds(GetWorld(), selectedEntityId.value(), zx, zy, zw, zh);
-          activeZoneHandle = h;
+      const bool click0 = ImGui::IsMouseClicked(0) && viewportHovered;
+
+      if (activeColliderHandle == ZoneHandle::None && activeZoneHandle == ZoneHandle::None &&
+          click0 && selectedEntityId.has_value()) {
+        const int se = selectedEntityId.value();
+        ZoneHandle zh = HitTestZoneHandle(se, worldMouse);
+        if (zh != ZoneHandle::None) {
+          activeZoneHandle = zh;
+          activeColliderHandle = ZoneHandle::None;
+          float zx, zy, zw, zh0;
+          ComputeEntityPickBounds(GetWorld(), se, zx, zy, zw, zh0);
           zoneResizeDragOrigin = worldMouse;
-          zoneResizeInitX = zx; zoneResizeInitY = zy;
-          zoneResizeInitW = zw; zoneResizeInitH = zh;
+          zoneResizeInitX = zx;
+          zoneResizeInitY = zy;
+          zoneResizeInitW = zw;
+          zoneResizeInitH = zh0;
+        } else if (showColliderGizmo && GetWorld().GetComponent<BoxCollider>(se)) {
+          ZoneHandle ch = HitTestColliderHandle(se, worldMouse);
+          if (ch != ZoneHandle::None) {
+            activeColliderHandle = ch;
+            activeZoneHandle = ZoneHandle::None;
+            auto *tr = GetWorld().GetComponent<Transform>(se);
+            auto *col = GetWorld().GetComponent<BoxCollider>(se);
+            if (tr && col) {
+              colliderResizeDragOrigin = worldMouse;
+              colliderResizeInitX = tr->x + col->offsetX;
+              colliderResizeInitY = tr->y + col->offsetY;
+              colliderResizeInitW = col->width;
+              colliderResizeInitH = col->height;
+            }
+          }
         }
       }
-      if (activeZoneHandle != ZoneHandle::None) {
+
+      if (activeColliderHandle != ZoneHandle::None) {
+        HandleColliderResize(worldMouse);
+      } else if (activeZoneHandle != ZoneHandle::None) {
         HandleZoneResize(worldMouse);
       } else {
         HandleEntityDrag(mouseDelta);
@@ -485,6 +660,10 @@ void EditorApp::DrawGlobalComponentsPanel() {
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("Draw BoxCollider outlines in the viewport (green = solid, cyan = one-way platform).");
   }
+  ImGui::Checkbox("Collider resize gizmo", &showColliderGizmo);
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("When an entity with BoxCollider is selected, show green handles to resize in the viewport.");
+  }
   ImGui::Checkbox("Show Map Authoring Zones", &showMapAuthoringGizmos);
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip(
@@ -556,6 +735,9 @@ void EditorApp::DrawHierarchyPanel() {
           if (selectedEntityId.has_value() && selectedEntityId.value() == id) {
             selectedEntityId.reset();
           }
+          activeZoneHandle = ZoneHandle::None;
+          activeColliderHandle = ZoneHandle::None;
+          MarkLevelDirty();
           ImGui::EndPopup();
           break;
         }
@@ -581,6 +763,9 @@ void EditorApp::DrawHierarchyPanel() {
           }
           GetWorld().DeleteEntity(entityToDelete);
           selectedEntityId.reset();
+          activeZoneHandle = ZoneHandle::None;
+          activeColliderHandle = ZoneHandle::None;
+          MarkLevelDirty();
         }
       }
 
@@ -709,6 +894,7 @@ void EditorApp::DrawHierarchyPanel() {
               t->x += 32.f; t->y += 32.f;
             }
             selectedEntityId = static_cast<int>(neo);
+            MarkLevelDirty();
             break;
           }
         }
@@ -716,6 +902,8 @@ void EditorApp::DrawHierarchyPanel() {
           GetWorld().DeleteEntity(selectedEntityId.value());
           selectedEntityId.reset();
           activeZoneHandle = ZoneHandle::None;
+          activeColliderHandle = ZoneHandle::None;
+          MarkLevelDirty();
         }
       }
       ImGui::EndPopup();
@@ -755,6 +943,8 @@ void EditorApp::HandleEntityDrag(Vec2 mouseDelta) {
       Vec2 snapped = SnapWorldToGrid({transform->x, transform->y});
       transform->x = snapped.x;
       transform->y = snapped.y;
+      if (drag.x != 0.f || drag.y != 0.f)
+        MarkLevelDirty();
     }
   }
 }
@@ -801,7 +991,7 @@ void EditorApp::HandleInput(float dt, Vec2 mouseDelta) {
 // Height (in px) of the slim project info bar that sits between the main menu
 // and the dockspace. The dockspace uses this constant to offset itself so the
 // bar always remains visible above the viewport.
-static constexpr float kProjectInfoBarHeight = 26.0f;
+static constexpr float kProjectInfoBarHeight = 30.0f;
 
 void EditorApp::OnGUI() {
   // Reconcile object-layer state up front: discover newly-loaded layer names,
@@ -812,6 +1002,7 @@ void EditorApp::OnGUI() {
 
   DrawDockSpace();
   DrawProjectInfoBar();
+  DrawNewLevelModal();
   DrawTerrainEditor();
   DrawTerrainLayersPanel();
   DrawLevelMetadataPanel();
@@ -913,16 +1104,43 @@ void EditorApp::DrawProjectInfoBar() {
     ImGui::TextUnformatted(project->name.c_str());
     ImGui::SameLine();
     ImGui::TextDisabled("(%s)", project->projectRoot.c_str());
+    ImGui::SameLine();
+    ImGui::TextDisabled("|");
+    ImGui::SameLine();
+    if (currentLevelPath.has_value()) {
+      std::error_code ec;
+      fs::path rel =
+          fs::relative(fs::path(*currentLevelPath), fs::path(project->projectRoot), ec);
+      const std::string show =
+          !ec ? rel.generic_string()
+              : fs::path(*currentLevelPath).filename().string();
+      ImGui::Text("Level: %s%s", show.c_str(), levelDirty ? " *" : "");
+    } else {
+      ImGui::TextDisabled("Level: %s", levelDirty ? "(unsaved) *" : "(no file)");
+    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Save##levelbar"))
+      SaveCurrentLevel();
 
-    // Right-aligned close button.
     const float btnW = 60.0f;
     ImGui::SameLine(ImGui::GetWindowWidth() - btnW - 12.0f);
     if (ImGui::SmallButton("Close")) {
       project.reset();
+      projectCampsurAbsPath.reset();
+      currentLevelPath.reset();
+      levelDirty = false;
       assetBrowserDirty = true;
     }
   } else {
     ImGui::TextDisabled("No project loaded — use File > Open Project...");
+    ImGui::SameLine();
+    if (currentLevelPath.has_value()) {
+      ImGui::Text("Level: %s%s", fs::path(*currentLevelPath).filename().c_str(),
+                  levelDirty ? " *" : "");
+      ImGui::SameLine();
+      if (ImGui::SmallButton("Save##levelbar2"))
+        SaveCurrentLevel();
+    }
   }
 
   ImGui::End();
@@ -1051,8 +1269,11 @@ void EditorApp::DrawMapAuthoringGizmos(criogenio::Renderer& ren) {
   for (int e : GetWorld().GetEntitiesWith<criogenio::WorldSpawnPrefab2D, criogenio::Transform>())
     outline(e, criogenio::Color{255, 180, 60, 255});
 
-  if (selectedEntityId.has_value())
+  if (selectedEntityId.has_value()) {
     DrawZoneResizeHandles(ren, selectedEntityId.value());
+    if (showColliderGizmo && GetWorld().GetComponent<BoxCollider>(selectedEntityId.value()))
+      DrawColliderResizeHandles(ren, selectedEntityId.value());
+  }
 }
 
 void EditorApp::DrawMapAuthoringLabels(criogenio::Renderer &ren) {
@@ -1133,6 +1354,100 @@ ZoneHandle EditorApp::HitTestZoneHandle(int entity, criogenio::Vec2 worldPos) {
   return ZoneHandle::None;
 }
 
+void EditorApp::DrawColliderResizeHandles(criogenio::Renderer& ren, int entity) {
+  auto *col = GetWorld().GetComponent<BoxCollider>(entity);
+  auto *tr = GetWorld().GetComponent<Transform>(entity);
+  if (!col || !tr)
+    return;
+  float zx = tr->x + col->offsetX;
+  float zy = tr->y + col->offsetY;
+  float zw = col->width;
+  float zh = col->height;
+  float hx[9], hy[9];
+  ComputeHandlePositions(zx, zy, zw, zh, hx, hy);
+  const float r = kHandleRadius;
+  const criogenio::Color hcol{120, 255, 160, 220};
+  for (int i = (int)ZoneHandle::TL; i <= (int)ZoneHandle::BR; ++i) {
+    ren.DrawRectOutline(hx[i] - r, hy[i] - r, r * 2.f, r * 2.f, hcol);
+    ren.DrawRect(hx[i] - r + 1.f, hy[i] - r + 1.f, r * 2.f - 2.f, r * 2.f - 2.f,
+                 criogenio::Color{40, 90, 55, 200});
+  }
+}
+
+ZoneHandle EditorApp::HitTestColliderHandle(int entity, criogenio::Vec2 worldPos) {
+  auto *col = GetWorld().GetComponent<BoxCollider>(entity);
+  auto *tr = GetWorld().GetComponent<Transform>(entity);
+  if (!col || !tr)
+    return ZoneHandle::None;
+  float zx = tr->x + col->offsetX;
+  float zy = tr->y + col->offsetY;
+  float zw = col->width;
+  float zh = col->height;
+  float hx[9], hy[9];
+  ComputeHandlePositions(zx, zy, zw, zh, hx, hy);
+  const float r = kHandleRadius * 1.5f;
+  for (int i = (int)ZoneHandle::TL; i <= (int)ZoneHandle::BR; ++i) {
+    if (worldPos.x >= hx[i] - r && worldPos.x <= hx[i] + r &&
+        worldPos.y >= hy[i] - r && worldPos.y <= hy[i] + r)
+      return static_cast<ZoneHandle>(i);
+  }
+  return ZoneHandle::None;
+}
+
+void EditorApp::HandleColliderResize(criogenio::Vec2 worldMouse) {
+  if (!selectedEntityId.has_value())
+    return;
+  int entity = selectedEntityId.value();
+  if (snapToGrid) {
+    const criogenio::Terrain2D *terr = GetWorld().GetTerrain();
+    if (terr) {
+      const float gx = static_cast<float>(terr->GridStepX());
+      const float gy = static_cast<float>(terr->GridStepY());
+      if (gx > 0 && gy > 0) {
+        worldMouse.x =
+            std::floor((worldMouse.x - terr->origin.x) / gx) * gx + terr->origin.x;
+        worldMouse.y =
+            std::floor((worldMouse.y - terr->origin.y) / gy) * gy + terr->origin.y;
+      }
+    }
+  }
+  if (!ImGui::IsMouseDown(0)) {
+    if (activeColliderHandle != ZoneHandle::None)
+      MarkLevelDirty();
+    activeColliderHandle = ZoneHandle::None;
+    return;
+  }
+  if (activeColliderHandle == ZoneHandle::None)
+    return;
+  auto *tr = GetWorld().GetComponent<Transform>(entity);
+  auto *col = GetWorld().GetComponent<BoxCollider>(entity);
+  if (!tr || !col)
+    return;
+  const float dx = worldMouse.x - colliderResizeDragOrigin.x;
+  const float dy = worldMouse.y - colliderResizeDragOrigin.y;
+  float nx = colliderResizeInitX;
+  float ny = colliderResizeInitY;
+  float nw = colliderResizeInitW;
+  float nh = colliderResizeInitH;
+  switch (activeColliderHandle) {
+    case ZoneHandle::TL: nx += dx; ny += dy; nw -= dx; nh -= dy; break;
+    case ZoneHandle::T: ny += dy; nh -= dy; break;
+    case ZoneHandle::TR: ny += dy; nw += dx; nh -= dy; break;
+    case ZoneHandle::L: nx += dx; nw -= dx; break;
+    case ZoneHandle::R: nw += dx; break;
+    case ZoneHandle::BL: nx += dx; nw -= dx; nh += dy; break;
+    case ZoneHandle::B: nh += dy; break;
+    case ZoneHandle::BR: nw += dx; nh += dy; break;
+    default: break;
+  }
+  nw = std::max(nw, 1.f);
+  nh = std::max(nh, 1.f);
+  col->offsetX = nx - tr->x;
+  col->offsetY = ny - tr->y;
+  col->width = nw;
+  col->height = nh;
+}
+
 criogenio::Vec2 EditorApp::SnapWorldToGrid(criogenio::Vec2 world) {
   if (!Input::IsKeyDown(static_cast<int>(criogenio::Key::LeftCtrl)) &&
       !Input::IsKeyDown(static_cast<int>(criogenio::Key::RightCtrl)))
@@ -1152,6 +1467,8 @@ void EditorApp::HandleZoneResize(criogenio::Vec2 worldMouse) {
   worldMouse = SnapWorldToGrid(worldMouse);
 
   if (!ImGui::IsMouseDown(0)) {
+    if (activeZoneHandle != ZoneHandle::None)
+      MarkLevelDirty();
     activeZoneHandle = ZoneHandle::None;
     return;
   }
@@ -1467,7 +1784,6 @@ void EditorApp::DrawMainMenuBar() {
   if (ImGui::BeginMainMenuBar()) {
 
     if (ImGui::BeginMenu("File")) {
-      // ---- Project management ----
       if (ImGui::MenuItem("Open Project...")) {
         const char *filters[] = {"*.campsur"};
         const char *p = tinyfd_openFileDialog("Open Project", "", 1,
@@ -1476,15 +1792,19 @@ void EditorApp::DrawMainMenuBar() {
           ProjectContext ctx;
           if (ProjectContext::LoadFromFile(p, ctx)) {
             project = std::move(ctx);
-            // Change working directory to project root so all relative asset paths resolve.
+            projectCampsurAbsPath = fs::absolute(std::string(p)).string();
             std::filesystem::current_path(project->projectRoot);
-            // Auto-load the project's initial level.
             if (!project->initLevel.empty()) {
               auto &w = GetWorld();
               for (auto id : w.GetAllEntities()) w.DeleteEntity(id);
               w.DeleteTerrain();
               criogenio::LoadWorldFromFile(w, project->initLevel);
               EditorAppReset();
+              currentLevelPath = fs::absolute(project->initLevel).string();
+              levelDirty = false;
+            } else {
+              currentLevelPath.reset();
+              levelDirty = false;
             }
             assetBrowserDirty = true;
           }
@@ -1500,6 +1820,7 @@ void EditorApp::DrawMainMenuBar() {
               ProjectContext ctx;
               if (ProjectContext::LoadFromFile(rp, ctx)) {
                 project = std::move(ctx);
+                projectCampsurAbsPath = fs::absolute(rp).string();
                 std::filesystem::current_path(project->projectRoot);
                 if (!project->initLevel.empty()) {
                   auto &w = GetWorld();
@@ -1507,6 +1828,11 @@ void EditorApp::DrawMainMenuBar() {
                   w.DeleteTerrain();
                   criogenio::LoadWorldFromFile(w, project->initLevel);
                   EditorAppReset();
+                  currentLevelPath = fs::absolute(project->initLevel).string();
+                  levelDirty = false;
+                } else {
+                  currentLevelPath.reset();
+                  levelDirty = false;
                 }
                 assetBrowserDirty = true;
               }
@@ -1516,94 +1842,157 @@ void EditorApp::DrawMainMenuBar() {
         ImGui::EndMenu();
       }
       if (project.has_value()) {
+        const bool canSaveProj =
+            projectCampsurAbsPath.has_value() && !projectCampsurAbsPath->empty();
+        if (ImGui::MenuItem("Save Project", nullptr, false, canSaveProj)) {
+          SaveProjectDescriptor();
+        }
         if (ImGui::MenuItem("Close Project")) {
           project.reset();
+          projectCampsurAbsPath.reset();
+          currentLevelPath.reset();
+          levelDirty = false;
           assetBrowserDirty = true;
         }
       }
       ImGui::Separator();
-      // ---- Scene management ----
-      if (ImGui::BeginMenu("New Scene")) {
+      if (ImGui::MenuItem("New Level...")) {
+        ImGui::OpenPopup("NewLevelModal");
+      }
+      if (ImGui::MenuItem("Open Level...")) {
+        const char *filters[] = {"*.campsurlevel", "*.json"};
+        std::string defLev = "world.campsurlevel";
+        if (project.has_value() && !project->levelsDir.empty())
+          defLev = (fs::path(project->levelsDir) / "world.campsurlevel").string();
+        const char *path = tinyfd_openFileDialog("Open Level", defLev.c_str(), 2,
+                                                 filters, "Level (*.campsurlevel, *.json)", 0);
+        if (path && strlen(path) > 0) {
+          FILE *fp = fopen(path, "r");
+          if (fp) {
+            fclose(fp);
+            LoadLevelFromAbsolutePath(fs::absolute(path).string());
+          } else {
+            printf("[Editor] ERROR: File does not exist or cannot be opened: '%s'\n", path);
+          }
+        }
+      }
+      if (ImGui::MenuItem("Save Level", "Ctrl+S")) {
+        SaveCurrentLevel();
+      }
+      if (ImGui::MenuItem("Save Level As...")) {
+        SaveCurrentLevelAs();
+      }
+      if (ImGui::BeginMenu("Import")) {
+        if (ImGui::MenuItem("Tiled Map (.tmx)...")) {
+          const char *tmxFilters[] = {"*.tmx"};
+          const char *tmxPath = tinyfd_openFileDialog(
+              "Import Tiled Map", "", 1, tmxFilters, "Tiled Map (.tmx)", 0);
+          if (tmxPath && strlen(tmxPath) > 0) {
+            if (criogenio::LoadTerrainFromTmxFile(GetWorld(), std::string(tmxPath))) {
+              printf("[Editor] Loaded TMX terrain: %s\n", tmxPath);
+              MarkLevelDirty();
+            } else {
+              printf("[Editor] ERROR: Failed to load TMX (see console): %s\n", tmxPath);
+            }
+          }
+        }
+        if (ImGui::MenuItem("Terrain from level file...")) {
+          const char *filters[] = {"*.campsurlevel", "*.json"};
+          const char *p =
+              tinyfd_openFileDialog("Import terrain from level file", "world.campsurlevel", 2,
+                                    filters, "Level Files (*.campsurlevel, *.json)", 0);
+          if (p && strlen(p) > 0) {
+            std::string err;
+            if (criogenio::LoadWorldTerrainAndLevelFromFile(GetWorld(), std::string(p), err)) {
+              printf("[Editor] Loaded terrain+level from: %s\n", p);
+              MarkLevelDirty();
+            } else {
+              printf("[Editor] ERROR: %s\n", err.c_str());
+            }
+          }
+        }
+        ImGui::EndMenu();
+      }
+      if (ImGui::BeginMenu("Clear Scene")) {
         if (ImGui::MenuItem("2D (tilemap)")) {
-          auto &world = GetWorld();
-          for (auto id : world.GetAllEntities()) world.DeleteEntity(id);
-          world.DeleteTerrain();
-          sceneMode = SceneMode::Scene2D;
-          snapToGrid = true;
-          selectedEntityId.reset();
-          terrainHistory.Clear();
-          EditorAppReset();
+          ApplyLevelTemplateReset(0);
+          currentLevelPath.reset();
+          MarkLevelDirty();
         }
-        if (ImGui::IsItemHovered())
-          ImGui::SetTooltip(
-              "Tilemap scene. Use Terrain Editor / Layers to author the map.\n"
-              "Entity placement snaps to grid by default.");
         if (ImGui::MenuItem("2D (free-form)")) {
-          auto &world = GetWorld();
-          for (auto id : world.GetAllEntities()) world.DeleteEntity(id);
-          world.DeleteTerrain();
-          sceneMode = SceneMode::Scene2D;
-          snapToGrid = false;
-          terrainEditMode = false;
-          selectedEntityId.reset();
-          terrainHistory.Clear();
-          EditorAppReset();
+          ApplyLevelTemplateReset(1);
+          currentLevelPath.reset();
+          MarkLevelDirty();
         }
-        if (ImGui::IsItemHovered())
-          ImGui::SetTooltip(
-              "No tilemap. Place entities freely (top-down RPG, point & click,\n"
-              "shoot-em-up, etc.). Drop sprites from the Asset Browser to spawn.");
         if (ImGui::MenuItem("3D")) {
-          auto &world = GetWorld();
-          for (auto id : world.GetAllEntities()) world.DeleteEntity(id);
-          sceneMode = SceneMode::Scene3D;
-          selectedEntityId.reset();
-          EditorAppReset();
+          ApplyLevelTemplateReset(2);
+          currentLevelPath.reset();
+          MarkLevelDirty();
         }
         ImGui::EndMenu();
       }
       ImGui::MenuItem("Snap to grid", nullptr, &snapToGrid);
-      if (ImGui::MenuItem("Open Scene...")) {
-        const char *filters[] = {"*.campsurlevel", "*.json"};
-        const char *path = tinyfd_openFileDialog("Open Scene", "world.campsurlevel", 2,
-                                                 filters, "Scene Files (*.campsurlevel, *.json)", 0);
-        if (path && strlen(path) > 0) {
-          printf("[Editor] Selected file: '%s'\n", path);
-          FILE *fp = fopen(path, "r");
-          if (fp) {
-            fclose(fp);
-            criogenio::LoadWorldFromFile(GetWorld(), path);
-            EditorAppReset();
-          } else {
-            printf("[Editor] ERROR: File does not exist or cannot be opened: "
-                   "'%s'\n",
-                   path);
-          }
+      ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Edit")) {
+      if (ImGui::MenuItem("Undo", "Ctrl+Z")) {
+      }
+      if (ImGui::MenuItem("Redo", "Ctrl+Y")) {
+      }
+      ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Scene")) {
+      bool is2D = sceneMode == SceneMode::Scene2D;
+      bool is3D = sceneMode == SceneMode::Scene3D;
+      if (ImGui::MenuItem("2D Scene Mode", nullptr, is2D)) {
+        sceneMode = SceneMode::Scene2D;
+      }
+      if (ImGui::MenuItem("3D Scene Mode", nullptr, is3D)) {
+        sceneMode = SceneMode::Scene3D;
+      }
+      ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("GameObject")) {
+      if (ImGui::MenuItem("Create Empty")) {
+        // CreateEmptyEntity();
+        // TODO: move this to a  help function?
+        int id = GetWorld().CreateEntity("New Entity");
+        GetWorld().AddComponent<criogenio::Name>(id, "New Entity " +
+                                                         std::to_string(id));
+
+        if (sceneMode == SceneMode::Scene3D) {
+          GetWorld().AddComponent<criogenio::Transform3D>(id);
+          GetWorld().AddComponent<criogenio::Box3D>(id);
+        } else {
+          GetWorld().AddComponent<criogenio::Transform>(id, 0.0f, 0.0f);
+        }
+        MarkLevelDirty();
+      }
+      if (ImGui::MenuItem("Sprite")) {
+        // CreateSpriteEntity();
+      }
+      if (ImGui::MenuItem("Terrain")) {
+        const char *path = DrawFileBrowserPopup();
+        if (path && path[0] != '\0') {
+          GetWorld().CreateTerrain2D("Terrain", path);
+          MarkLevelDirty();
         }
       }
-      if (ImGui::MenuItem("Import Tiled Map (.tmx)...")) {
-        const char *tmxFilters[] = {"*.tmx"};
-        const char *tmxPath = tinyfd_openFileDialog(
-            "Import Tiled Map", "", 1, tmxFilters, "Tiled Map (.tmx)", 0);
-        if (tmxPath && strlen(tmxPath) > 0) {
-          if (criogenio::LoadTerrainFromTmxFile(GetWorld(), std::string(tmxPath)))
-            printf("[Editor] Loaded TMX terrain: %s\n", tmxPath);
-          else
-            printf("[Editor] ERROR: Failed to load TMX (see console): %s\n",
-                   tmxPath);
-        }
+      ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Tools")) {
+      if (ImGui::MenuItem("Migrate TMX Maps → JSON")) {
+        BatchMigrateTmxMaps();
       }
-      if (ImGui::MenuItem("Import level / world (terrain only)...")) {
-        const char *filters[] = {"*.campsurlevel", "*.json"};
-        const char *p = tinyfd_openFileDialog("Import terrain from level file", "world.campsurlevel", 2,
-                                              filters, "Level Files (*.campsurlevel, *.json)", 0);
-        if (p && strlen(p) > 0) {
-          std::string err;
-          if (criogenio::LoadWorldTerrainAndLevelFromFile(GetWorld(), std::string(p), err))
-            printf("[Editor] Loaded terrain+level from: %s\n", p);
-          else
-            printf("[Editor] ERROR: %s\n", err.c_str());
-        }
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip(
+            "For each shipped TMX in subterra_guild/assets/levels/, load it and\n"
+            "save a .json scene file alongside it. Run once after the first checkout.\n"
+            "Then update world_config.json 'init_map' to point to the .json file.");
       }
       if (ImGui::MenuItem("Import Subterra animation (.campsuranims)...")) {
         if (!selectedEntityId.has_value()) {
@@ -1666,78 +2055,6 @@ void EditorApp::DrawMainMenuBar() {
             }
           }
         }
-      }
-      if (ImGui::MenuItem("Save Scene", "Ctrl+S")) {
-        criogenio::SaveWorldToFile(GetWorld(), "world.campsurlevel");
-      }
-      if (ImGui::MenuItem("Save Scene As...")) {
-        const char *filters[] = {"*.campsurlevel", "*.json"};
-        const char *path = tinyfd_saveFileDialog("Save Scene As", "world.campsurlevel",
-                                                 2, filters, "Scene Files (*.campsurlevel, *.json)");
-        if (path && strlen(path) > 0) {
-          criogenio::SaveWorldToFile(GetWorld(), path);
-        }
-      }
-
-      ImGui::EndMenu();
-    }
-
-    if (ImGui::BeginMenu("Edit")) {
-      if (ImGui::MenuItem("Undo", "Ctrl+Z")) {
-      }
-      if (ImGui::MenuItem("Redo", "Ctrl+Y")) {
-      }
-      ImGui::EndMenu();
-    }
-
-    if (ImGui::BeginMenu("Scene")) {
-      bool is2D = sceneMode == SceneMode::Scene2D;
-      bool is3D = sceneMode == SceneMode::Scene3D;
-      if (ImGui::MenuItem("2D Scene Mode", nullptr, is2D)) {
-        sceneMode = SceneMode::Scene2D;
-      }
-      if (ImGui::MenuItem("3D Scene Mode", nullptr, is3D)) {
-        sceneMode = SceneMode::Scene3D;
-      }
-      ImGui::EndMenu();
-    }
-
-    if (ImGui::BeginMenu("GameObject")) {
-      if (ImGui::MenuItem("Create Empty")) {
-        // CreateEmptyEntity();
-        // TODO: move this to a  help function?
-        int id = GetWorld().CreateEntity("New Entity");
-        GetWorld().AddComponent<criogenio::Name>(id, "New Entity " +
-                                                         std::to_string(id));
-
-        if (sceneMode == SceneMode::Scene3D) {
-          GetWorld().AddComponent<criogenio::Transform3D>(id);
-          GetWorld().AddComponent<criogenio::Box3D>(id);
-        } else {
-          GetWorld().AddComponent<criogenio::Transform>(id, 0.0f, 0.0f);
-        }
-      }
-      if (ImGui::MenuItem("Sprite")) {
-        // CreateSpriteEntity();
-      }
-      if (ImGui::MenuItem("Terrain")) {
-        const char *path = DrawFileBrowserPopup();
-        if (path && path[0] != '\0') {
-          GetWorld().CreateTerrain2D("Terrain", path);
-        }
-      }
-      ImGui::EndMenu();
-    }
-
-    if (ImGui::BeginMenu("Tools")) {
-      if (ImGui::MenuItem("Migrate TMX Maps → JSON")) {
-        BatchMigrateTmxMaps();
-      }
-      if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip(
-            "For each shipped TMX in subterra_guild/assets/levels/, load it and\n"
-            "save a .json scene file alongside it. Run once after the first checkout.\n"
-            "Then update world_config.json 'init_map' to point to the .json file.");
       }
       ImGui::EndMenu();
     }
@@ -1928,6 +2245,7 @@ void EditorApp::HandleTerrainEditInput() {
       if (lmbReleased || rmbReleased) {
         if (terrainHistory.IsRecording()) terrainHistory.End();
         terrainDragging = false;
+        MarkLevelDirty();
       }
       break;
     }
@@ -1946,11 +2264,13 @@ void EditorApp::HandleTerrainEditInput() {
           stampRectFilled(terrainDragAnchorTx, terrainDragAnchorTy, tx, ty, paintTile);
         terrainHistory.End();
         terrainDragging = false;
+        MarkLevelDirty();
       } else if (rmbPressed) {
         // Right-click erases a rect (tap = single cell).
         terrainHistory.Begin("Erase", terrainSelectedLayer);
         stampBrushAt(tx, ty, -1);
         terrainHistory.End();
+        MarkLevelDirty();
       }
       break;
     }
@@ -1963,6 +2283,7 @@ void EditorApp::HandleTerrainEditInput() {
         stampLine(terrainDragAnchorTx, terrainDragAnchorTy, tx, ty, EffectivePaintTile());
         terrainHistory.End();
         terrainDragging = false;
+        MarkLevelDirty();
       }
       break;
     }
@@ -1971,10 +2292,12 @@ void EditorApp::HandleTerrainEditInput() {
         terrainHistory.Begin("Flood Fill", terrainSelectedLayer);
         floodFill(tx, ty, EffectivePaintTile());
         terrainHistory.End();
+        MarkLevelDirty();
       } else if (rmbPressed) {
         terrainHistory.Begin("Flood Erase", terrainSelectedLayer);
         floodFill(tx, ty, -1);
         terrainHistory.End();
+        MarkLevelDirty();
       }
       break;
     }
@@ -2031,6 +2354,7 @@ void EditorApp::HandleTerrainEditInput() {
               PaintCell(terrainSelectedLayer, tx + x, ty + y, gid);
           }
         terrainHistory.End();
+        MarkLevelDirty();
       }
       break;
     }
@@ -2048,8 +2372,10 @@ void EditorApp::HandleTerrainShortcuts() {
     if (ImGui::IsKeyPressed(ImGuiKey_Z, /*repeat*/ true)) {
       if (io.KeyShift) terrainHistory.Redo(*terrain);
       else             terrainHistory.Undo(*terrain);
+      MarkLevelDirty();
     } else if (ImGui::IsKeyPressed(ImGuiKey_Y, /*repeat*/ true)) {
       terrainHistory.Redo(*terrain);
+      MarkLevelDirty();
     }
   }
 
@@ -2159,6 +2485,7 @@ void EditorApp::CreateEmptyEntityAtMouse() {
     GetWorld().AddComponent<criogenio::Transform>(id, worldPos.x, worldPos.y);
   }
   AssignToCurrentObjectLayer(id);
+  MarkLevelDirty();
 }
 
 void EditorApp::CreateMapEventZoneAtMouse() {
@@ -2172,6 +2499,7 @@ void EditorApp::CreateMapEventZoneAtMouse() {
   z.activated = true;
   AssignToCurrentObjectLayer(id);
   selectedEntityId = id;
+  MarkLevelDirty();
 }
 
 void EditorApp::CreateInteractableZoneAtMouse() {
@@ -2184,6 +2512,7 @@ void EditorApp::CreateInteractableZoneAtMouse() {
   z.height = 64.f;
   AssignToCurrentObjectLayer(id);
   selectedEntityId = id;
+  MarkLevelDirty();
 }
 
 void EditorApp::SpawnSpriteEntityAt(Vec2 worldPos, const std::string &texturePath) {
@@ -2214,6 +2543,7 @@ void EditorApp::SpawnSpriteEntityAt(Vec2 worldPos, const std::string &texturePat
   selectedEntityId = id;
   printf("[Editor] Dropped sprite %s at (%.1f, %.1f) -> entity %d\n",
          texturePath.c_str(), worldPos.x, worldPos.y, id);
+  MarkLevelDirty();
 }
 
 void EditorApp::CreateSpawnPrefabAtMouse() {
@@ -2224,6 +2554,7 @@ void EditorApp::CreateSpawnPrefabAtMouse() {
   GetWorld().AddComponent<criogenio::WorldSpawnPrefab2D>(id);
   AssignToCurrentObjectLayer(id);
   selectedEntityId = id;
+  MarkLevelDirty();
 }
 
 void EditorApp::DrawTerrainLayersPanel() {
@@ -2471,6 +2802,7 @@ void EditorApp::CutTileSelection() {
     for (int x = s.x0; x <= s.x1; ++x)
       PaintCell(s.layer, x, y, -1);
   terrainHistory.End();
+  MarkLevelDirty();
 }
 
 void EditorApp::DeleteTileSelection() {
@@ -2483,6 +2815,7 @@ void EditorApp::DeleteTileSelection() {
     for (int x = s.x0; x <= s.x1; ++x)
       PaintCell(s.layer, x, y, -1);
   terrainHistory.End();
+  MarkLevelDirty();
 }
 
 void EditorApp::DrawTerrainEditor() {
@@ -2505,6 +2838,7 @@ void EditorApp::DrawTerrainEditor() {
     if (ImGui::Button("Add Layer")) {
       terrain->AddLayer();
       terrainSelectedLayer = 0;
+      MarkLevelDirty();
     }
     ImGui::SameLine();
     if (ImGui::Button("Delete Terrain")) {
@@ -2568,11 +2902,17 @@ void EditorApp::DrawTerrainEditor() {
   // Undo/redo buttons.
   ImGui::Spacing();
   if (!terrainHistory.CanUndo()) ImGui::BeginDisabled();
-  if (ImGui::Button("Undo (Ctrl+Z)")) terrainHistory.Undo(*terrain);
+  if (ImGui::Button("Undo (Ctrl+Z)")) {
+    terrainHistory.Undo(*terrain);
+    MarkLevelDirty();
+  }
   if (!terrainHistory.CanUndo()) ImGui::EndDisabled();
   ImGui::SameLine();
   if (!terrainHistory.CanRedo()) ImGui::BeginDisabled();
-  if (ImGui::Button("Redo (Ctrl+Y)")) terrainHistory.Redo(*terrain);
+  if (ImGui::Button("Redo (Ctrl+Y)")) {
+    terrainHistory.Redo(*terrain);
+    MarkLevelDirty();
+  }
   if (!terrainHistory.CanRedo()) ImGui::EndDisabled();
   terrainSelectedLayer = std::max(
       0, std::min(terrainSelectedLayer,
@@ -2581,6 +2921,7 @@ void EditorApp::DrawTerrainEditor() {
   if (ImGui::Button("Add Layer")) {
     terrain->AddLayer();
     terrainSelectedLayer = static_cast<int>(terrain->layers.size()) - 1;
+    MarkLevelDirty();
   }
 
   ImGui::Separator();
@@ -2789,6 +3130,7 @@ void EditorApp::DrawLevelMetadataPanel() {
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.45f, 0.7f, 1.f));
   if (ImGui::Button("Bake ECS Zones -> Level Data", ImVec2(-1, 0))) {
     BakeEcsZonesIntoTmxMeta();
+    MarkLevelDirty();
   }
   ImGui::PopStyleColor();
   if (ImGui::IsItemHovered()) {
@@ -2797,7 +3139,7 @@ void EditorApp::DrawLevelMetadataPanel() {
         "into the Level Data tables below (\"ecs_event_zones\" object group,\n"
         "interactables, spawn prefabs). Lets you export as pure JSON without\n"
         "needing a live ECS world.\n"
-        "\nUse 'Save Scene' afterwards to persist the result.");
+        "\nUse File > Save Level afterwards to persist the result.");
   }
   ImGui::Spacing();
 
@@ -3391,6 +3733,8 @@ void EditorApp::HandleScenePicking() {
 
   Vec2 local = {mouse.x - vx, mouse.y - vy};
   Vec2 tex = {local.x * ((float)sceneRT.width / vw), local.y * ((float)sceneRT.height / vh)};
+  // Match render.cpp WorldToScreen flipY for render targets (ImGui top-left ↔ SDL space).
+  tex.y = (float)sceneRT.height - tex.y;
 
   Vec2 world = criogenio::ScreenToWorld2D(tex, *GetWorld().GetActiveCamera(), (float)sceneRT.width, (float)sceneRT.height);
 
@@ -3452,10 +3796,19 @@ criogenio::Vec2 EditorApp::ScreenToWorldPosition(criogenio::Vec2 mouseScreen) {
   Vec2 normalizedPos = {viewportMouse.x / viewportSize.x, viewportMouse.y / viewportSize.y};
   Vec2 textureScreen = {normalizedPos.x * (float)sceneRT.width,
                         normalizedPos.y * (float)sceneRT.height};
-
   float vpW = (float)sceneRT.width;
   float vpH = (float)sceneRT.height;
+  // Scene RT drawing uses flipY (render.cpp) so the texture appears upright in ImGui;
+  // ScreenToWorld2D expects pre-flip SDL Y (0 = top in internal camera math before flip).
+  textureScreen.y = vpH - textureScreen.y;
+
   return criogenio::ScreenToWorld2D(textureScreen, *GetWorld().GetActiveCamera(), vpW, vpH);
+}
+
+criogenio::Vec2 EditorApp::GetMouseWorld() const {
+  if (sceneMode == SceneMode::Scene2D && sceneRT.valid())
+    return const_cast<EditorApp*>(this)->ScreenToWorldPosition(GetViewportMousePos());
+  return criogenio::Engine::GetMouseWorld();
 }
 
 void EditorApp::DrawEntityHeader(int entity) {
@@ -4515,20 +4868,49 @@ void EditorApp::DrawBoxColliderInspector(int entity) {
   if (!col)
     return;
 
-  ImGui::DragFloat("Width", &col->width, 1.0f, 1.0f, 1000.0f);
-  ImGui::DragFloat("Height", &col->height, 1.0f, 1.0f, 1000.0f);
-  ImGui::DragFloat2("Offset", &col->offsetX, 1.0f, -1000.0f, 1000.0f);
+  if (ImGui::Button("Fit to sprite")) {
+    auto *t = GetWorld().GetComponent<Transform>(entity);
+    if (t) {
+      if (auto *anim = GetWorld().GetComponent<criogenio::AnimatedSprite>(entity)) {
+        criogenio::Rect r = anim->GetFrame();
+        if (r.width > 0.5f && r.height > 0.5f) {
+          col->width = r.width;
+          col->height = r.height;
+          col->offsetX = 0.f;
+          col->offsetY = 0.f;
+          MarkLevelDirty();
+        }
+      } else if (auto *spr = GetWorld().GetComponent<Sprite>(entity)) {
+        col->width = static_cast<float>(spr->spriteSize);
+        col->height = static_cast<float>(spr->spriteSize);
+        col->offsetX = 0.f;
+        col->offsetY = 0.f;
+        MarkLevelDirty();
+      }
+    }
+  }
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("Match collider size to Sprite tile or current animation frame.");
+  }
+
+  bool edited = false;
+  edited |= ImGui::DragFloat("Width", &col->width, 1.0f, 1.0f, 1000.0f);
+  edited |= ImGui::DragFloat("Height", &col->height, 1.0f, 1.0f, 1000.0f);
+  edited |= ImGui::DragFloat2("Offset", &col->offsetX, 1.0f, -1000.0f, 1000.0f);
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("Offset from entity position (collider rect = Transform + Offset, size).");
   }
-  ImGui::Checkbox("One-way platform", &col->isPlatform);
+  edited |= ImGui::Checkbox("One-way platform", &col->isPlatform);
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("When checked, only collides when entity falls onto it from above.");
   }
+  if (edited)
+    MarkLevelDirty();
 
   if (ImGui::BeginPopupContextItem("BoxColliderContext")) {
     if (ImGui::MenuItem("Remove Component")) {
       GetWorld().RemoveComponent<criogenio::BoxCollider>(entity);
+      MarkLevelDirty();
     }
     ImGui::EndPopup();
   }

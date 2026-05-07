@@ -2,6 +2,8 @@
 
 Suggestions based on a review of the Criogenio engine. Ordered by impact vs effort; you can tackle them incrementally.
 
+**Current stack & editor:** For up-to-date capabilities (ECS, TMX/terrain, `.campsur*` project/level formats, object layers, in-editor play modes), prefer **[ARCHITECTURE.md](ARCHITECTURE.md)** and **[engine/ARCHITECTURE.md](engine/ARCHITECTURE.md)**. The repo **[README.md](README.md)** links both; **[top_down_demo/README.md](top_down_demo/README.md)** walks through a minimal `free_form_2d` project.
+
 ---
 
 ## 1. **Remove global `netToEntity` (network)** ✅ DONE

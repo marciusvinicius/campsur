@@ -8,7 +8,11 @@ The Criogenio Engine is a 2D game engine built in C++ using an Entity Component 
 
 ### Recent capability updates
 
-- **Level JSON + ECS authoring (Subterra):** maps are now authored and shipped as `.json` scene files. ECS zone components (`MapEventZone2D`, `InteractableZone2D`, `WorldSpawnPrefab2D`) are the preferred spatial authoring path; TMX import remains as a migration tool. See [Level Authoring](#level-authoring-ecs-zones--json).
+- **Project system & Campsur file types:** games ship a **`project.campsur`** descriptor (paths to `levels`, `sprites`, `data/*`, optional `game_config`). The editor loads **`ProjectContext`** (recent projects, path resolution) and browses assets from those roots. Levels are saved as **`.campsurlevel`** (JSON scene + optional `level` metadata block); data files use **`.campsurmeta`**, **`.campsuranims`**, **`.campsurconfig`** as typed extensions. Legacy **`.json`** alongside these is still accepted where loaders allow it.
+- **Editor map authoring:** terrain editing includes undo/redo (`TerrainEditHistory`), Tiled-like tools (paint, rect, line, flood fill, eyedropper, selection + stamp), multi-tileset palette, layer visibility/opacity (persisted in `level`), brush **H/V flip** in GID mode, and per-tile custom properties from TSX/inline `<tile>` blocks (shown read-only in the Terrain Editor when a tile is selected). **Object layers** group entities (`LayerMembership`); visibility uses transient **`EditorHidden`** in the editor only; locked layers block viewport picking. **View → Reset Layout** reapplies the default ImGui dock when new panels are added.
+- **In-editor Play (`IEditorGameMode`):** **`project.game_mode`** selects the play implementation. **`subterra_guild`** (default when absent) runs the full Subterra session; **`free_form_2d`** runs **`FreeForm2DEditorGameMode`** (core `MovementSystem` + `AnimationSystem` + `SpriteSystem` + `RenderSystem`, camera follows the played entity; WASD/arrows, Shift run). See **`top_down_demo/`** for a minimal sample project.
+- **Sprite & layer serialization:** **`Sprite`** persists **`atlasPath`** so drag-dropped sprites round-trip; **`LayerMembership`** is included in **`World::Serialize`**. TMX **GID flip bits** (H/V/D) are stored in cell values; rendering applies H/V via **`Renderer::DrawTextureProFlipped`** (diagonal/rotate bit parsed but not yet drawn—see `terrain.cpp`).
+- **Level JSON + ECS authoring (Subterra):** maps are authored and shipped primarily as **`.campsurlevel`** (and historically `.json`). ECS zone components (`MapEventZone2D`, `InteractableZone2D`, `WorldSpawnPrefab2D`) are the preferred spatial authoring path; TMX import remains a migration tool. See [Level Authoring](#level-authoring-ecs-zones--json).
 - **Decoupled gameplay action pipelines (Subterra):** map events can now route through a registry of named actions (camera shake, teleport, spawn wave, damage, input lock/unlock), with optional JSON action lists from TMX properties.
 - **Data-driven mob prefabs (Subterra):** `entities_mobs.json` is now loaded into a mob prefab registry (default `entity_data`, listeners, visual hints), and TMX `spawn_prefab` can resolve directly to mob spawning.
 - **Mob brain runtime (Subterra):** `brain_type` values are mapped to C++ brain handlers and executed per-frame before `AIMovementSystem` applies movement.
@@ -753,22 +757,42 @@ Use this checklist to quickly verify the newer door collision and holder-bound i
 
 ---
 
+## Editor, projects & play modes
+
+### `project.campsur`
+
+Root-of-game descriptor (JSON). Typical fields: `name`, `game_mode`, `levels_dir`, `sprites_dir`, `animations_dir`, `prefabs_dir`, `effects_dir`, `config_dir`, `init_level`, and optional **`game_config`** (paths Subterra uses for `world_config`, `input_config`, `player_anims`). Opening a project in the editor sets the working directory to the project root so relative paths resolve.
+
+| `game_mode` (string) | In-editor **Play** behavior |
+|----------------------|------------------------------|
+| `subterra_guild` or empty / no project | **`subterra::EditorGameMode`** — full Subterra systems, vitals, map events, etc. |
+| `free_form_2d` | **`FreeForm2DEditorGameMode`** — core movement + sprite/anim render only; good for non-Subterra 2D scenes. |
+| Other non-empty values | Warning logged; falls back to Subterra play mode. |
+
+Reference layouts: **`subterra_guild/project.campsur`** (full game data); **`top_down_demo/project.campsur`** (minimal free-form validation project).
+
+### Sample: `top_down_demo/`
+
+Small project under repo root: free-form 2D, no `Terrain2D` required, **`init_level`** points at **`assets/levels/init.campsurlevel`**. Documents Asset Browser drag-drop, object layers, and **`free_form_2d`** play. See **`top_down_demo/README.md`**.
+
+---
+
 ## Level Authoring — ECS Zones & JSON
 
 ### Overview
 
 The preferred authoring workflow for Subterra maps is:
 
-1. **Scene JSON** (`.json`) — the single file format for all shipped maps. Contains terrain tile data, the `level` block (TMX metadata, lights, collision), and ECS entities (zones, spawns).
+1. **Scene file** (**`.campsurlevel`**, or legacy `.json`) — shipped maps: terrain chunk data, optional **`level`** block (TMX metadata, lights, collision, tilesets, per-tileset tile properties), and ECS entities (zones, spawns, sprites, **`LayerMembership`**).
 2. **ECS zone components** — spatial authoring via entities with `MapEventZone2D`, `InteractableZone2D`, and `WorldSpawnPrefab2D` components placed in the editor.
 3. **Level panel data** (inside `level`) — `tmxMeta`-derived tables for layer order, bounds, collision, lights, image layers. Edited in the editor "Level (Subterra)" panel.
 
-**TMX (`.tmx`)** is a legacy import format. After importing with "File → Import Tiled Map", save as a scene JSON and update `world_config.json → world.init_map`. TMX loading at runtime emits a `LOG_WARNING` deprecation message.
+**TMX (`.tmx`)** is a legacy import format. After importing with "File → Import Tiled Map", save as **`.campsurlevel`** (or `.json`) and update **`world_config.campsurconfig` → `init_map`**. TMX loading at runtime may emit a deprecation warning depending on code path.
 
 ### Load order at runtime (`SubterraSession::loadMap`)
 
 ```
-1.  Parse scene JSON → terrain tile data + `level` block + ECS entities
+1.  Parse scene file (.campsurlevel / .json) → terrain tile data + `level` block + ECS entities
 2.  Terrain2D deserialized (chunks/layers)
 3.  TerrainImportLevelMetadata → populates tmxMeta (bounds, layers, lights, objectGroups, spawnPrefabs, interactables, collision)
 4.  ECS entities deserialized (MapEventZone2D / InteractableZone2D / WorldSpawnPrefab2D etc.)
@@ -803,23 +827,26 @@ After baking, "Save Scene" writes the merged result to JSON. This is useful for 
 
 ### Viewport tools (editor)
 
+- **Layers panel**: **Tile layers** (when terrain exists): add/delete/reorder, visibility, opacity, editor-only lock for painting. **Object layers**: group entities via `LayerMembership`; visibility toggles `EditorHidden` (editor render only); lock blocks viewport picking; active layer is the target for newly spawned entities (zones, sprites from Asset Browser).
+- **Terrain Editor**: tile tools, multi-tileset tabs, brush flip (GID mode), undo/redo; **View → Reset Layout** reapplies default docking if panels are missing after an upgrade.
+- **Asset Browser** (with project open): browse prefabs/configs/sprites; **drag PNG et al. into the viewport** to spawn `Sprite` + `Transform` entities.
 - **Zone gizmos**: map events (cyan), interactables (magenta), spawn prefabs (orange). Toggled with "Show Map Authoring Zones" in Global Components.
 - **Resize handles**: selecting a zone entity shows 8 white handles (TL/T/TR/L/R/BL/B/BR). Drag to resize; hold **Ctrl** to snap position and size to the terrain tile grid.
-- **Entity drag**: drag any selected entity to move it; hold **Ctrl** to snap to grid.
-- **Picking**: clicking in the viewport selects the smallest-area zone under the cursor.
+- **Entity drag**: drag any selected entity to move it; hold **Ctrl** to snap to grid (optional **Snap to grid** in menus for free-form scenes).
+- **Picking**: clicking in the viewport selects the smallest-area zone under the cursor; locked object layers are skipped.
 - **Viewport context menu** (right-click): "Create Empty", "Duplicate Entity", "Delete Entity".
 
-### Migration checklist (TMX → JSON)
+### Migration checklist (TMX → Campsur level)
 
-1. Open the editor and choose **File → Import Tiled Map (.tmx)**.
+1. Open the editor and choose **File → Import Tiled Map (.tmx)** (or open an existing level).
 2. Verify terrain, collision, triggers look correct in the Level (Subterra) panel.
 3. (Optional) Rebuild the collision mask, add any ECS zone entities for triggers/spawns you want to edit spatially.
-4. **File → Save Scene** → save as `.json` next to the old `.tmx`.
-5. Update `world_config.json` → `world.init_map` to the new `.json` path.
+4. **File → Save Scene** → save as **`.campsurlevel`** (or `.json`) next to the old `.tmx`.
+5. Update **`world_config.campsurconfig`** → `init_map` to the new path.
 6. Keep the `.tmx` for reference but remove it from active paths.
 
 ### TMX deprecation status
 
 - `SubterraSession::loadMap` **logs `LOG_WARNING`** when loading a `.tmx` directly.
-- All new maps should start as scene JSON (create terrain in editor + Save Scene).
+- All new maps should start as **`.campsurlevel`** (create terrain in editor + Save Scene).
 - TMX parsing code (`TilemapLoader::LoadFromTMX`) is kept for import but is not on the active shipping path.

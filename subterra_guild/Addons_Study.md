@@ -1,3 +1,7 @@
+**Engine & project docs:** Subterra sits on the shared Campsur stack—project layout (`project.campsur`), levels (`.campsurlevel`), and editor tooling are summarized in **[../ARCHITECTURE.md](../ARCHITECTURE.md)** and **[../engine/ARCHITECTURE.md](../engine/ARCHITECTURE.md)**. This file is design notes for item addons only.
+
+---
+
 ## Addons as items mods
 
 - Addons are attaches for items that can be used to modify the item's behavior or appearance.

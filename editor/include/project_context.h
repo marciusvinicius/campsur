@@ -45,6 +45,13 @@ struct ProjectContext {
     static bool LoadFromFile(const std::string &campsurPath, ProjectContext &out);
 
     /**
+     * Write project descriptor to disk. Merges with existing JSON at `campsurAbsPath`
+     * when present so unknown keys are preserved. Paths on `ctx` must be absolute
+     * (as after LoadFromFile); they are stored relative to the project root.
+     */
+    static bool SaveToFile(const std::string &campsurAbsPath, const ProjectContext &ctx);
+
+    /**
      * Resolve a project-relative path to absolute.
      * If relPath is already absolute it is returned as-is.
      */

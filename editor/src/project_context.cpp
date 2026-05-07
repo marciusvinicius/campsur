@@ -86,3 +86,64 @@ bool ProjectContext::LoadFromFile(const std::string &campsurPath, ProjectContext
     std::printf("[Project] Opened: %s (%s)\n", out.name.c_str(), campsurPath.c_str());
     return true;
 }
+
+namespace {
+
+std::string AbsToProjectRel(const fs::path &projectRoot, const std::string &absPath) {
+    if (absPath.empty())
+        return {};
+    fs::path a(absPath);
+    if (!a.is_absolute()) {
+        std::error_code ec;
+        fs::path rel = fs::relative(a, projectRoot, ec);
+        if (!ec)
+            return rel.generic_string();
+        return a.generic_string();
+    }
+    std::error_code ec;
+    fs::path rel = fs::relative(a, projectRoot, ec);
+    if (ec)
+        return a.generic_string();
+    return rel.generic_string();
+}
+
+} // namespace
+
+bool ProjectContext::SaveToFile(const std::string &campsurAbsPath, const ProjectContext &ctx) {
+    nlohmann::json j = nlohmann::json::object();
+    std::ifstream in(campsurAbsPath);
+    if (in.good()) {
+        try {
+            in >> j;
+        } catch (...) {
+            j = nlohmann::json::object();
+        }
+    }
+
+    fs::path root(ctx.projectRoot);
+    if (root.empty())
+        root = fs::absolute(fs::path(campsurAbsPath)).parent_path();
+
+    j["name"] = ctx.name;
+    if (!ctx.gameModeId.empty())
+        j["game_mode"] = ctx.gameModeId;
+
+    j["levels_dir"] = AbsToProjectRel(root, ctx.levelsDir);
+    j["animations_dir"] = AbsToProjectRel(root, ctx.animationsDir);
+    j["prefabs_dir"] = AbsToProjectRel(root, ctx.prefabsDir);
+    j["effects_dir"] = AbsToProjectRel(root, ctx.effectsDir);
+    j["config_dir"] = AbsToProjectRel(root, ctx.configDir);
+    j["sprites_dir"] = AbsToProjectRel(root, ctx.spritesDir);
+    j["init_level"] = AbsToProjectRel(root, ctx.initLevel);
+
+    if (!ctx.gameConfig.is_null())
+        j["game_config"] = ctx.gameConfig;
+
+    std::ofstream out(campsurAbsPath);
+    if (!out.good()) {
+        std::fprintf(stderr, "[Project] Cannot write: %s\n", campsurAbsPath.c_str());
+        return false;
+    }
+    out << j.dump(2);
+    return true;
+}
