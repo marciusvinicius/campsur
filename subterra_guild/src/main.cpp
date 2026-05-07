@@ -23,6 +23,7 @@
 #include "subterra_session.h"
 #include "subterra_status_effects.h"
 
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -34,18 +35,21 @@ using namespace subterra;
 
 namespace {
 
-const char *kDefaultMapPath = "assets/levels/Cave.tmx";
+const char *kDefaultMapPath = "assets/levels/Cave.campsurlevel";
 
 const char *kDefaultMapSearchPaths[] = {
+    "assets/levels/Cave.campsurlevel",
+    "subterra_guild/assets/levels/Cave.campsurlevel",
+    // Legacy TMX fallback (still accepted by LoadTerrainFromTmxFile)
     "assets/levels/Cave.tmx",
     "subterra_guild/assets/levels/Cave.tmx",
 };
-const char *kDefaultPlayerJson = "assets/animations/player.json";
+const char *kDefaultPlayerJson = "assets/animations/player.campsuranims";
 
 const char *kPlayerJsonSearchPaths[] = {
-    "assets/animations/player.json",
-    "data/animations/player.json",
-    "subterra_guild/data/animations/player.json",
+    "assets/animations/player.campsuranims",
+    "data/animations/player.campsuranims",
+    "subterra_guild/data/animations/player.campsuranims",
 };
 
 static bool FileReadable(const char *path) {
@@ -66,6 +70,31 @@ static void ResolveDefaultMapPath(std::string &path) {
   }
 }
 
+static void ResolveMapAssetPath(std::string &path) {
+  if (FileReadable(path.c_str()))
+    return;
+  const std::string prefixed = std::string("subterra_guild/") + path;
+  if (FileReadable(prefixed.c_str()))
+    path = prefixed;
+}
+
+static bool PathEndsWithSuffix(const std::string &path, const char *suf) {
+  const size_t n = std::strlen(suf);
+  if (path.size() < n)
+    return false;
+  for (size_t i = 0; i < n; ++i) {
+    if (std::tolower(static_cast<unsigned char>(path[path.size() - n + i])) !=
+        static_cast<unsigned char>(suf[i]))
+      return false;
+  }
+  return true;
+}
+
+/** Returns true for .campsurlevel or legacy .json world files (not TMX). */
+static bool PathEndsWithJsonExt(const std::string &path) {
+  return PathEndsWithSuffix(path, ".campsurlevel") || PathEndsWithSuffix(path, ".json");
+}
+
 /** If `path` is missing, use the first existing path in kPlayerJsonSearchPaths. */
 static void ResolvePlayerJsonPath(std::string &path) {
   if (FileReadable(path.c_str()))
@@ -83,48 +112,49 @@ static void ResolvePlayerJsonPath(std::string &path) {
 // ENTITIES_JSON_PATH, INPUT_CONFIG_PATH), then subterra_guild/data/... when the binary is run
 // from the campsur repo root.
 const char *kItemPrefabJsonPaths[] = {
-    "data/prefabs/entities_items.json",
-    "subterra_guild/data/prefabs/entities_items.json",
+    "data/prefabs/entities_items.campsurmeta",
+    "subterra_guild/data/prefabs/entities_items.campsurmeta",
 };
 
 const char *kInteractablePrefabJsonPaths[] = {
-    "data/prefabs/entities_interactable.json",
-    "subterra_guild/data/prefabs/entities_interactable.json",
+    "data/prefabs/entities_interactable.campsurmeta",
+    "subterra_guild/data/prefabs/entities_interactable.campsurmeta",
 };
 
 const char *kMobPrefabJsonPaths[] = {
-    "data/prefabs/entities_mobs.json",
-    "subterra_guild/data/prefabs/entities_mobs.json",
+    "data/prefabs/entities_mobs.campsurmeta",
+    "subterra_guild/data/prefabs/entities_mobs.campsurmeta",
 };
 
 const char *kWorldConfigPaths[] = {
-    "data/server_configuration/world_config.json",
-    "subterra_guild/data/server_configuration/world_config.json",
+    "data/server_configuration/world_config.campsurconfig",
+    "subterra_guild/data/server_configuration/world_config.campsurconfig",
 };
 
 const char *kInputConfigPaths[] = {
-    "data/server_configuration/input_config.json",
-    "subterra_guild/data/server_configuration/input_config.json",
+    "data/server_configuration/input_config.campsurconfig",
+    "subterra_guild/data/server_configuration/input_config.campsurconfig",
 };
 
 const char *kBuffersJsonPaths[] = {
-    "data/effects/buffers.json",
-    "subterra_guild/data/effects/buffers.json",
+    "data/effects/buffers.campsurconfig",
+    "subterra_guild/data/effects/buffers.campsurconfig",
 };
 
 const char *kDebuffersJsonPaths[] = {
-    "data/effects/debuffers.json",
-    "subterra_guild/data/effects/debuffers.json",
+    "data/effects/debuffers.campsurconfig",
+    "subterra_guild/data/effects/debuffers.campsurconfig",
 };
 
 void printUsage(const char *argv0) {
   std::fprintf(stderr,
-               "Usage: %s [--world <path.json>] [--map <path.tmx>] [--player-json <path>] "
-               "[--gameplay-intro-demo] [--help]\n"
+               "Usage: %s [--world <path.json>] [--map <path.tmx|path.json>] [--player-json <path>] "
+               "[--export-tmx-to-json <in.tmx> <out.json>] [--gameplay-intro-demo] [--help]\n"
                "  --gameplay-intro-demo  Scripted intro: lock input, camera shake, damage, unlock.\n"
                "  --world     Load a full editor scene (entities + terrain + animations).\n"
                "              Skips default TMX + spawned player; uses Name \"player\" or "
                "PlayerTag.\n"
+               "  --export-tmx-to-json  Write terrain + level metadata to a world JSON (no entities).\n"
                "  Defaults: map %s , animations %s\n",
                argv0, kDefaultMapPath, kDefaultPlayerJson);
 }
@@ -193,6 +223,8 @@ int main(int argc, char **argv) {
   std::string mapPath = kDefaultMapPath;
   std::string playerJsonPath = kDefaultPlayerJson;
   std::string worldJsonPath;
+  std::string exportTmxIn;
+  std::string exportTmxOut;
   bool gameplayIntroDemo = false;
 
   for (int i = 1; i < argc; ++i) {
@@ -212,6 +244,11 @@ int main(int argc, char **argv) {
       worldJsonPath = argv[++i];
       continue;
     }
+    if (std::strcmp(argv[i], "--export-tmx-to-json") == 0 && i + 2 < argc) {
+      exportTmxIn = argv[++i];
+      exportTmxOut = argv[++i];
+      continue;
+    }
     if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0) {
       printUsage(argv[0]);
       return 0;
@@ -219,15 +256,40 @@ int main(int argc, char **argv) {
   }
 
   ResolvePlayerJsonPath(playerJsonPath);
-  ResolveDefaultMapPath(mapPath);
 
   SubterraSession session;
+  if (SubterraTryLoadServerConfigurationFromPaths(
+          kWorldConfigPaths, sizeof(kWorldConfigPaths) / sizeof(kWorldConfigPaths[0]), session)) {
+    std::printf("Server configuration (world + camera): %s\n", session.worldConfigPath.c_str());
+    if (!session.configInitMap.empty()) {
+      mapPath = session.configInitMap;
+      ResolveMapAssetPath(mapPath);
+    }
+  } else {
+    std::fprintf(stderr,
+                 "Warning: could not load world_config.json — vitals/camera use built-in defaults.\n");
+  }
+  ResolveDefaultMapPath(mapPath);
   session.mapPath = mapPath;
+
   SubterraEngine engine(session, ScreenWidth, ScreenHeight, "Subterra Guild");
   session.engine = &engine;
 
   World &world = engine.GetWorld();
   session.world = &world;
+
+  if (!exportTmxIn.empty()) {
+    if (!LoadTerrainFromTmxFile(world, exportTmxIn)) {
+      std::fprintf(stderr, "Failed to load TMX \"%s\".\n", exportTmxIn.c_str());
+      return 1;
+    }
+    if (!SaveWorldToFile(world, exportTmxOut)) {
+      std::fprintf(stderr, "Failed to write \"%s\".\n", exportTmxOut.c_str());
+      return 1;
+    }
+    std::printf("Exported TMX \"%s\" to level JSON \"%s\".\n", exportTmxIn.c_str(), exportTmxOut.c_str());
+    return 0;
+  }
   RegisterSubterraComponents();
   SubterraCameraApplyConfigDefaults(session.camera);
   SubterraInputApplyDefaults(session.input);
@@ -271,13 +333,6 @@ int main(int argc, char **argv) {
                  "Warning: could not load entities_mobs.json — mob spawn_prefab ids "
                  "will not resolve to enemies.\n");
 
-  if (SubterraTryLoadServerConfigurationFromPaths(
-          kWorldConfigPaths, sizeof(kWorldConfigPaths) / sizeof(kWorldConfigPaths[0]), session)) {
-    std::printf("Server configuration (world + camera): %s\n", session.worldConfigPath.c_str());
-  } else {
-    std::fprintf(stderr,
-                 "Warning: could not load world_config.json — vitals/camera use built-in defaults.\n");
-  }
   if (SubterraTryLoadInputConfigFromPaths(
           kInputConfigPaths, sizeof(kInputConfigPaths) / sizeof(kInputConfigPaths[0]), session)) {
     std::printf("Input configuration: %s\n", session.inputConfigPath.c_str());
@@ -341,7 +396,7 @@ int main(int argc, char **argv) {
       SubterraInitPlayerVitals(*world.GetComponent<PlayerVitals>(session.player), session.worldRules);
     }
     session.mapPath = worldJsonPath;
-    session.rebuildTriggers();
+    session.applyPostTerrainLoad(worldJsonPath);
     SubterraApplyPlayerTileCollisionFootprint(world, session.player,
                                               static_cast<float>(session.playerW),
                                               static_cast<float>(session.playerH));
@@ -367,7 +422,9 @@ int main(int argc, char **argv) {
 
     criogenio::Terrain2D *ter = world.GetTerrain();
     if (ter && ter->LogicalMapWidthTiles() > 0) {
-      std::printf("Loaded TMX: %s (%d×%d tiles, %d×%d px cell)\n", mapPath.c_str(),
+      const bool jsonMap = PathEndsWithJsonExt(mapPath);
+      std::printf("%s: %s (%d×%d tiles, %d×%d px cell)\n",
+                  jsonMap ? "Loaded level JSON" : "Loaded TMX", mapPath.c_str(),
                   ter->LogicalMapWidthTiles(), ter->LogicalMapHeightTiles(), ter->GridStepX(),
                   ter->GridStepY());
     } else {

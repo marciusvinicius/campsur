@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <memory>
+#include <optional>
 namespace criogenio {
 
 using Variant = std::variant<int, float, bool, std::string>;
@@ -132,11 +133,143 @@ struct SerializedTerrain2D {
   SerializedTileSet tileset;
 };
 
+/** Mirrors `TmxMapMetadata` + TMX terrain mode; embedded in world/level JSON under `"level"`. */
+struct SerializedLevelTmxProperty {
+  std::string name;
+  std::string value;
+  std::string type;
+};
+
+struct SerializedLevelTiledLayerMeta {
+  std::string name;
+  int tiledLayerId = -1;
+  int mapLayerIndex = 0;
+  bool roof = false;
+  bool windows = false;
+  bool drawAfterEntities = false;
+  bool visible = true;
+  float opacity = 1.f;
+  std::vector<SerializedLevelTmxProperty> properties;
+};
+
+struct SerializedLevelMapObject {
+  int id = 0;
+  std::string name;
+  std::string objectType;
+  float x = 0.f;
+  float y = 0.f;
+  float width = 0.f;
+  float height = 0.f;
+  bool point = false;
+  std::vector<SerializedLevelTmxProperty> properties;
+};
+
+struct SerializedLevelObjectGroup {
+  std::string name;
+  int id = -1;
+  std::vector<SerializedLevelMapObject> objects;
+};
+
+struct SerializedLevelSpawnPrefab {
+  float x = 0.f;
+  float y = 0.f;
+  float width = 0.f;
+  float height = 0.f;
+  std::string prefabName;
+  int quantity = 1;
+};
+
+struct SerializedLevelInteractable {
+  float x = 0.f;
+  float y = 0.f;
+  float w = 0.f;
+  float h = 0.f;
+  bool is_point = false;
+  int tiled_object_id = 0;
+  std::string interactable_type;
+  std::vector<SerializedLevelTmxProperty> properties;
+};
+
+struct SerializedLevelImageLayer {
+  std::string name;
+  int tiledLayerId = -1;
+  float offsetX = 0.f;
+  float offsetY = 0.f;
+  float opacity = 1.f;
+  bool visible = true;
+  int widthPx = 0;
+  int heightPx = 0;
+  /** Resolved with world JSON directory on load. */
+  std::string imagePath;
+  std::vector<SerializedLevelTmxProperty> properties;
+};
+
+struct SerializedLevelDrawLayerStep {
+  /** 0 = tile layer index, 1 = image layer index (see `TmxDrawLayerKind`). */
+  int kind = 0;
+  int index = 0;
+};
+
+struct SerializedLevelMapLightSource {
+  float x = 0.f;
+  float y = 0.f;
+  float radius = 128.f;
+  unsigned char r = 255, g = 180, b = 80;
+  bool is_window = false;
+};
+
+/** One per-tile property as preserved through level save/load. */
+struct SerializedLevelTilePropertyEntry {
+  int tileLocalId = 0;
+  std::vector<SerializedLevelTmxProperty> properties;
+};
+
+struct SerializedLevelTmxTileset {
+  int firstGid = 1;
+  std::string atlasPath;
+  int tilePixelW = 32;
+  int tilePixelH = 32;
+  int margin = 0;
+  int spacing = 0;
+  int columns = 1;
+  int rows = 1;
+  /** Sparse per-tile custom properties parsed from the source TSX/inline tileset. */
+  std::vector<SerializedLevelTilePropertyEntry> tileProperties;
+};
+
+struct SerializedLevelMetadata {
+  bool gidMode = false;
+  int mapTilePxW = 0;
+  int mapTilePxH = 0;
+  int logicalMapTilesW = 0;
+  int logicalMapTilesH = 0;
+  std::vector<SerializedLevelTmxTileset> tmxTilesets;
+
+  bool infinite = false;
+  int boundsMinTx = 0;
+  int boundsMinTy = 0;
+  int boundsMaxTx = 0;
+  int boundsMaxTy = 0;
+  std::vector<SerializedLevelTmxProperty> mapProperties;
+  std::vector<SerializedLevelTiledLayerMeta> layerInfo;
+  std::vector<SerializedLevelImageLayer> imageLayers;
+  std::vector<SerializedLevelDrawLayerStep> drawLayerOrder;
+  std::vector<SerializedLevelObjectGroup> objectGroups;
+  std::vector<SerializedLevelSpawnPrefab> spawnPrefabs;
+  std::vector<SerializedLevelInteractable> interactables;
+  std::vector<SerializedLevelMapLightSource> mapLightSources;
+  int collisionStrideTiles = 0;
+  int collisionHeightTiles = 0;
+  std::vector<uint8_t> collisionSolid;
+};
+
 struct SerializedWorld {
   std::string name;
   std::vector<SerializedEntity> entities;
   SerializedTerrain2D terrain;
   std::vector<SerializedAnimation> animations;
+  /** Subterra / TMX-equivalent map metadata (triggers, spawns, collision, …). */
+  std::optional<SerializedLevelMetadata> level;
 };
 
 } // namespace criogenio

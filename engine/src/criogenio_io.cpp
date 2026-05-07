@@ -1,6 +1,7 @@
 #include "criogenio_io.h"
 #include "animation_path_utils.h"
 #include "json_serialization.h"
+#include "level_metadata_json.h"
 #include "terrain_loader.h"
 #include "asset_manager.h"
 #include "log.h"
@@ -12,7 +13,7 @@
 namespace criogenio {
 
 bool SaveWorldToFile(const World &world, const std::string &path) {
-  SerializedWorld sw = world.Serialize();
+  SerializedWorld sw = world.Serialize(DirnameOfFilePath(path));
   json j = ToJson(sw);
 
   std::ofstream file(path);
@@ -33,6 +34,36 @@ bool LoadWorldFromFile(World &world, const std::string &path) {
 
   SerializedWorld sw = FromJson(j);
   world.Deserialize(sw, DirnameOfFilePath(path));
+  return true;
+}
+
+bool LoadWorldTerrainAndLevelFromFile(World &world, const std::string &path, std::string &errOut) {
+  std::ifstream file(path);
+  if (!file.is_open()) {
+    errOut = "cannot open file";
+    return false;
+  }
+  json j;
+  try {
+    file >> j;
+  } catch (const std::exception &e) {
+    errOut = e.what();
+    return false;
+  } catch (...) {
+    errOut = "json parse error";
+    return false;
+  }
+  SerializedWorld sw = FromJson(j);
+  const std::string dir = DirnameOfFilePath(path);
+  if (sw.terrain.tileset.tilesetPath.empty()) {
+    world.SetTerrain(nullptr);
+    return true;
+  }
+  auto t = std::make_unique<Terrain2D>();
+  t->Deserialize(sw.terrain, dir);
+  if (sw.level.has_value())
+    TerrainImportLevelMetadata(*t, *sw.level, dir);
+  world.SetTerrain(std::move(t));
   return true;
 }
 

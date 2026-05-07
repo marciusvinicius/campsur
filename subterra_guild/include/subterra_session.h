@@ -40,6 +40,8 @@ struct SubterraSession {
   criogenio::Engine *engine = nullptr;
   criogenio::ecs::EntityId player = criogenio::ecs::NULL_ENTITY;
   std::string mapPath;
+  /** From `world_config.json` → `world.init_map` when present (`.tmx` or level `.json`). */
+  std::string configInitMap;
   int playerW = 64;
   int playerH = 64;
   /** Shared animation DB id for player and spawned mobs. */
@@ -106,6 +108,8 @@ struct SubterraSession {
   void clearRuntimeTriggers();
   /** Remove mobs and world pickups (not the player). Call after changing maps. */
   void destroyTransientEntities();
+  /** After terrain is set (TMX, JSON slice, or full world load): triggers, pickups vs prefab spawn. */
+  void applyPostTerrainLoad(const std::string &pathForPersistenceBasename);
   bool loadMap(const std::string &path, std::string &errOut);
   /** Empty name: try player_start_position then map center. */
   void placePlayerAtSpawn(const std::string &spawnNameOrEmpty);

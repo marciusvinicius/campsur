@@ -26,6 +26,38 @@ struct ChunkedLayer {
   std::map<ChunkKey, std::vector<int>> chunks; // (cx, cy) -> tiles[chunkSize*chunkSize]
 };
 
+// ---- Tiled GID flip-bit encoding ---------------------------------------
+// Tiled stores per-tile flips/rotation in the top 3 bits of the 32-bit GID.
+// We keep these bits in the engine's `int` cells so they round-trip through
+// save/load. Decode with the helpers below; the renderer applies them.
+//
+// NOTE: stored as `int`. Tiles with the H-flip bit (0x80000000) appear as
+// negative values; that's expected.
+constexpr uint32_t kTileFlipH = 0x80000000u;
+constexpr uint32_t kTileFlipV = 0x40000000u;
+constexpr uint32_t kTileFlipD = 0x20000000u; // diagonal (rotate 90 CW + flip H)
+constexpr uint32_t kTileGidMask = 0x1FFFFFFFu;
+inline uint32_t TileGid(int stored) {
+  return static_cast<uint32_t>(stored) & kTileGidMask;
+}
+inline bool TileFlipH(int stored) {
+  return (static_cast<uint32_t>(stored) & kTileFlipH) != 0;
+}
+inline bool TileFlipV(int stored) {
+  return (static_cast<uint32_t>(stored) & kTileFlipV) != 0;
+}
+inline bool TileFlipD(int stored) {
+  return (static_cast<uint32_t>(stored) & kTileFlipD) != 0;
+}
+/** Combine a base gid with H/V/D flip flags. Use when writing tiles. */
+inline int MakeFlippedTile(uint32_t baseGid, bool h, bool v, bool d) {
+  uint32_t g = baseGid & kTileGidMask;
+  if (h) g |= kTileFlipH;
+  if (v) g |= kTileFlipV;
+  if (d) g |= kTileFlipD;
+  return static_cast<int>(g);
+}
+
 struct Tileset {
   std::shared_ptr<TextureResource> atlas;
   std::string tilesetPath;
@@ -46,6 +78,13 @@ struct TmxTilesetEntry {
   int tilePixelH = 32;
   int margin = 0;
   int spacing = 0;
+  /**
+   * Per-tile custom properties parsed from `<tile id="N"><properties>...</properties></tile>`.
+   * Key is the local tile index (0-based within this tileset). Empty when the
+   * source TMX/TSX has no per-tile properties. The editor surfaces these
+   * read-only when the user picks a tile (eyedropper or palette click).
+   */
+  std::map<int, std::vector<TmxProperty>> tileProperties;
 };
 
 // Think about the 3D terrain
@@ -75,6 +114,10 @@ public:
   void RemoveLayer(int layerIndex);
   void ClearLayer(int layerIndex);
   void ClearAllLayers();
+  /** Reorder a layer; clamps `to` into range. */
+  void MoveLayer(int from, int to);
+  /** Deep-copy `index`'s chunks and insert the copy immediately after it. */
+  void DuplicateLayer(int index);
   void SetTileset(const Tileset &newTileset);
   void SetTileSize(int newTileSize);
   SerializedTerrain2D Serialize() const;
@@ -97,12 +140,27 @@ public:
   bool TmxFootprintOverlapsSolid(float rectLeft, float rectTop, float w, float h) const;
   void ClearTmxState();
 
+  /**
+   * Rebuild `tmxMeta.collisionSolid` from layers whose name contains "collision" or have
+   * property `collides=true`, plus object groups whose name contains "collision".
+   * Uses `tmxMeta.bounds*` (tile space, max exclusive) for grid size.
+   */
+  void RebuildCollisionMaskFromTmxRules();
+
+  /** Set `tmxMeta.bounds*` and logical tile size from the union of all painted tiles. */
+  void InferTmxContentBoundsFromTiles();
+
   /** TMX `<map width="…" height="…">` in tiles; 0 if not from TMX. */
   int LogicalMapWidthTiles() const { return logicalMapTilesW_; }
   int LogicalMapHeightTiles() const { return logicalMapTilesH_; }
 
   /** Filled by `TilemapLoader::LoadFromTMX` (layer `index`, roof, windows, objects, …). */
   TmxMapMetadata tmxMeta;
+
+  friend std::optional<SerializedLevelMetadata> TerrainExportLevelMetadata(const Terrain2D &,
+                                                                           const std::string &);
+  friend void TerrainImportLevelMetadata(Terrain2D &, const SerializedLevelMetadata &,
+                                         const std::string &);
 
 public:
   Tileset tileset;
@@ -115,8 +173,10 @@ private:
   void BeginTmxMode(int mapTileW, int mapTileH, std::vector<TmxTilesetEntry> entries);
   void SetTmxLogicalExtent(int tilesW, int tilesH);
   const TmxTilesetEntry *FindTmxTileset(uint32_t gid) const;
-  void RenderChunkedLayerGid(Renderer &renderer, const ChunkedLayer &layer) const;
-  void RenderChunkedLayerTileIndex(Renderer &renderer, const ChunkedLayer &layer) const;
+  void RenderChunkedLayerGid(Renderer &renderer, const ChunkedLayer &layer,
+                             float alpha = 1.0f) const;
+  void RenderChunkedLayerTileIndex(Renderer &renderer, const ChunkedLayer &layer,
+                                   float alpha = 1.0f) const;
 
   bool gidMode_ = false;
   int mapTilePxW_ = 0;

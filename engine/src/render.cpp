@@ -397,6 +397,51 @@ void Renderer::DrawTexturePro(TextureHandle texture, Rect source, Rect dest,
   RestoreTextureBlend(tex, prevBlend);
 }
 
+void Renderer::DrawTextureProFlipped(TextureHandle texture, Rect source, Rect dest,
+                                     Vec2 origin, float rotation, Color tint,
+                                     bool flipH, bool flipV,
+                                     TextureBlendMode blend) {
+  if (!s_impl || !s_impl->renderer || !texture.valid())
+    return;
+  if (!flipH && !flipV) {
+    DrawTexturePro(texture, source, dest, origin, rotation, tint, blend);
+    return;
+  }
+  SDL_Texture* tex = (SDL_Texture*)texture.opaque;
+  SDL_FRect src = {source.x, source.y, source.width, source.height};
+  float dx = dest.x, dy = dest.y;
+  float dw = dest.width, dh = dest.height;
+  bool flipY = (s_impl->currentRenderTarget != nullptr);
+  if (s_impl->cameraActive) {
+    WorldToScreen(dest.x, dest.y, s_impl->camera, s_impl->viewportW,
+                  s_impl->viewportH, dx, dy, flipY);
+    float zoom = s_impl->camera.zoom;
+    dw = dest.width * zoom;
+    dh = dest.height * zoom;
+  }
+  SDL_FRect dst = {dx, dy, dw, dh};
+  SDL_BlendMode prevBlend;
+  ApplyTextureBlend(tex, blend, &prevBlend);
+  SDL_SetTextureColorMod(tex, tint.r, tint.g, tint.b);
+  SDL_SetTextureAlphaMod(tex, tint.a);
+  float ox = origin.x, oy = origin.y;
+  if (s_impl->cameraActive) {
+    float zoom = s_impl->camera.zoom;
+    ox = origin.x * zoom;
+    oy = origin.y * zoom;
+  }
+  SDL_FPoint center = {dx + ox, dy + oy};
+  int flipMask = SDL_FLIP_NONE;
+  if (flipH) flipMask |= SDL_FLIP_HORIZONTAL;
+  if (flipV) flipMask |= SDL_FLIP_VERTICAL;
+  SDL_RenderTextureRotated(s_impl->renderer, tex, &src, &dst,
+                           static_cast<double>(rotation), &center,
+                           static_cast<SDL_FlipMode>(flipMask));
+  SDL_SetTextureColorMod(tex, 255, 255, 255);
+  SDL_SetTextureAlphaMod(tex, 255);
+  RestoreTextureBlend(tex, prevBlend);
+}
+
 void Renderer::ProcessEvents(std::function<bool(const void*)>* consumeFirst) {
   if (!s_impl || !s_impl->window)
     return;

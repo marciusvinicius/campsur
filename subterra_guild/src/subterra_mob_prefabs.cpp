@@ -6,6 +6,7 @@
 #include <iterator>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace subterra {
 namespace {
@@ -73,28 +74,12 @@ bool isMobType(const nlohmann::json &el) {
   return type == "enemy" || type == "mob" || type == "npc";
 }
 
-} // namespace
-
-void SubterraMobPrefabsClear() { g_mobDefs.clear(); }
-
-bool SubterraMobPrefabsTryLoadFromPath(const std::string &path) {
-  g_mobDefs.clear();
-  std::ifstream f(path, std::ios::binary);
-  if (!f)
+static bool AppendMobDefsFromList(const nlohmann::json &list,
+                                  std::vector<SubterraMobPrefabDef> *outVec,
+                                  std::unordered_map<std::string, SubterraMobPrefabDef> *outMap) {
+  if (!list.is_array())
     return false;
-  std::string raw((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
-  if (raw.empty())
-    return false;
-  nlohmann::json root;
-  try {
-    root = nlohmann::json::parse(stripLineCommentsOutsideStrings(raw));
-  } catch (...) {
-    g_mobDefs.clear();
-    return false;
-  }
-  if (!root.is_object() || !root.contains("list") || !root["list"].is_array())
-    return false;
-  for (const auto &el : root["list"]) {
+  for (const auto &el : list) {
     if (!isMobType(el))
       continue;
     SubterraMobPrefabDef def;
@@ -140,9 +125,64 @@ bool SubterraMobPrefabsTryLoadFromPath(const std::string &path) {
         def.event_listeners.push_back(std::move(listener));
       }
     }
-    g_mobDefs[def.prefab_name] = std::move(def);
+    if (outVec)
+      outVec->push_back(def);
+    if (outMap)
+      (*outMap)[def.prefab_name] = std::move(def);
   }
+  return true;
+}
+
+static bool ParseMobMetaRoot(const nlohmann::json &root,
+                             std::vector<SubterraMobPrefabDef> *outVec,
+                             std::unordered_map<std::string, SubterraMobPrefabDef> *outMap) {
+  if (!root.is_object() || !root.contains("list"))
+    return false;
+  return AppendMobDefsFromList(root["list"], outVec, outMap);
+}
+
+} // namespace
+
+void SubterraMobPrefabsClear() { g_mobDefs.clear(); }
+
+bool SubterraMobPrefabsTryLoadFromPath(const std::string &path) {
+  g_mobDefs.clear();
+  std::ifstream f(path, std::ios::binary);
+  if (!f)
+    return false;
+  std::string raw((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  if (raw.empty())
+    return false;
+  nlohmann::json root;
+  try {
+    root = nlohmann::json::parse(stripLineCommentsOutsideStrings(raw));
+  } catch (...) {
+    g_mobDefs.clear();
+    return false;
+  }
+  if (!ParseMobMetaRoot(root, nullptr, &g_mobDefs))
+    return false;
   return !g_mobDefs.empty();
+}
+
+bool SubterraMobPrefabsReadListFromPath(const std::string &path,
+                                        std::vector<SubterraMobPrefabDef> &out) {
+  out.clear();
+  std::ifstream f(path, std::ios::binary);
+  if (!f)
+    return false;
+  std::string raw((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  if (raw.empty())
+    return false;
+  nlohmann::json root;
+  try {
+    root = nlohmann::json::parse(stripLineCommentsOutsideStrings(raw));
+  } catch (...) {
+    return false;
+  }
+  if (!ParseMobMetaRoot(root, &out, nullptr))
+    return false;
+  return !out.empty();
 }
 
 bool SubterraMobPrefabNameIsRegistered(std::string_view prefabName) {

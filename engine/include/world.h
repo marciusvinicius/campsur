@@ -122,6 +122,8 @@ public:
     systems.push_back(std::move(sys));
     return ptr;
   }
+  /** Remove all registered systems (e.g. to swap between editor and game mode systems). */
+  void ClearSystems();
 
   // World Update
   void OnUpdate(std::function<void(float)> fn);
@@ -129,7 +131,8 @@ public:
   void Render(Renderer &renderer);
 
   // Serialization
-  SerializedWorld Serialize() const;
+  /** @param world_file_dir_for_level_export Parent directory of the `.json` being written (for relative paths in `level`). */
+  SerializedWorld Serialize(const std::string &world_file_dir_for_level_export = {}) const;
   /** @param asset_root_dir Directory of the `.json` file (parent path); used for relative texture/tileset paths. */
   void Deserialize(const SerializedWorld &data,
                    const std::string &asset_root_dir = {});
@@ -160,6 +163,14 @@ public:
   Camera2D maincamera;
   box3d::FPCamera maincamera3D;
 
+  /**
+   * When set, `SpriteSystem` / `RenderSystem` sort draw order by sprite foot Y (bottom of
+   * footprint) so characters occlude correctly in belt-scroller / beat-'em-up scenes.
+   * Default off (uses `SpriteRenderLayer` + player draw bias).
+   */
+  void SetSpriteSortByGroundY(bool v) { spriteSortByGroundY_ = v; }
+  bool GetSpriteSortByGroundY() const { return spriteSortByGroundY_; }
+
   // Get all entities
   const std::vector<ecs::EntityId> &GetAllEntities() const {
     return ecs::EntityManager::instance().get_alive_entities();
@@ -171,6 +182,7 @@ public:
   bool TryGetEntityCenter2D(ecs::EntityId id, float width, float height, Vec2 *outCenter) const;
 
 private:
+  bool spriteSortByGroundY_ = false;
   ecs::EntityId mainCameraEntity = ecs::NULL_ENTITY;
   ecs::EntityId mainCamera3DEntity = ecs::NULL_ENTITY;
   std::unordered_map<size_t, std::unique_ptr<GlobalComponent>> globalComponents;

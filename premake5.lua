@@ -361,6 +361,29 @@ filter("system:linux")
 links({ "GL", "pthread", "m", "dl", "X11", "z" })
 filter({})
 
+project("campsur_subterra_dedup_test")
+kind("ConsoleApp")
+language("C++")
+cppdialect("C++23")
+location("./")
+targetname("campsur_subterra_dedup_test")
+files({
+  "test_subterra_dedup.cpp",
+  "subterra_guild/src/subterra_level_ecs.cpp",
+})
+includedirs({
+  "engine/include",
+  "engine/",
+  "subterra_guild/include",
+  "subterra_guild/",
+  ".",
+})
+link_to("engine")
+link_sdl3()
+filter("system:linux")
+links({ "GL", "pthread", "m", "dl", "X11", "z" })
+filter({})
+
 if os.isfile("enet-1.3.18/premake5.lua") then
 	include("enet-1.3.18")
 end

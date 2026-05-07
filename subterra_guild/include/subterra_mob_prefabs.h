@@ -28,6 +28,9 @@ struct SubterraMobPrefabDef {
 
 void SubterraMobPrefabsClear();
 bool SubterraMobPrefabsTryLoadFromPath(const std::string &path);
+/** Load mob entries from a single `.campsurmeta` file without mutating the global registry. */
+bool SubterraMobPrefabsReadListFromPath(const std::string &path,
+                                        std::vector<SubterraMobPrefabDef> &out);
 bool SubterraMobPrefabNameIsRegistered(std::string_view prefabName);
 bool SubterraMobTryGetPrefabDef(std::string_view prefabName, SubterraMobPrefabDef &out);
 

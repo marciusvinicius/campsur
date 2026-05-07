@@ -1,0 +1,38 @@
+{
+  "entities": [
+    {
+      "id": 1,
+      "components": [
+        { "type": "Name",      "fields": { "name": "player" } },
+        { "type": "Transform", "fields": { "x": 200.0, "y": 150.0 } },
+        {
+          "type": "Sprite",
+          "fields": {
+            "atlasPath": "assets/sprites/dude_monster.png",
+            "spriteX": 0,
+            "spriteY": 0,
+            "spriteSize": 32
+          }
+        },
+        { "type": "LayerMembership", "fields": { "layerName": "Default" } }
+      ]
+    },
+    {
+      "id": 2,
+      "components": [
+        { "type": "Name",      "fields": { "name": "Owlet" } },
+        { "type": "Transform", "fields": { "x": 320.0, "y": 150.0 } },
+        {
+          "type": "Sprite",
+          "fields": {
+            "atlasPath": "assets/sprites/owlet_monster.png",
+            "spriteX": 0,
+            "spriteY": 0,
+            "spriteSize": 32
+          }
+        },
+        { "type": "LayerMembership", "fields": { "layerName": "Default" } }
+      ]
+    }
+  ]
+}

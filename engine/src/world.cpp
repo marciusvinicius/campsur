@@ -1,4 +1,7 @@
 #include "world.h"
+#include "level_metadata_json.h"
+#include "map_authoring_components.h"
+#include "object_layer.h"
 #include "animated_component.h"
 #include "animation_database.h"
 #include "asset_manager.h"
@@ -29,6 +32,14 @@ ecs::EntityId World::CreateEntity(const std::string &name) {
 }
 
 void World::DeleteEntity(ecs::EntityId id) {
+  for (ecs::EntityId other : GetAllEntities()) {
+    if (other == id)
+      continue;
+    if (auto *p = GetComponent<Parent>(other)) {
+      if (p->parent == id)
+        RemoveComponent<Parent>(other);
+    }
+  }
   ecs::Registry::instance().destroy_entity(id);
   entity_names.erase(id);
 }
@@ -38,6 +49,8 @@ bool World::HasEntity(ecs::EntityId id) const {
 }
 
 void World::OnUpdate(std::function<void(float)> fn) { userUpdate = fn; }
+
+void World::ClearSystems() { systems.clear(); }
 
 void World::Update(float dt) {
   // Run user update callback
@@ -70,11 +83,14 @@ void World::Render(Renderer& renderer) {
   renderer.EndCamera2D();
 }
 
-SerializedWorld World::Serialize() const {
+SerializedWorld World::Serialize(const std::string &world_file_dir_for_level_export) const {
   SerializedWorld world;
 
   if (terrain) {
     world.terrain = terrain->Serialize();
+    if (auto lev = TerrainExportLevelMetadata(*terrain, world_file_dir_for_level_export);
+        lev.has_value())
+      world.level = std::move(*lev);
   }
 
   // Collect all animation IDs used by AnimatedSprite components
@@ -209,6 +225,26 @@ SerializedWorld World::Serialize() const {
     if (auto box3D = GetComponent<Box3D>(entity_id)) {
       serialized_entity.components.push_back(box3D->Serialize());
     }
+    if (auto mez = GetComponent<MapEventZone2D>(entity_id)) {
+      serialized_entity.components.push_back(mez->Serialize());
+    }
+    if (auto iz = GetComponent<InteractableZone2D>(entity_id)) {
+      serialized_entity.components.push_back(iz->Serialize());
+    }
+    if (auto wsp = GetComponent<WorldSpawnPrefab2D>(entity_id)) {
+      serialized_entity.components.push_back(wsp->Serialize());
+    }
+    if (auto lm = GetComponent<LayerMembership>(entity_id)) {
+      serialized_entity.components.push_back(lm->Serialize());
+    }
+    if (auto par = GetComponent<Parent>(entity_id)) {
+      serialized_entity.components.push_back(par->Serialize());
+    }
+    if (auto pinst = GetComponent<PrefabInstance>(entity_id)) {
+      serialized_entity.components.push_back(pinst->Serialize());
+    }
+    // EditorHidden is intentionally omitted: it's a transient editor-only
+    // tag re-derived from `hiddenObjectLayers` each frame.
 
     if (!serialized_entity.components.empty()) {
       world.entities.push_back(serialized_entity);
@@ -310,13 +346,29 @@ void World::Deserialize(const SerializedWorld &data,
   if (!data.terrain.tileset.tilesetPath.empty()) {
     terrain = std::make_unique<Terrain2D>();
     terrain->Deserialize(data.terrain, asset_root_dir);
+    if (data.level.has_value())
+      TerrainImportLevelMetadata(*terrain, *data.level, asset_root_dir);
   }
+
+  std::unordered_map<int, ecs::EntityId> fileIdToEntity;
+  std::vector<std::pair<ecs::EntityId, int>> pendingParents;
 
   for (const auto &serialized_entity : data.entities) {
     ecs::EntityId entity_id = CreateEntity();
+    fileIdToEntity[serialized_entity.id] = entity_id;
 
     for (const auto &serialized_component : serialized_entity.components) {
       const auto &type_name = serialized_component.type;
+
+      if (type_name == "Parent") {
+        if (auto it = serialized_component.fields.find("parent");
+            it != serialized_component.fields.end()) {
+          const int pfile = GetInt(it->second);
+          if (pfile >= 0)
+            pendingParents.push_back({entity_id, pfile});
+        }
+        continue;
+      }
 
       if (type_name == "Transform") {
         auto &trans = AddComponent<Transform>(entity_id);
@@ -424,8 +476,31 @@ void World::Deserialize(const SerializedWorld &data,
       } else if (type_name == "Box3D") {
         auto &box3D = AddComponent<Box3D>(entity_id);
         box3D.Deserialize(serialized_component);
+      } else if (type_name == "MapEventZone2D") {
+        auto &c = AddComponent<MapEventZone2D>(entity_id);
+        c.Deserialize(serialized_component);
+      } else if (type_name == "InteractableZone2D") {
+        auto &c = AddComponent<InteractableZone2D>(entity_id);
+        c.Deserialize(serialized_component);
+      } else if (type_name == "WorldSpawnPrefab2D") {
+        auto &c = AddComponent<WorldSpawnPrefab2D>(entity_id);
+        c.Deserialize(serialized_component);
+      } else if (type_name == "LayerMembership") {
+        auto &c = AddComponent<LayerMembership>(entity_id);
+        c.Deserialize(serialized_component);
+      } else if (type_name == "PrefabInstance") {
+        auto &c = AddComponent<PrefabInstance>(entity_id);
+        c.Deserialize(serialized_component);
       }
+      // Note: "EditorHidden" is intentionally not deserialized; the editor
+      // re-applies it from `hiddenObjectLayers` on each toggle.
     }
+  }
+
+  for (const auto &pp : pendingParents) {
+    auto it = fileIdToEntity.find(pp.second);
+    if (it != fileIdToEntity.end())
+      AddComponent<Parent>(pp.first, Parent{it->second});
   }
 }
 

@@ -8,6 +8,7 @@
 #include "input.h"
 #include "keys.h"
 #include "math.h"
+#include "object_layer.h"
 #include "resources.h"
 #include "terrain.h"
 #include <algorithm>
@@ -153,8 +154,32 @@ std::string ResolveClipKeyForAnimation(AssetId animId, const AnimationState &st)
   return preferred;
 }
 
-/** Base layer from `SpriteRenderLayer` plus a large bias for the player (`Name` or `PlayerTag`). */
+/** Larger Y = drawn later (in front) for belt-scroller depth. */
+static int GroundYSortKey(const World &world, ecs::EntityId id) {
+  const auto *tr = world.GetComponent<Transform>(id);
+  if (!tr)
+    return 0;
+  if (const auto *sp = world.GetComponent<Sprite>(id)) {
+    const float sy = (tr->scale_y > 0.f) ? tr->scale_y : 1.f;
+    const float h = static_cast<float>(sp->spriteSize) * sy;
+    return static_cast<int>((tr->y + h) * 1000.f);
+  }
+  if (const auto *asp = world.GetComponent<AnimatedSprite>(id)) {
+    const auto *def = AnimationDatabase::instance().getAnimation(asp->animationId);
+    if (!def)
+      return static_cast<int>((tr->y) * 1000.f);
+    Rect fr = asp->GetFrame();
+    const float sy = (tr->scale_y > 0.f) ? tr->scale_y : 1.f;
+    const float h = fr.height * sy;
+    return static_cast<int>((tr->y + h) * 1000.f);
+  }
+  return static_cast<int>(tr->y * 1000.f);
+}
+
 int EffectiveSpriteDrawOrder(const World &world, ecs::EntityId id) {
+  if (world.GetSpriteSortByGroundY()) {
+    return GroundYSortKey(world, id) * 10 + (static_cast<int>(id) & 7);
+  }
   int order = 0;
   if (auto *rl = world.GetComponent<SpriteRenderLayer>(id))
     order += rl->layer;
@@ -482,6 +507,8 @@ void RenderSystem::Render(Renderer &renderer) {
     return a < b;
   });
   for (ecs::EntityId id : ids) {
+    if (world.GetComponent<EditorHidden>(id))
+      continue;
     auto *animSprite = world.GetComponent<AnimatedSprite>(id);
     auto *tr = world.GetComponent<Transform>(id);
 
@@ -696,6 +723,8 @@ void SpriteSystem::Render(Renderer &renderer) {
     return a < b;
   });
   for (ecs::EntityId id : ids) {
+    if (world.GetComponent<EditorHidden>(id))
+      continue;
     auto *sprite = world.GetComponent<Sprite>(id);
     auto *tr = world.GetComponent<Transform>(id);
 

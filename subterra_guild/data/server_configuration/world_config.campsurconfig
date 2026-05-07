@@ -91,7 +91,7 @@
     "health_satiety_depletion_rate": 50.0,
     "health_satiety_max": 100.0,
     "health_satiety_regen_rate": 0.0,
-    "init_map": "assets/levels/Cave.tmx",
+    "init_map": "assets/levels/Cave.campsurlevel",
     "stamina_depletion_on_run_rate": 40.0,
     "stamina_satiety_max": 100.0,
     "stamina_satiety_regen_rate": 30.0,

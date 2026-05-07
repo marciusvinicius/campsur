@@ -99,6 +99,7 @@ Defined mainly in **`components.h`** and **`animated_component.h`**:
 | Movement / AI | `Controller` (incl. `velocity` for networked movement), `AIController` |
 | Animation | `AnimationState`, `AnimatedSprite` |
 | Physics / 2D gameplay | `RigidBody`, `BoxCollider`, `Grounded`, `Gravity` (global), `Sprite` |
+| Map / editor tags | `LayerMembership` (serialized layer name for editor object layers); **`EditorHidden`** (transient: skip in `SpriteSystem` / `RenderSystem` when an editor hides an object layer) |
 | Identity | `Name` |
 | Camera | `Camera` (wraps `Camera2D` data) |
 | Networking | `NetReplicated`, `ReplicatedNetId` |
@@ -115,8 +116,8 @@ All implement **`ISystem`**: `Update(float dt)`, `Render(Renderer &)`.
 | `MovementSystem3D` | 3D movement path |
 | `AIMovementSystem` | `AIController` → target entity |
 | `AnimationSystem` | `AnimatedSprite` + `AnimationState` → clip/frame |
-| `SpriteSystem` | Renders `Sprite` + `Transform` |
-| `RenderSystem` | Renders `AnimatedSprite` + `Transform` via `AnimationDatabase` |
+| `SpriteSystem` | Renders `Sprite` + `Transform` (skips entities with `EditorHidden`) |
+| `RenderSystem` | Renders `AnimatedSprite` + `Transform` via `AnimationDatabase` (skips `EditorHidden`) |
 | `GravitySystem` | `RigidBody` + `Gravity` |
 | `CollisionSystem` | `RigidBody` + `BoxCollider` vs static colliders and **terrain layer 0** (`CellHasTile`) |
 
@@ -139,7 +140,7 @@ The dynamic blocker callback is evaluated per-axis against the same movement foo
 ### 6.1 `Renderer`
 
 - Window lifecycle, viewport, **2D camera** (`BeginCamera2D` / `EndCamera2D`).
-- Drawing: `DrawRect`, `DrawCircle`, `DrawLine`, `DrawTextureRec`, `DrawTexturePro`, `DrawGrid`, text.
+- Drawing: `DrawRect`, `DrawCircle`, `DrawLine`, `DrawTextureRec`, `DrawTexturePro`, **`DrawTextureProFlipped`** (H/V flip for Tiled tile draws), `DrawGrid`, text.
 - **Textures**: `LoadTexture`, `UnloadTexture`; **render targets** for off-screen passes (editor).
 
 ### 6.2 `Input` / `keys.h`
@@ -170,16 +171,17 @@ Singleton: **`AnimationDef`** (texture path, clips), **`AnimationClip`** (frames
 
 - **Chunked storage**: layers are maps of `(chunkX, chunkY) → tile array` of size `chunkSize²` (default 16).
 - **Legacy mode**: tile values are **atlas indices**; empty = **`-1`**.
-- **TMX / GID mode**: after `LoadFromTMX`, cells store **Tiled global tile IDs**; empty = **`0`**. **`UsesGidMode()`**, **`GridStepX()` / `GridStepY()`** follow **map** `tilewidth` / `tileheight`.
-- **Multi-tileset**: **`tmxTilesets`** (`TmxTilesetEntry`: `firstGid`, `Tileset`, margin, spacing, pixel tile size). Rendering picks atlas + UV per GID; **`DrawTexturePro`** stretches source tile into map cell size.
-- **API**: `GetTile`, `SetTile`, `CellHasTile`, `FillLayer`, layer add/remove/clear, `GetVisibleTileRange`, `Serialize` / `Deserialize` (serialization is oriented toward **single tileset** legacy; full TMX round-trip is limited).
+- **TMX / GID mode**: after `LoadFromTMX`, layer cells store the **full 32-bit Tiled GID** (low 29 bits = global tile id; high bits = H/V/D **flip flags**). Values may be **negative** when interpreted as `int` because the H-flip bit sets the sign—use **`TileGid()`** / **`TileFlipH`** / **`TileFlipV`** / **`TileFlipD`** in `terrain.h` when decoding. Empty cell = **`0`**. **`CellHasTile`** uses **`TileGid(v) != 0`** in GID mode so flipped tiles are not treated as empty.
+- **Multi-tileset**: **`tmxTilesets`** (`TmxTilesetEntry`: `firstGid`, `Tileset`, margin, spacing, pixel tile size, optional **`tileProperties`** map: local tile id → list of `TmxProperty` from `<tile id="N"><properties>…</properties></tile>` in TSX / inline tilesets). Rendering picks atlas + UV per GID; flipped tiles use **`DrawTextureProFlipped`** for **horizontal and vertical** mirror; **diagonal (rotate)** bit is stored but not yet visualized in the same path.
+- **Layer metadata**: `tmxMeta.layerInfo[]` carries per-tile-layer **`visible`**, **`opacity`**, names, etc.; these round-trip through the level JSON (`level_metadata_json.cpp`).
+- **API**: `GetTile`, `SetTile`, `CellHasTile`, `FillLayer`, layer add/remove/move/duplicate, `GetVisibleTileRange`, `Serialize` / `Deserialize`; level save also stores multi-tileset entries and tile property maps when present.
 
 ### 8.2 Loading maps
 
 | Loader | Format |
 |--------|--------|
 | **`TilemapLoader::LoadFromJSON`** | JSON shaped like a Tiled export: `tilewidth`, `tilesets[0].image`, `layers[]` with `data` (indices adjusted −1 in loader). |
-| **`TilemapLoader::LoadFromTMX`** | **TMX XML**: orthogonal, non-infinite, **CSV** `<data>`, external `.tsx` or inline tilesets, multiple `firstgid` ranges. Flip flags stripped from GID; **no** zlib/base64 tile layers yet. |
+| **`TilemapLoader::LoadFromTMX`** | **TMX XML**: orthogonal, non-infinite, **CSV** `<data>`, external `.tsx` or inline tilesets, multiple `firstgid` ranges. **Flip bits preserved** in stored cell values; **no** zlib/base64 tile layers yet. |
 
 ### 8.3 World integration
 
@@ -191,9 +193,10 @@ Singleton: **`AnimationDef`** (texture path, clips), **`AnimationClip`** (frames
 
 ## 9. Serialization
 
-- **`serialization.h`**: `SerializedComponent`, `SerializedEntity`, **`SerializedWorld`** (entities + **`SerializedTerrain2D`** + animations).
-- **`json_serialization.cpp`**: World ↔ JSON for editor / level files.
-- Components implement **`Serialize` / `Deserialize`** into field maps.
+- **`serialization.h`**: `SerializedComponent`, `SerializedEntity`, **`SerializedWorld`** (entities + **`SerializedTerrain2D`** + animations + optional **`SerializedLevelMetadata`** / `level` block in saved scenes).
+- **`json_serialization.cpp`**: World ↔ JSON for editor / level files (`.campsurlevel`, `.json`).
+- **`level_metadata_json.cpp`**: Read/write the embedded **`level`** object (metadata, tilesets with **per-tile properties**, layer visibility/opacity, object groups, etc.).
+- Components implement **`Serialize` / `Deserialize`** into field maps. Notable: **`Sprite`** includes **`atlasPath`** so textures reload after save; **`World::Serialize`** includes **`LayerMembership`** (and omits transient **`EditorHidden`**).
 
 ---
 
@@ -239,14 +242,16 @@ engine/
 │   ├── components.h, animated_component.h, core_systems.h, systems.h
 │   ├── ecs_core.h, ecs_registry.h, entity.h
 │   ├── asset_manager.h, resources.h, animation_*.h
-│   ├── terrain.h, terrain_loader.h, serialization.h, json_serialization.h
+│   ├── terrain.h, terrain_loader.h, serialization.h, json_serialization.h, level_metadata_json.h
+│   ├── object_layer.h, map_authoring_components.h, tmx_metadata.h
 │   ├── component_factory.h, event.h, criogenio_io.h, log.h
 │   ├── network/*.h
 │   └── box3d/*.h
 └── src/
     ├── engine.cpp, world.cpp, render.cpp, input.cpp, core_systems.cpp
     ├── terrain.cpp, terrain_loader.cpp, tmx_loader.cpp
-    ├── asset_manager.cpp, animation_*.cpp, json_serialization.cpp
+    ├── asset_manager.cpp, animation_*.cpp
+    ├── json_serialization.cpp, level_metadata_json.cpp, map_authoring_components.cpp
     └── network/*.cpp, box3d/*.cpp
 ```
 

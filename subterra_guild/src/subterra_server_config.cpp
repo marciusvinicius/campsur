@@ -164,6 +164,12 @@ bool SubterraTryLoadServerConfigurationFromPaths(const char *const *paths, size_
     if (root.contains("debug") && root["debug"].is_object())
       session.debugModeFromConfig = jsonGetB(root["debug"], "debug_mode", false);
     session.worldConfigPath = p;
+    session.configInitMap.clear();
+    if (root.contains("world") && root["world"].is_object()) {
+      const auto &wobj = root["world"];
+      if (wobj.contains("init_map") && wobj["init_map"].is_string())
+        session.configInitMap = wobj["init_map"].get<std::string>();
+    }
     return true;
   }
   return false;
@@ -219,6 +225,9 @@ bool SubterraHotReloadServerConfiguration(SubterraSession &session, bool reloadM
               static_cast<double>(jsonGetF(w, "day_time_phase_size",
                                             static_cast<float>(session.dayNight.dayPhaseSize)));
           SubterraClampDayPhaseSize(session.dayNight);
+          session.configInitMap.clear();
+          if (w.contains("init_map") && w["init_map"].is_string())
+            session.configInitMap = w["init_map"].get<std::string>();
         }
         if (root.contains("debug") && root["debug"].is_object())
           session.debugModeFromConfig =

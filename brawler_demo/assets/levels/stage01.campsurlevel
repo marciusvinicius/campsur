@@ -1,0 +1,72 @@
+{
+  "entities": [
+    {
+      "id": 1,
+      "components": [
+        { "type": "Name", "fields": { "name": "player" } },
+        { "type": "Transform", "fields": { "x": 400.0, "y": 220.0 } },
+        {
+          "type": "Sprite",
+          "fields": {
+            "atlasPath": "assets/sprites/dude_monster.png",
+            "spriteX": 0,
+            "spriteY": 0,
+            "spriteSize": 32
+          }
+        },
+        {
+          "type": "Controller",
+          "fields": {
+            "velocity_x": 285.0,
+            "velocity_y": 155.0,
+            "direction": 1,
+            "movement_frozen": 0.0,
+            "tile_collision_w": 0.0,
+            "tile_collision_h": 0.0,
+            "tile_collision_offset_x": 0.0,
+            "tile_collision_offset_y": 0.0
+          }
+        },
+        {
+          "type": "AnimationState",
+          "fields": { "current": 0, "previous": 0, "facing": 3 }
+        },
+        { "type": "LayerMembership", "fields": { "layerName": "Default" } }
+      ]
+    },
+    {
+      "id": 2,
+      "components": [
+        { "type": "Name", "fields": { "name": "thug_a" } },
+        { "type": "Transform", "fields": { "x": 640.0, "y": 260.0 } },
+        {
+          "type": "Sprite",
+          "fields": {
+            "atlasPath": "assets/sprites/owlet_monster.png",
+            "spriteX": 0,
+            "spriteY": 0,
+            "spriteSize": 32
+          }
+        },
+        { "type": "LayerMembership", "fields": { "layerName": "Default" } }
+      ]
+    },
+    {
+      "id": 3,
+      "components": [
+        { "type": "Name", "fields": { "name": "thug_b" } },
+        { "type": "Transform", "fields": { "x": 560.0, "y": 340.0 } },
+        {
+          "type": "Sprite",
+          "fields": {
+            "atlasPath": "assets/sprites/owlet_monster.png",
+            "spriteX": 0,
+            "spriteY": 0,
+            "spriteSize": 32
+          }
+        },
+        { "type": "LayerMembership", "fields": { "layerName": "Default" } }
+      ]
+    }
+  ]
+}

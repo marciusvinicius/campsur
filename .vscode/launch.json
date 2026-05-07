@@ -196,6 +196,35 @@
     {
       "type": "cppdbg",
       "request": "launch",
+      "name": "Brawler Demo (Windows)",
+      "program": "${workspaceFolder}/bin/Debug/campsur_brawler_demo.exe",
+      "args": [],
+      "preLaunchTask": "Build Brawler Demo",
+      "cwd": "${workspaceFolder}/brawler_demo",
+      "stopAtEntry": false,
+      "externalConsole": false
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Brawler Demo (Linux)",
+      "program": "${workspaceFolder}/bin/Debug/campsur_brawler_demo",
+      "args": [],
+      "preLaunchTask": "Build Brawler Demo",
+      "cwd": "${workspaceFolder}/brawler_demo",
+      "stopAtEntry": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
       "name": "FP Plane (Windows)",
       "program": "${workspaceFolder}/bin/Debug/campsur_fp_plane.exe",
       "args": [],

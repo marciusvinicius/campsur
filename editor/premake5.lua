@@ -22,6 +22,7 @@ files({
 	"thirdpart/imgui-docking/imgui_draw.cpp",
 	"thirdpart/imgui-docking/imgui_tables.cpp",
 	"thirdpart/imgui-docking/imgui_widgets.cpp",
+	"thirdpart/imgui-docking/misc/cpp/imgui_stdlib.cpp",
 
 	"thirdpart/imgui-docking/backends/imgui_impl_sdl3.cpp",
 	"thirdpart/imgui-docking/backends/imgui_impl_sdlrenderer3.cpp",
@@ -36,11 +37,13 @@ includedirs({
 
 	"../engine/include",
 	"../enet-1.3.18/include",
+	"../subterra_guild/include",
 
 	-- tinyfiledialogs
 	"thirdpart",
 
 	"thirdpart/imgui-docking",
+	"thirdpart/imgui-docking/misc/cpp",
 	"thirdpart/imgui-docking/backends",
 })
 
@@ -50,6 +53,7 @@ includedirs({
 links({
 	"engine",
 	"enet",
+	"libsubterra",
 })
 
 -- Engine uses SDL3; editor uses SDL3 for window + ImGui backend (imgui_impl_sdl3).

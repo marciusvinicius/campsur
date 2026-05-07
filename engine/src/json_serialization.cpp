@@ -1,4 +1,5 @@
 #include "json_serialization.h"
+#include "level_metadata_json.h"
 
 namespace criogenio {
 
@@ -98,6 +99,12 @@ json ToJson(const SerializedWorld &world) {
     j["animations"].push_back(ja);
   }
 
+  if (world.level.has_value()) {
+    json jl;
+    LevelMetadataToJson(*world.level, jl);
+    j["level"] = std::move(jl);
+  }
+
   return j;
 }
 
@@ -176,6 +183,12 @@ SerializedWorld FromJson(const json &j) {
       }
       world.animations.push_back(anim);
     }
+  }
+
+  if (j.contains("level") && j["level"].is_object()) {
+    SerializedLevelMetadata lm;
+    LevelMetadataFromJson(j["level"], lm);
+    world.level = std::move(lm);
   }
 
   if (j.contains("entities") == false)

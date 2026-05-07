@@ -3,6 +3,7 @@
 #include "animation_state.h"
 #include "asset_manager.h"
 #include "box3d/fp_camera.h"
+#include "ecs_core.h"
 #include "graphics_types.h"
 #include "network/net_entity.h"
 #include "json.hpp"
@@ -346,6 +347,32 @@ public:
   }
 };
 
+/**
+ * Scene hierarchy link: entity is a child of `parent` (organizational; transforms stay world-space).
+ * Serialized `parent` uses the entity id from the level file; deserialized with a remap pass.
+ */
+class Parent : public Component {
+public:
+  ecs::EntityId parent = ecs::NULL_ENTITY;
+
+  Parent() = default;
+  explicit Parent(ecs::EntityId p) : parent(p) {}
+
+  std::string TypeName() const override { return "Parent"; }
+  SerializedComponent Serialize() const override {
+    const int p =
+        (parent == ecs::NULL_ENTITY) ? -1 : static_cast<int>(parent);
+    return {"Parent", {{"parent", p}}};
+  }
+  void Deserialize(const SerializedComponent &data) override {
+    if (auto it = data.fields.find("parent"); it != data.fields.end()) {
+      const int p = GetInt(it->second);
+      parent =
+          (p < 0) ? ecs::NULL_ENTITY : static_cast<ecs::EntityId>(p);
+    }
+  }
+};
+
 /** Optional draw order for `RenderSystem` / `SpriteSystem`. Higher draws later (on top). */
 class SpriteRenderLayer : public Component {
 public:
@@ -504,6 +531,10 @@ public:
     out.fields["spriteX"] = static_cast<int>(spriteX);
     out.fields["spriteY"] = static_cast<int>(spriteY);
     out.fields["spriteSize"] = static_cast<int>(spriteSize);
+    // Serialize the atlas path so editor-dropped sprites round-trip through
+    // save/load. The runtime `atlas` shared_ptr is reconstituted via the
+    // AssetManager on deserialize.
+    out.fields["atlasPath"] = atlasPath;
     return out;
   }
 
@@ -516,6 +547,11 @@ public:
       spriteY = GetInt(it->second);
     if (auto it = data.fields.find("spriteSize"); it != data.fields.end())
       spriteSize = GetInt(it->second);
+    if (auto it = data.fields.find("atlasPath"); it != data.fields.end()) {
+      atlasPath = GetString(it->second);
+      if (!atlasPath.empty())
+        atlas = criogenio::AssetManager::instance().load<TextureResource>(atlasPath);
+    }
   }
 
   void SetTexture(const char *path) {
