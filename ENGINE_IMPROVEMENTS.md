@@ -134,6 +134,8 @@ Suggestions based on a review of the Criogenio engine. Ordered by impact vs effo
 - Subterra now has an explicit gameplay event path using `MapEventBus` + `GameplayActionRegistry`.
 - Data-driven listeners are active for interactables and mobs (`required_data` filtering + named actions).
 - Item light emitters can dispatch overlap-driven gameplay events from item prefab definitions.
+- Item light rendering and dispatch now share holder-bound emitter component state (`ItemLightEmitterState`), synchronized by `ItemLightSyncSystem` across inventory holders and world pickups.
+- Dynamic gameplay collision hooks were added to engine movement (`SetWorldMovementBlockProvider`), enabling closed-door physical blocking and trigger guarding without duplicating movement logic in game code.
 
 **Improvement:**  
 - Use events for “entity spawned”, “entity destroyed”, “collision”, “input consumed” so gameplay and UI can react without direct coupling.  

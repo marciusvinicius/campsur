@@ -122,6 +122,16 @@ All implement **`ISystem`**: `Update(float dt)`, `Render(Renderer &)`.
 
 **Order matters**: e.g. gravity before collision; games should register systems in a deliberate order.
 
+### 5.1 Movement extension hooks
+
+`MovementSystem` supports world-scoped callbacks for game-specific movement behavior:
+
+- `SetWorldMovementInputProvider(world, axisFn, runHeldFn, user)` for per-world movement/run input overrides.
+- `SetWorldMovementBlockProvider(world, blockFn, user)` for dynamic blockers (for example closed doors in map gameplay).
+- `ClearWorldMovementInputProvider(world)` / `ClearWorldMovementBlockProvider(world)` for cleanup on teardown/unload.
+
+The dynamic blocker callback is evaluated per-axis against the same movement footprint used by tile collision (`tile_collision_*`), so gameplay blockers compose with static terrain collision without forking engine movement code.
+
 ---
 
 ## 6. Rendering & input

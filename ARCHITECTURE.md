@@ -12,6 +12,8 @@ The Criogenio Engine is a 2D game engine built in C++ using an Entity Component 
 - **Data-driven mob prefabs (Subterra):** `entities_mobs.json` is now loaded into a mob prefab registry (default `entity_data`, listeners, visual hints), and TMX `spawn_prefab` can resolve directly to mob spawning.
 - **Mob brain runtime (Subterra):** `brain_type` values are mapped to C++ brain handlers and executed per-frame before `AIMovementSystem` applies movement.
 - **Item event dispatch from light emitters (Subterra):** `entities_items.json` supports `event_dispatch`; active item light emitters can dispatch `MapEventPayload` with structured `event_data` (for example `light_emission_touched`) into the same listener/action flow used by interactables and mobs.
+- **Holder-bound item light lifecycle (Subterra):** item emitters are now synchronized into `ItemLightEmitterState` components on holder entities (inventory/loadout holders and world pickups), so rendering and event dispatch share one lifecycle source of truth.
+- **Hard-collision doors (Subterra):** closed doors can block movement physically via the engine movement blocker hook, with optional teleport-trigger guard when a closed door overlaps a teleport zone.
 - **Delayed command queue (engine):** `DelayedCommandQueue` allows scheduling callbacks for later execution (`push(delay, fn)` + `update(dt)`), useful for cutscene-like sequences.
 - **Richer TMX interactables:** `TiledInteractable` now carries raw object properties, enabling behaviors like lever-to-door links driven by map data (for example `opens_door`).
 - **Subterra animation JSON compatibility:** player/animation loading supports both strip-based Subterra JSON and engine clip-export JSON, with path resolution tolerant to `./` and repo/layout differences.
@@ -444,9 +446,12 @@ Subterra gameplay uses `MapEventBus` (`subterra_guild/include/map_events.h`) as 
 - Event sources:
   - TMX trigger overlap (`MapEventSystem`)
   - Manual console emits (debug/testing)
-  - Item light overlap dispatch (`ItemEventDispatchSystem`)
+  - Item light overlap dispatch (`ItemEventDispatchSystem`) fed by holder-bound emitter state
 - Event payload:
   - `MapEventPayload` includes IDs/triggers plus optional JSON `event_data`
+- Item-light lifecycle:
+  - `ItemLightSyncSystem` writes `ItemLightEmitterState` on holder entities (`Inventory`+`SubterraLoadout`+`Transform`) and on `WorldPickup` entities
+  - render and dispatch consume the same emitter component state, preventing desync/ghost emitters
 - Listener evaluation:
   - Interactable listeners from `entities_interactable.json`
   - Mob listeners from `entities_mobs.json`
@@ -617,6 +622,8 @@ Send Input → Receive Snapshot → ApplySnapshot (create/update entities, set T
   - `entities_mobs.json` for mob prefabs + brain/listener defaults
   - `entities_items.json` for item light emission + item event dispatch definitions
 - Item light overlap dispatch uses pair-tracking + cooldown to reduce repeated event spam while preserving `on_collision_enter`-style behavior.
+- Item light emission is now holder-lifecycle-driven (`ItemLightEmitterState` + `ItemLightSyncSystem`), so world emitters disappear immediately when picked up and carried emitters follow holder entities consistently.
+- Closed-door blocking uses engine movement blocker callbacks (`SetWorldMovementBlockProvider`) so dynamic gameplay blockers compose with TMX collision without custom movement forks.
 
 ## Extension Points
 
