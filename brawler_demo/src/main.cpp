@@ -1,4 +1,5 @@
 #include "animated_component.h"
+#include "animation_database.h"
 #include "components.h"
 #include "core_systems.h"
 #include "criogenio_io.h"
@@ -29,6 +30,50 @@ ecs::EntityId FindPlayer(World &w) {
   return ecs::NULL_ENTITY;
 }
 
+/** Visual center in world space (`Sprite` / `AnimatedSprite` use top-left `Transform`). */
+bool PlayerVisualCenter(World &w, ecs::EntityId id, float *outW, float *outH, Vec2 *outCenter) {
+  auto *tr = w.GetComponent<Transform>(id);
+  if (!tr || !outCenter)
+    return false;
+  if (auto *sp = w.GetComponent<Sprite>(id)) {
+    const float sx = tr->scale_x > 0.f ? tr->scale_x : 1.f;
+    const float sy = tr->scale_y > 0.f ? tr->scale_y : 1.f;
+    const float ww = static_cast<float>(sp->spriteSize) * sx;
+    const float hh = static_cast<float>(sp->spriteSize) * sy;
+    if (outW)
+      *outW = ww;
+    if (outH)
+      *outH = hh;
+    outCenter->x = tr->x + ww * 0.5f;
+    outCenter->y = tr->y + hh * 0.5f;
+    return true;
+  }
+  if (auto *asp = w.GetComponent<AnimatedSprite>(id)) {
+    const auto *def = AnimationDatabase::instance().getAnimation(asp->animationId);
+    if (!def)
+      return false;
+    Rect fr = asp->GetFrame();
+    const float sx = tr->scale_x > 0.f ? tr->scale_x : 1.f;
+    const float sy = tr->scale_y > 0.f ? tr->scale_y : 1.f;
+    const float ww = fr.width * sx;
+    const float hh = fr.height * sy;
+    if (outW)
+      *outW = ww;
+    if (outH)
+      *outH = hh;
+    outCenter->x = tr->x + ww * 0.5f;
+    outCenter->y = tr->y + hh * 0.5f;
+    return true;
+  }
+  if (outW)
+    *outW = 32.f;
+  if (outH)
+    *outH = 32.f;
+  outCenter->x = tr->x;
+  outCenter->y = tr->y;
+  return true;
+}
+
 } // namespace
 
 class BrawlerEngine : public Engine {
@@ -42,11 +87,15 @@ protected:
     Camera2D *cam = w.GetActiveCamera();
     if (!cam || playerId == ecs::NULL_ENTITY || !w.HasEntity(playerId))
       return;
+    float fw = 32.f, fh = 32.f;
+    Vec2 center{};
+    if (!PlayerVisualCenter(w, playerId, &fw, &fh, &center))
+      return;
     CameraFollow2DConfig cfg;
-    cfg.smoothingSpeed = 8.f;
-    cfg.deadzoneHalfWidth = 96.f;
-    cfg.deadzoneHalfHeight = 56.f;
-    UpdateCameraFollow2D(w, cam, playerId, 32.f, 32.f, dt, cfg);
+    cfg.smoothingSpeed = 0.f;
+    cfg.deadzoneHalfWidth = 0.f;
+    cfg.deadzoneHalfHeight = 0.f;
+    (void)UpdateCameraFollow2D(w, cam, playerId, fw, fh, dt, cfg);
   }
 };
 
@@ -79,9 +128,16 @@ int main(int argc, char **argv) {
   w.AddSystem<RenderSystem>(w);
 
   Camera2D cam{};
-  cam.target = {440.f, 280.f};
   cam.offset = {0.f, 0.f};
   cam.zoom = 1.f;
+  if (engine.playerId != ecs::NULL_ENTITY) {
+    Vec2 pc{};
+    float pw = 32.f, ph = 32.f;
+    if (PlayerVisualCenter(w, engine.playerId, &pw, &ph, &pc)) {
+      cam.target.x = pc.x;
+      cam.target.y = pc.y;
+    }
+  }
   w.AttachCamera2D(cam);
 
   engine.Run();
