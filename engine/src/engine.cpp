@@ -287,6 +287,12 @@ void Engine::RegisterCoreComponents() {
   ComponentFactory::Register("LayerMembership", [](World& w, int e) {
     return &w.AddComponent<LayerMembership>(e);
   });
+  ComponentFactory::Register("Parent", [](World& w, int e) {
+    return &w.AddComponent<Parent>(e);
+  });
+  ComponentFactory::Register("PrefabInstance", [](World& w, int e) {
+    return &w.AddComponent<PrefabInstance>(e);
+  });
   ComponentFactory::Register("EditorHidden", [](World& w, int e) {
     return &w.AddComponent<EditorHidden>(e);
   });

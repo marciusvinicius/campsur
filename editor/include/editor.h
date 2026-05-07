@@ -28,10 +28,6 @@ enum class ZoneHandle {
   L,      R,
   BL, B, BR
 };
-struct Hierarchy {
-  int parent = -1;
-  std::vector<int> children;
-};
 
 struct EditorState {
   int selectedEntityId;
@@ -132,6 +128,12 @@ private:
 
   void DrawUI();
   void DrawHierarchyPanel();
+  /** Re-parent for hierarchy (drag-drop or inspector); clears Parent when `newParent` is NULL_ENTITY. */
+  void SetEntityParent(criogenio::ecs::EntityId child, criogenio::ecs::EntityId newParent);
+  void DestroyEntityInEditor(criogenio::ecs::EntityId id);
+  void DrawHierarchyEntityNode(criogenio::ecs::EntityId id,
+      const std::unordered_map<criogenio::ecs::EntityId, std::vector<criogenio::ecs::EntityId>> &childrenByParent,
+      std::vector<criogenio::ecs::EntityId> &pendingDelete);
   void DrawInspectorPanel();
   void DrawDockSpace();
   void DrawWorldView();
@@ -161,6 +163,8 @@ private:
   void DrawMapEventZone2DInspector(int entity);
   void DrawInteractableZone2DInspector(int entity);
   void DrawWorldSpawnPrefab2DInspector(int entity);
+  void DrawParentInspector(int entity);
+  void DrawPrefabInstanceInspector(int entity);
   void DrawAddComponentMenu(int entity);
   void DrawGlobalComponentsPanel();
   void DrawGlobalInspector();
@@ -172,9 +176,6 @@ private:
   void CreateSpawnPrefabAtMouse();
 
   bool IsSceneInputAllowed() const;
-
-  void DrawHierarchyNodes();
-  void DrawEntityNode(int entity);
 
   bool IsMouseInWorldView();
 
@@ -363,11 +364,16 @@ private:
   void LoadLevelFromAbsolutePath(const std::string &absPath);
   bool SaveCurrentLevel();
   void SaveCurrentLevelAs();
+  /** Bake ECS zone entities into level metadata, then save (Ctrl+Shift+S). */
+  bool SaveCurrentLevelWithBake();
   void SaveProjectDescriptor();
   void HandleEditorShortcuts();
   void DrawNewLevelModal();
   /** Template: 0 = 2D tilemap, 1 = 2D free-form, 2 = 3D (matches legacy New Scene). */
   void ApplyLevelTemplateReset(int kind);
+  /** After reset with kind 0: default terrain + layer meta + player spawn if a tileset is found. */
+  void EnsureDefaultTilemapAfterTemplateReset();
+  void UpsertPlayerStartInLevel(criogenio::Terrain2D &terrain, float worldCx, float worldCy);
   // Draw grid overlay on terrain in viewport
   void DrawTerrainGridOverlay(const criogenio::Terrain2D &terrain,
                               const criogenio::Camera2D &camera);

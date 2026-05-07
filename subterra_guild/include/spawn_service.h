@@ -25,4 +25,11 @@ void SpawnTiledMapPrefabs(SubterraSession &session);
 /** Spawn from entities with `WorldSpawnPrefab2D` + `Transform` (same rules as tiled spawn prefabs). */
 void SpawnEntityPrefabMarkers(SubterraSession &session);
 
+/**
+ * Fill `mobPrefabByEntity` / `mobEntityDataByEntity` for mobs already in the world
+ * (e.g. editor-placed `PrefabInstance` + `MobTag`) so brains and gameplay match spawned mobs.
+ * Skips entities already registered and the session player.
+ */
+void RegisterAuthoringMobSessionState(SubterraSession &session);
+
 } // namespace subterra

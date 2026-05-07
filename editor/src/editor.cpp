@@ -14,6 +14,7 @@
 #include "resources.h"
 #include "terrain.h"
 #include "tmx_metadata.h"
+#include "gameplay_tags.h"
 #include "map_authoring_components.h"
 #include "object_layer.h"
 #include "component_factory.h"
@@ -28,6 +29,7 @@
 #include <SDL3/SDL.h>
 #include <algorithm>
 #include <chrono>
+#include <unordered_map>
 #include <unordered_set>
 #include <cmath>
 #include <cctype>
@@ -365,10 +367,131 @@ void EditorApp::SaveProjectDescriptor() {
     std::printf("[Editor] Saved project: %s\n", projectCampsurAbsPath->c_str());
 }
 
+namespace {
+
+static std::string FindFirstImageUnderDir(const std::string &dir) {
+  if (dir.empty())
+    return {};
+  std::error_code ec;
+  fs::directory_options opts = fs::directory_options::skip_permission_denied;
+  for (fs::recursive_directory_iterator it(dir, opts, ec), end;
+       it != end; it.increment(ec)) {
+    if (ec)
+      break;
+    if (!it->is_regular_file())
+      continue;
+    std::string ext = it->path().extension().string();
+    for (char &c : ext)
+      c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp")
+      return it->path().string();
+  }
+  return {};
+}
+
+static bool FileExistsPath(const std::string &p) {
+  std::error_code ec;
+  return !p.empty() && fs::is_regular_file(p, ec);
+}
+
+} // namespace
+
+bool EditorApp::SaveCurrentLevelWithBake() {
+  BakeEcsZonesIntoTmxMeta();
+  return SaveCurrentLevel();
+}
+
+void EditorApp::UpsertPlayerStartInLevel(criogenio::Terrain2D &terrain, float worldCx,
+                                         float worldCy) {
+  for (auto &g : terrain.tmxMeta.objectGroups) {
+    g.objects.erase(
+        std::remove_if(g.objects.begin(), g.objects.end(),
+                       [](const criogenio::TiledMapObject &o) {
+                         return o.name == "player_start_position";
+                       }),
+        g.objects.end());
+  }
+  criogenio::TiledObjectGroup *spawns = nullptr;
+  for (auto &g : terrain.tmxMeta.objectGroups) {
+    if (g.name == "spawns") {
+      spawns = &g;
+      break;
+    }
+  }
+  if (!spawns) {
+    terrain.tmxMeta.objectGroups.push_back(criogenio::TiledObjectGroup{"spawns", -1, {}});
+    spawns = &terrain.tmxMeta.objectGroups.back();
+  }
+  criogenio::TiledMapObject o;
+  o.id = 91001;
+  o.name = "player_start_position";
+  o.x = worldCx;
+  o.y = worldCy;
+  o.point = true;
+  spawns->objects.push_back(std::move(o));
+}
+
+void EditorApp::EnsureDefaultTilemapAfterTemplateReset() {
+  std::string tsPath;
+  if (project.has_value())
+    tsPath = FindFirstImageUnderDir(project->spritesDir);
+  static const char *kFallbackRels[] = {
+      "assets/sprites/tileset.png",
+      "assets/sprites/tiles.png",
+      "subterra_guild/assets/sprites/tileset.png",
+  };
+  if (tsPath.empty() && project.has_value()) {
+    for (const char *rel : kFallbackRels) {
+      std::string p = project->Resolve(rel);
+      if (FileExistsPath(p)) {
+        tsPath = std::move(p);
+        break;
+      }
+    }
+  }
+  if (tsPath.empty())
+    std::fprintf(
+        stderr,
+        "[Editor] New 2D tilemap: no tileset image found under sprites dir or common paths; "
+        "using empty path (assign a tileset later).\n");
+
+  auto &w = GetWorld();
+  w.CreateTerrain2D("Terrain", tsPath);
+  criogenio::Terrain2D *t = w.GetTerrain();
+  if (!t)
+    return;
+
+  t->tmxMeta.layerInfo.clear();
+  criogenio::TiledLayerMeta lm;
+  lm.name = "ground";
+  lm.mapLayerIndex = 0;
+  t->tmxMeta.layerInfo.push_back(std::move(lm));
+
+  t->InferTmxContentBoundsFromTiles();
+
+  const auto &m = t->tmxMeta;
+  const float sx = static_cast<float>(t->GridStepX());
+  const float sy = static_cast<float>(t->GridStepY());
+  float cx = (static_cast<float>(m.boundsMinTx) + static_cast<float>(m.boundsMaxTx)) * 0.5f * sx;
+  float cy = (static_cast<float>(m.boundsMinTy) + static_cast<float>(m.boundsMaxTy)) * 0.5f * sy;
+
+  UpsertPlayerStartInLevel(*t, cx, cy);
+  terrainEditMode = true;
+  if (criogenio::Camera2D *cam = w.GetActiveCamera()) {
+    cam->target.x = cx;
+    cam->target.y = cy;
+  }
+  MarkLevelDirty();
+}
+
 void EditorApp::HandleEditorShortcuts() {
   ImGuiIO &io = ImGui::GetIO();
   if (io.WantTextInput)
     return;
+  if (io.KeyCtrl && io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_S, false)) {
+    SaveCurrentLevelWithBake();
+    return;
+  }
   if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false))
     SaveCurrentLevel();
 }
@@ -395,6 +518,8 @@ void EditorApp::ApplyLevelTemplateReset(int kind) {
     }
   }
   EditorAppReset();
+  if (kind == 0)
+    EnsureDefaultTilemapAfterTemplateReset();
 }
 
 void EditorApp::DrawNewLevelModal() {
@@ -700,80 +825,70 @@ void EditorApp::DrawGlobalInspector() {
 }
 
 void EditorApp::DrawHierarchyPanel() {
-  if (ImGui::Begin("Hierarchy")) {
-    for (auto id : GetWorld().GetAllEntities()) {
-      bool selected =
-          (selectedEntityId.has_value() && selectedEntityId.value() == id);
+  namespace ecs = criogenio::ecs;
+  criogenio::World &w = GetWorld();
 
-      char label[64];
-      std::string entity_name = "";
-      if (auto *nameComp = GetWorld().GetComponent<criogenio::Name>(id)) {
-        entity_name = nameComp->name;
-      }
-      if (entity_name.empty()) {
-        entity_name = "Test";
-      }
+  std::unordered_map<ecs::EntityId, std::vector<ecs::EntityId>> childrenByParent;
+  std::vector<ecs::EntityId> roots;
+  roots.reserve(w.GetAllEntities().size());
 
-      snprintf(label, sizeof(label), "Entity %s", entity_name.c_str());
-
-      if (ImGui::Selectable(label, selected)) {
-        selectedEntityId = id;
-      }
-
-      // --- Right-click context menu ---
-      if (ImGui::BeginPopupContextItem()) {
-        if (ImGui::MenuItem("Delete Entity")) {
-          // Clean up animation references if entity has AnimatedSprite
-          if (auto *sprite =
-                  GetWorld().GetComponent<criogenio::AnimatedSprite>(id)) {
-            if (sprite->animationId != INVALID_ASSET_ID) {
-              AnimationDatabase::instance().removeReference(
-                  sprite->animationId);
-            }
-          }
-          GetWorld().DeleteEntity(id);
-          if (selectedEntityId.has_value() && selectedEntityId.value() == id) {
-            selectedEntityId.reset();
-          }
-          activeZoneHandle = ZoneHandle::None;
-          activeColliderHandle = ZoneHandle::None;
-          MarkLevelDirty();
-          ImGui::EndPopup();
-          break;
-        }
-        ImGui::EndPopup();
-      }
+  for (ecs::EntityId id : w.GetAllEntities()) {
+    if (auto *p = w.GetComponent<criogenio::Parent>(id)) {
+      if (p->parent != ecs::NULL_ENTITY && w.HasEntity(p->parent))
+        childrenByParent[p->parent].push_back(id);
+      else
+        roots.push_back(id);
+    } else {
+      roots.push_back(id);
     }
+  }
+  for (auto &kv : childrenByParent)
+    std::sort(kv.second.begin(), kv.second.end());
+  std::sort(roots.begin(), roots.end());
+
+  std::vector<ecs::EntityId> pendingDelete;
+
+  if (ImGui::Begin("Hierarchy")) {
+    if (ImGui::BeginDragDropTarget()) {
+      if (const ImGuiPayload *payload =
+              ImGui::AcceptDragDropPayload("CAMPSUR_ENTITY_ID")) {
+        IM_ASSERT(payload->DataSize == sizeof(ecs::EntityId));
+        ecs::EntityId dragged = *(const ecs::EntityId *)payload->Data;
+        SetEntityParent(dragged, ecs::NULL_ENTITY);
+      }
+      ImGui::EndDragDropTarget();
+    }
+
+    for (ecs::EntityId root : roots)
+      DrawHierarchyEntityNode(root, childrenByParent, pendingDelete);
 
     if (ImGui::BeginPopupContextWindow()) {
       if (ImGui::MenuItem("Create Empty")) {
-        // CreateEmptyEntity();
+        ecs::EntityId e = w.CreateEntity("GameObject");
+        w.AddComponent<criogenio::Transform>(e);
+        if (criogenio::Camera2D *cam = w.GetActiveCamera()) {
+          if (auto *t = w.GetComponent<criogenio::Transform>(e)) {
+            t->x = cam->target.x;
+            t->y = cam->target.y;
+          }
+        }
+        w.AddComponent<criogenio::Name>(e, "GameObject");
+        selectedEntityId = static_cast<int>(e);
+        MarkLevelDirty();
       }
       if (selectedEntityId.has_value()) {
         ImGui::Separator();
-        if (ImGui::MenuItem("Delete Entity")) {
-          int entityToDelete = selectedEntityId.value();
-          // Clean up animation references if entity has AnimatedSprite
-          if (auto *sprite = GetWorld().GetComponent<criogenio::AnimatedSprite>(
-                  entityToDelete)) {
-            if (sprite->animationId != INVALID_ASSET_ID) {
-              AnimationDatabase::instance().removeReference(
-                  sprite->animationId);
-            }
-          }
-          GetWorld().DeleteEntity(entityToDelete);
-          selectedEntityId.reset();
-          activeZoneHandle = ZoneHandle::None;
-          activeColliderHandle = ZoneHandle::None;
-          MarkLevelDirty();
-        }
+        if (ImGui::MenuItem("Delete Entity"))
+          DestroyEntityInEditor(
+              static_cast<ecs::EntityId>(selectedEntityId.value()));
       }
-
       ImGui::EndPopup();
-      // DrawHierarchyNodes();
     }
   }
   ImGui::End();
+
+  for (ecs::EntityId id : pendingDelete)
+    DestroyEntityInEditor(id);
 
   // Inspector window (components only)
   if (ImGui::Begin("Inspector")) {
@@ -918,6 +1033,43 @@ bool EditorApp::IsMouseInWorldView() {
   return criogenio::PointInRect(mouse, viewRect);
 }
 
+namespace {
+
+/** True if `ancestor` is on the parent chain above `descendant`. */
+static bool EditorHierarchyIsUnder(criogenio::World &w, criogenio::ecs::EntityId ancestor,
+                                   criogenio::ecs::EntityId descendant) {
+  namespace ecs = criogenio::ecs;
+  for (ecs::EntityId x = descendant; x != ecs::NULL_ENTITY;) {
+    auto *p = w.GetComponent<criogenio::Parent>(x);
+    if (!p)
+      break;
+    if (p->parent == ancestor)
+      return true;
+    x = p->parent;
+  }
+  return false;
+}
+
+static void ApplyTransformDeltaToHierarchyChildren(criogenio::World &w,
+                                                   criogenio::ecs::EntityId root,
+                                                   float dx, float dy) {
+  namespace ecs = criogenio::ecs;
+  if ((dx == 0.f && dy == 0.f) || !w.HasEntity(root))
+    return;
+  for (ecs::EntityId id : w.GetAllEntities()) {
+    if (id == root)
+      continue;
+    if (!EditorHierarchyIsUnder(w, root, id))
+      continue;
+    if (auto *t = w.GetComponent<criogenio::Transform>(id)) {
+      t->x += dx;
+      t->y += dy;
+    }
+  }
+}
+
+} // namespace
+
 void EditorApp::HandleEntityDrag(Vec2 mouseDelta) {
   if (sceneMode == SceneMode::Scene3D)
     return;
@@ -938,13 +1090,21 @@ void EditorApp::HandleEntityDrag(Vec2 mouseDelta) {
     auto* transform =
         GetWorld().GetComponent<criogenio::Transform>(selectedEntityId.value());
     if (transform) {
+      const float ox = transform->x;
+      const float oy = transform->y;
       transform->x += drag.x;
       transform->y += drag.y;
       Vec2 snapped = SnapWorldToGrid({transform->x, transform->y});
+      const float dx = snapped.x - ox;
+      const float dy = snapped.y - oy;
       transform->x = snapped.x;
       transform->y = snapped.y;
-      if (drag.x != 0.f || drag.y != 0.f)
+      if (dx != 0.f || dy != 0.f) {
+        ApplyTransformDeltaToHierarchyChildren(
+            GetWorld(),
+            static_cast<criogenio::ecs::EntityId>(selectedEntityId.value()), dx, dy);
         MarkLevelDirty();
+      }
     }
   }
 }
@@ -1881,6 +2041,9 @@ void EditorApp::DrawMainMenuBar() {
       }
       if (ImGui::MenuItem("Save Level As...")) {
         SaveCurrentLevelAs();
+      }
+      if (ImGui::MenuItem("Save Level (Bake zones first)...", "Ctrl+Shift+S")) {
+        SaveCurrentLevelWithBake();
       }
       if (ImGui::BeginMenu("Import")) {
         if (ImGui::MenuItem("Tiled Map (.tmx)...")) {
@@ -3142,6 +3305,23 @@ void EditorApp::DrawLevelMetadataPanel() {
         "\nUse File > Save Level afterwards to persist the result.");
   }
   ImGui::Spacing();
+  ImGui::TextUnformatted("Player spawn (Subterra)");
+  if (ImGui::Button("Place player_start at camera target", ImVec2(-1, 0))) {
+    if (const criogenio::Camera2D *cam = GetWorld().GetActiveCamera())
+      UpsertPlayerStartInLevel(*terrain, cam->target.x, cam->target.y);
+    MarkLevelDirty();
+  }
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("Writes a point object named player_start_position in the \"spawns\" group.");
+  if (ImGui::Button("Place player_start at mouse (viewport)", ImVec2(-1, 0))) {
+    criogenio::Vec2 w =
+        MaybeSnapToGrid(GetMouseWorld(), terrain, snapToGrid);
+    UpsertPlayerStartInLevel(*terrain, w.x, w.y);
+    MarkLevelDirty();
+  }
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("Uses the world position under the scene cursor; respects View > Snap to grid.");
+  ImGui::Spacing();
 
   if (ImGui::CollapsingHeader("Map bounds & layers", ImGuiTreeNodeFlags_DefaultOpen)) {
     if (ImGui::Button("Infer bounds from painted tiles")) {
@@ -3631,90 +3811,140 @@ void EditorApp::DrawTerrainToolOverlay(const criogenio::Terrain2D &terrain) {
   }
 }
 
-void EditorApp::DrawEntityNode(int entity) {
+static bool EditorParentingWouldCycle(criogenio::World &w,
+                                      criogenio::ecs::EntityId child,
+                                      criogenio::ecs::EntityId newParent) {
+  namespace ecs = criogenio::ecs;
+  for (ecs::EntityId x = newParent; x != ecs::NULL_ENTITY;) {
+    if (x == child)
+      return true;
+    auto *p = w.GetComponent<criogenio::Parent>(x);
+    if (!p)
+      break;
+    x = p->parent;
+  }
+  return false;
+}
 
-  auto *name = GetWorld().GetComponent<criogenio::Name>(entity);
-  if (!name)
+static bool EditorIsAncestorOf(criogenio::World &w, criogenio::ecs::EntityId ancestor,
+                               criogenio::ecs::EntityId descendant) {
+  namespace ecs = criogenio::ecs;
+  for (ecs::EntityId x = descendant; x != ecs::NULL_ENTITY;) {
+    if (x == ancestor)
+      return true;
+    auto *p = w.GetComponent<criogenio::Parent>(x);
+    if (!p)
+      break;
+    x = p->parent;
+  }
+  return false;
+}
+
+void EditorApp::SetEntityParent(criogenio::ecs::EntityId child,
+                                criogenio::ecs::EntityId newParent) {
+  namespace ecs = criogenio::ecs;
+  criogenio::World &w = GetWorld();
+  if (child == newParent)
     return;
+  if (newParent != ecs::NULL_ENTITY && !w.HasEntity(newParent))
+    return;
+  if (newParent != ecs::NULL_ENTITY && EditorParentingWouldCycle(w, child, newParent))
+    return;
+  if (newParent == ecs::NULL_ENTITY) {
+    if (w.HasComponent<criogenio::Parent>(child))
+      w.RemoveComponent<criogenio::Parent>(child);
+  } else {
+    if (!w.HasComponent<criogenio::Parent>(child))
+      w.AddComponent<criogenio::Parent>(child, criogenio::Parent{newParent});
+    else
+      w.GetComponent<criogenio::Parent>(child)->parent = newParent;
+  }
+  MarkLevelDirty();
+}
 
-  ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth;
+void EditorApp::DestroyEntityInEditor(criogenio::ecs::EntityId id) {
+  if (!GetWorld().HasEntity(id))
+    return;
+  if (auto *sprite = GetWorld().GetComponent<criogenio::AnimatedSprite>(id)) {
+    if (sprite->animationId != INVALID_ASSET_ID)
+      AnimationDatabase::instance().removeReference(sprite->animationId);
+  }
+  GetWorld().DeleteEntity(id);
+  if (selectedEntityId.has_value() &&
+      selectedEntityId.value() == static_cast<int>(id))
+    selectedEntityId.reset();
+  activeZoneHandle = ZoneHandle::None;
+  activeColliderHandle = ZoneHandle::None;
+  MarkLevelDirty();
+}
 
-  if (selectedEntityId == entity)
+void EditorApp::DrawHierarchyEntityNode(
+    criogenio::ecs::EntityId id,
+    const std::unordered_map<criogenio::ecs::EntityId,
+                            std::vector<criogenio::ecs::EntityId>> &childrenByParent,
+    std::vector<criogenio::ecs::EntityId> &pendingDelete) {
+  namespace ecs = criogenio::ecs;
+  criogenio::World &w = GetWorld();
+
+  auto nit = childrenByParent.find(id);
+  const bool hasKids =
+      nit != childrenByParent.end() && !nit->second.empty();
+
+  std::string label = "Entity";
+  if (auto *nm = w.GetComponent<criogenio::Name>(id)) {
+    if (!nm->name.empty())
+      label = nm->name;
+  }
+  label += " (" + std::to_string(static_cast<unsigned>(id)) + ")";
+
+  ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth |
+                             ImGuiTreeNodeFlags_OpenOnArrow;
+  if (selectedEntityId.has_value() &&
+      selectedEntityId.value() == static_cast<int>(id))
     flags |= ImGuiTreeNodeFlags_Selected;
+  if (!hasKids)
+    flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
 
-  bool open = ImGui::TreeNodeEx((void *)(intptr_t)entity, flags, "%s",
-                                name->name.c_str());
+  ImGui::PushID(static_cast<int>(id));
+  const bool nodeOpen = ImGui::TreeNodeEx("node", flags, "%s", label.c_str());
+  if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+    selectedEntityId = static_cast<int>(id);
 
-  if (ImGui::IsItemClicked()) {
-    selectedEntityId = entity;
+  if (ImGui::BeginDragDropSource()) {
+    ImGui::SetDragDropPayload("CAMPSUR_ENTITY_ID", &id, sizeof(id));
+    ImGui::Text("%s", label.c_str());
+    ImGui::EndDragDropSource();
+  }
+  if (ImGui::BeginDragDropTarget()) {
+    if (const ImGuiPayload *pl = ImGui::AcceptDragDropPayload("CAMPSUR_ENTITY_ID")) {
+      IM_ASSERT(pl->DataSize == sizeof(ecs::EntityId));
+      ecs::EntityId dragged = *(const ecs::EntityId *)pl->Data;
+      if (dragged != id)
+        SetEntityParent(dragged, id);
+    }
+    ImGui::EndDragDropTarget();
   }
 
-  // Context menu
   if (ImGui::BeginPopupContextItem()) {
     if (ImGui::MenuItem("Create Child")) {
-      // CreateChildEntity(entity);
+      ecs::EntityId c = w.CreateEntity("GameObject");
+      w.AddComponent<criogenio::Transform>(c);
+      w.AddComponent<criogenio::Name>(c, "GameObject");
+      SetEntityParent(c, id);
+      selectedEntityId = static_cast<int>(c);
     }
-    if (ImGui::MenuItem("Delete")) {
-      // DeleteEntity(entity);
-      ImGui::EndPopup();
-      return;
-    }
+    if (ImGui::MenuItem("Delete Entity"))
+      pendingDelete.push_back(id);
     ImGui::EndPopup();
   }
 
-  // ImGui::EndPopup();
-
-  // if (open && hasChildren) {
-  //  for (int child : hierarchy->children) {
-  //    DrawEntityNode(child);
-  //  }
-  ImGui::TreePop();
-  //}
-}
-
-void EditorApp::DrawHierarchyNodes() {
-  // for (int entity : GetWorld().GetEntitiesWith<Hierarchy>()) {
-  //   auto &h = GetWorld().GetComponent<Hierarchy>(entity);
-  //   if (h.parent == -1) {
-  //
-  for (int entity : GetWorld().GetEntitiesWith<criogenio::Name>()) {
-    DrawEntityNode(entity);
+  if (nodeOpen && hasKids) {
+    for (ecs::EntityId c : nit->second)
+      DrawHierarchyEntityNode(c, childrenByParent, pendingDelete);
+    ImGui::TreePop();
   }
+  ImGui::PopID();
 }
-/*
-void EditorApp::DrawHierarchyNodes() {
-
-  for (int entity : GetWorld().GetEntitiesWith<Name>()) {
-
-    auto *name = GetWorld().GetComponent<Name>(entity);
-    if (!name) continue;
-
-    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf |
-                               ImGuiTreeNodeFlags_NoTreePushOnOpen |
-                               ImGuiTreeNodeFlags_SpanAvailWidth;
-
-    if (selectedEntityId.has_value() && selectedEntityId.value() == entity)
-      flags |= ImGuiTreeNodeFlags_Selected;
-
-    ImGui::TreeNodeEx((void *)(intptr_t)entity, flags, "%s",
-name.name.c_str());
-
-    // Selection
-    if (ImGui::IsItemClicked()) {
-      selectedEntityId = entity;
-    }
-
-    // Context menu (right-click)
-    if (ImGui::BeginPopupContextItem()) {
-      if (ImGui::MenuItem("Delete")) {
-        DeleteEntity(entity);
-        ImGui::EndPopup();
-        return; // entity list changed
-      }
-      ImGui::EndPopup();
-    }
-  }
-}*/
 
 void EditorApp::HandleScenePicking() {
   if (sceneMode == SceneMode::Scene3D)
@@ -3896,6 +4126,10 @@ void EditorApp::DrawComponentInspectors(int entity) {
     DrawInteractableZone2DInspector(entity);
   if (GetWorld().HasComponent<criogenio::WorldSpawnPrefab2D>(entity))
     DrawWorldSpawnPrefab2DInspector(entity);
+  if (GetWorld().HasComponent<criogenio::PrefabInstance>(entity))
+    DrawPrefabInstanceInspector(entity);
+  if (GetWorld().HasComponent<criogenio::Parent>(entity))
+    DrawParentInspector(entity);
 }
 
 void EditorApp::DrawGravityInspector(int entity) {
@@ -5209,8 +5443,84 @@ void EditorApp::DrawWorldSpawnPrefab2DInspector(int entity) {
 
   ImGui::InputText("Prefab name", &z->prefab_name);
   ImGui::DragInt("Quantity", &z->quantity, 1, 1, 10000);
-  ImGui::DragFloat("Spawn area width (0 = point)", &z->width, 1.f, 0.f, 4096.f);
   ImGui::DragFloat("Spawn area height", &z->height, 1.f, 0.f, 4096.f);
+}
+
+void EditorApp::DrawPrefabInstanceInspector(int entity) {
+  ImGui::PushID("PrefabInstance");
+  ImGui::BeginGroup();
+  bool headerOpen = ImGui::CollapsingHeader("Prefab instance");
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+  if (ImGui::SmallButton("X")) {
+    GetWorld().RemoveComponent<criogenio::PrefabInstance>(entity);
+    ImGui::EndGroup();
+    ImGui::PopID();
+    MarkLevelDirty();
+    return;
+  }
+  ImGui::EndGroup();
+  ImGui::PopID();
+  if (!headerOpen)
+    return;
+  auto *p = GetWorld().GetComponent<criogenio::PrefabInstance>(entity);
+  if (!p)
+    return;
+  ImGui::TextWrapped("Source: %s", p->source_path.c_str());
+  ImGui::Text("prefab_name: %s", p->prefab_name.c_str());
+}
+
+void EditorApp::DrawParentInspector(int entity) {
+  ImGui::PushID("ParentInsp");
+  ImGui::BeginGroup();
+  bool headerOpen = ImGui::CollapsingHeader("Parent");
+  ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
+  if (ImGui::SmallButton("X")) {
+    GetWorld().RemoveComponent<criogenio::Parent>(entity);
+    ImGui::EndGroup();
+    ImGui::PopID();
+    MarkLevelDirty();
+    return;
+  }
+  ImGui::EndGroup();
+  ImGui::PopID();
+  if (!headerOpen)
+    return;
+  auto *par = GetWorld().GetComponent<criogenio::Parent>(entity);
+  if (!par)
+    return;
+
+  criogenio::World &w = GetWorld();
+  namespace ecs = criogenio::ecs;
+
+  ecs::EntityId current = par->parent;
+  std::string preview =
+      (current == ecs::NULL_ENTITY)
+          ? std::string("(none)")
+          : (w.HasComponent<criogenio::Name>(current)
+                 ? w.GetComponent<criogenio::Name>(current)->name + " [" +
+                       std::to_string(static_cast<unsigned>(current)) + "]"
+                 : std::string("Entity ") +
+                       std::to_string(static_cast<unsigned>(current)));
+
+  if (ImGui::BeginCombo("Parent entity", preview.c_str())) {
+    if (ImGui::Selectable("(none)", current == ecs::NULL_ENTITY)) {
+      SetEntityParent(static_cast<ecs::EntityId>(entity), ecs::NULL_ENTITY);
+    }
+    for (ecs::EntityId oid : w.GetAllEntities()) {
+      if (oid == static_cast<ecs::EntityId>(entity))
+        continue;
+      if (EditorIsAncestorOf(w, static_cast<ecs::EntityId>(entity), oid))
+        continue;
+      std::string en = std::to_string(static_cast<unsigned>(oid));
+      if (auto *nm = w.GetComponent<criogenio::Name>(oid);
+          nm && !nm->name.empty())
+        en = nm->name + " [" + std::to_string(static_cast<unsigned>(oid)) + "]";
+      if (ImGui::Selectable(en.c_str(), oid == current)) {
+        SetEntityParent(static_cast<ecs::EntityId>(entity), oid);
+      }
+    }
+    ImGui::EndCombo();
+  }
 }
 
 void EditorApp::DrawAddComponentMenu(int entity) {

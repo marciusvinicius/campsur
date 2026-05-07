@@ -3,6 +3,7 @@
 #include "animation_state.h"
 #include "asset_manager.h"
 #include "box3d/fp_camera.h"
+#include "ecs_core.h"
 #include "graphics_types.h"
 #include "network/net_entity.h"
 #include "json.hpp"
@@ -343,6 +344,32 @@ public:
 
   void Deserialize(const SerializedComponent &data) override {
     name = std::get<std::string>(data.fields.at("name"));
+  }
+};
+
+/**
+ * Scene hierarchy link: entity is a child of `parent` (organizational; transforms stay world-space).
+ * Serialized `parent` uses the entity id from the level file; deserialized with a remap pass.
+ */
+class Parent : public Component {
+public:
+  ecs::EntityId parent = ecs::NULL_ENTITY;
+
+  Parent() = default;
+  explicit Parent(ecs::EntityId p) : parent(p) {}
+
+  std::string TypeName() const override { return "Parent"; }
+  SerializedComponent Serialize() const override {
+    const int p =
+        (parent == ecs::NULL_ENTITY) ? -1 : static_cast<int>(parent);
+    return {"Parent", {{"parent", p}}};
+  }
+  void Deserialize(const SerializedComponent &data) override {
+    if (auto it = data.fields.find("parent"); it != data.fields.end()) {
+      const int p = GetInt(it->second);
+      parent =
+          (p < 0) ? ecs::NULL_ENTITY : static_cast<ecs::EntityId>(p);
+    }
   }
 };
 

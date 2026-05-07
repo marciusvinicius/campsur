@@ -31,6 +31,7 @@
 #include "subterra_player_vitals.h"
 #include "subterra_server_config.h"
 #include "subterra_session.h"
+#include "spawn_service.h"
 #include "subterra_status_effects.h"
 
 // ImGui
@@ -344,6 +345,7 @@ void EditorGameMode::Start(EditorApp &app, const ProjectContext *proj) {
     // ---- (12) Spawn mobs, triggers, prefabs from terrain -------------------
     session.mapPath = "";
     session.applyPostTerrainLoad("");
+    RegisterAuthoringMobSessionState(session);
     session.placePlayerAtSpawn("");
 
     std::printf("[PlayMode] ▶ Started.\n");

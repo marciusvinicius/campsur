@@ -54,4 +54,27 @@ public:
   }
 };
 
+/** Editor/game traceability: entity was spawned from a `.campsurmeta` entry. */
+class PrefabInstance : public Component {
+public:
+  std::string source_path;
+  std::string prefab_name;
+
+  PrefabInstance() = default;
+  PrefabInstance(std::string src, std::string pfn)
+      : source_path(std::move(src)), prefab_name(std::move(pfn)) {}
+
+  std::string TypeName() const override { return "PrefabInstance"; }
+  SerializedComponent Serialize() const override {
+    return {"PrefabInstance",
+            {{"source_path", source_path}, {"prefab_name", prefab_name}}};
+  }
+  void Deserialize(const SerializedComponent &data) override {
+    if (auto it = data.fields.find("source_path"); it != data.fields.end())
+      source_path = GetString(it->second);
+    if (auto it = data.fields.find("prefab_name"); it != data.fields.end())
+      prefab_name = GetString(it->second);
+  }
+};
+
 } // namespace criogenio

@@ -9,6 +9,8 @@
 #include "subterra_components.h"
 #include "subterra_session.h"
 #include "terrain.h"
+#include "gameplay_tags.h"
+#include "json.hpp"
 #include <cctype>
 #include <cmath>
 #include <filesystem>
@@ -241,6 +243,41 @@ void SpawnEntityPrefabMarkers(SubterraSession &session) {
     float ph = m->height > 0.5f ? m->height : 0.f;
     int qty = m->quantity > 0 ? m->quantity : 1;
     SpawnPickupAt(session, cx, cy, m->prefab_name, qty, pw, ph);
+  }
+}
+
+void RegisterAuthoringMobSessionState(SubterraSession &session) {
+  if (!session.world)
+    return;
+  using namespace criogenio;
+  namespace ecs = criogenio::ecs;
+  for (ecs::EntityId id : session.world->GetEntitiesWith<MobTag, Transform>()) {
+    if (id == session.player)
+      continue;
+    if (session.mobPrefabByEntity.find(id) != session.mobPrefabByEntity.end())
+      continue;
+    const PrefabInstance *pi = session.world->GetComponent<PrefabInstance>(id);
+    if (!pi || pi->prefab_name.empty())
+      continue;
+    std::string prefabKey = lowerAscii(pi->prefab_name);
+    SubterraMobPrefabDef def{};
+    const bool hasPrefab = SubterraMobTryGetPrefabDef(prefabKey, def);
+    session.mobPrefabByEntity[id] = hasPrefab ? def.prefab_name : prefabKey;
+    nlohmann::json state = nlohmann::json::object();
+    if (hasPrefab && def.default_entity_data.is_object())
+      state = def.default_entity_data;
+    if (auto *tr = session.world->GetComponent<Transform>(id)) {
+      state["base_scale_x"] = tr->scale_x;
+      state["base_scale_y"] = tr->scale_y;
+    }
+    if (!state.contains("brain_type"))
+      state["brain_type"] = hasPrefab ? "simple_chase_player" : "simple";
+    state["prefab_name"] = session.mobPrefabByEntity[id];
+    session.mobEntityDataByEntity[id] = std::move(state);
+    if (session.player != ecs::NULL_ENTITY) {
+      if (auto *ai = session.world->GetComponent<AIController>(id))
+        ai->entityTarget = static_cast<int>(session.player);
+    }
   }
 }
 
