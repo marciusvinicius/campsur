@@ -716,3 +716,36 @@ Notes:
 - `required_data` uses subset matching against `event_data`; any field set to `null` behaves as wildcard.
 - `action` is resolved by `GameplayActionRegistry`.
 - Listener-only interactables are not directly use-interactable (`E`) and react through events instead.
+
+## Subterra Runtime Debug Checklist
+
+Use this checklist to quickly verify the newer door collision and holder-bound item light behavior in a running Subterra session.
+
+### Door hard-collision + teleport guard
+
+- Place player near a closed door that blocks a teleport area.
+- Expectation: player movement stops at the door footprint (cannot pass through door rectangle).
+- Open/unlock the door using normal gameplay/event path.
+- Expectation: movement through the doorway works immediately (no reload required).
+- Walk into the teleport trigger area while the door is closed.
+- Expectation: teleport does not dispatch while trigger overlaps a closed door.
+- Walk into the same trigger with the door open.
+- Expectation: teleport dispatches normally.
+
+### Item light lifecycle (holder-bound emitters)
+
+- Spawn/drop an item with `light_emission` (for example `energy_torch`).
+- Expectation: world pickup emits light from the pickup entity position.
+- Pick up the same item.
+- Expectation: world light disappears when the pickup entity is removed; light follows holder entity state.
+- Put the item in active/equipped slots on a holder with `Inventory + SubterraLoadout + Transform`.
+- Expectation: item emits from holder position (not from stale world location).
+- Drop the item again.
+- Expectation: emission moves back to the newly spawned world pickup entity.
+
+### Useful debug commands
+
+- `istate <tiled_object_id>`: inspect interactable `entity_data` (for door `open`/`locked` state).
+- `emitdata <trigger> <json_object>`: simulate map/item event payload filters.
+- `emitlight <event> [r g b] [radius] [intensity]`: test light-driven listener reactions.
+- `itempairs`: inspect active overlap pairs used by item event dispatch cooldown/enter logic.
