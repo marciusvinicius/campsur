@@ -163,6 +163,14 @@ public:
   Camera2D maincamera;
   box3d::FPCamera maincamera3D;
 
+  /**
+   * When set, `SpriteSystem` / `RenderSystem` sort draw order by sprite foot Y (bottom of
+   * footprint) so characters occlude correctly in belt-scroller / beat-'em-up scenes.
+   * Default off (uses `SpriteRenderLayer` + player draw bias).
+   */
+  void SetSpriteSortByGroundY(bool v) { spriteSortByGroundY_ = v; }
+  bool GetSpriteSortByGroundY() const { return spriteSortByGroundY_; }
+
   // Get all entities
   const std::vector<ecs::EntityId> &GetAllEntities() const {
     return ecs::EntityManager::instance().get_alive_entities();
@@ -174,6 +182,7 @@ public:
   bool TryGetEntityCenter2D(ecs::EntityId id, float width, float height, Vec2 *outCenter) const;
 
 private:
+  bool spriteSortByGroundY_ = false;
   ecs::EntityId mainCameraEntity = ecs::NULL_ENTITY;
   ecs::EntityId mainCamera3DEntity = ecs::NULL_ENTITY;
   std::unordered_map<size_t, std::unique_ptr<GlobalComponent>> globalComponents;

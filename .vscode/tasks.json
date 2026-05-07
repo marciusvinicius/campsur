@@ -50,6 +50,15 @@
       "presentation": {"reveal": "silent", "panel": "shared"}
     },
     {
+      "label": "Build Brawler Demo",
+      "type": "shell",
+      "command": "make config=debug_arm64 campsur_brawler_demo",
+      "group": "build",
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": ["$gcc"],
+      "presentation": {"reveal": "silent", "panel": "shared"}
+    },
+    {
       "label": "Build FP Plane",
       "type": "shell",
       "command": "make config=debug_arm64 campsur_fp_plane",

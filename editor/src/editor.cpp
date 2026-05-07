@@ -1,5 +1,6 @@
 #include "editor.h"
 #include "editor_game_mode.h"
+#include "beat_em_up_editor_game_mode.h"
 #include "free_form_2d_editor_game_mode.h"
 #include "animation_database.h"
 #include "animated_component.h"
@@ -64,6 +65,8 @@ static std::unique_ptr<IEditorGameMode> MakeEditorGameModeForProject(
     const std::string &id = proj->gameModeId;
     if (id == "free_form_2d")
       return std::make_unique<FreeForm2DEditorGameMode>();
+    if (id == "beat_em_up")
+      return std::make_unique<BeatEmUpEditorGameMode>();
     if (!id.empty() && id != "subterra_guild")
       std::printf(
           "[Editor] Unknown game_mode \"%s\" — using Subterra play mode.\n",
