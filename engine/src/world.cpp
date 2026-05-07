@@ -1,4 +1,7 @@
 #include "world.h"
+#include "level_metadata_json.h"
+#include "map_authoring_components.h"
+#include "object_layer.h"
 #include "animated_component.h"
 #include "animation_database.h"
 #include "asset_manager.h"
@@ -39,6 +42,8 @@ bool World::HasEntity(ecs::EntityId id) const {
 
 void World::OnUpdate(std::function<void(float)> fn) { userUpdate = fn; }
 
+void World::ClearSystems() { systems.clear(); }
+
 void World::Update(float dt) {
   // Run user update callback
   if (userUpdate) {
@@ -70,11 +75,14 @@ void World::Render(Renderer& renderer) {
   renderer.EndCamera2D();
 }
 
-SerializedWorld World::Serialize() const {
+SerializedWorld World::Serialize(const std::string &world_file_dir_for_level_export) const {
   SerializedWorld world;
 
   if (terrain) {
     world.terrain = terrain->Serialize();
+    if (auto lev = TerrainExportLevelMetadata(*terrain, world_file_dir_for_level_export);
+        lev.has_value())
+      world.level = std::move(*lev);
   }
 
   // Collect all animation IDs used by AnimatedSprite components
@@ -209,6 +217,20 @@ SerializedWorld World::Serialize() const {
     if (auto box3D = GetComponent<Box3D>(entity_id)) {
       serialized_entity.components.push_back(box3D->Serialize());
     }
+    if (auto mez = GetComponent<MapEventZone2D>(entity_id)) {
+      serialized_entity.components.push_back(mez->Serialize());
+    }
+    if (auto iz = GetComponent<InteractableZone2D>(entity_id)) {
+      serialized_entity.components.push_back(iz->Serialize());
+    }
+    if (auto wsp = GetComponent<WorldSpawnPrefab2D>(entity_id)) {
+      serialized_entity.components.push_back(wsp->Serialize());
+    }
+    if (auto lm = GetComponent<LayerMembership>(entity_id)) {
+      serialized_entity.components.push_back(lm->Serialize());
+    }
+    // EditorHidden is intentionally omitted: it's a transient editor-only
+    // tag re-derived from `hiddenObjectLayers` each frame.
 
     if (!serialized_entity.components.empty()) {
       world.entities.push_back(serialized_entity);
@@ -310,6 +332,8 @@ void World::Deserialize(const SerializedWorld &data,
   if (!data.terrain.tileset.tilesetPath.empty()) {
     terrain = std::make_unique<Terrain2D>();
     terrain->Deserialize(data.terrain, asset_root_dir);
+    if (data.level.has_value())
+      TerrainImportLevelMetadata(*terrain, *data.level, asset_root_dir);
   }
 
   for (const auto &serialized_entity : data.entities) {
@@ -424,7 +448,21 @@ void World::Deserialize(const SerializedWorld &data,
       } else if (type_name == "Box3D") {
         auto &box3D = AddComponent<Box3D>(entity_id);
         box3D.Deserialize(serialized_component);
+      } else if (type_name == "MapEventZone2D") {
+        auto &c = AddComponent<MapEventZone2D>(entity_id);
+        c.Deserialize(serialized_component);
+      } else if (type_name == "InteractableZone2D") {
+        auto &c = AddComponent<InteractableZone2D>(entity_id);
+        c.Deserialize(serialized_component);
+      } else if (type_name == "WorldSpawnPrefab2D") {
+        auto &c = AddComponent<WorldSpawnPrefab2D>(entity_id);
+        c.Deserialize(serialized_component);
+      } else if (type_name == "LayerMembership") {
+        auto &c = AddComponent<LayerMembership>(entity_id);
+        c.Deserialize(serialized_component);
       }
+      // Note: "EditorHidden" is intentionally not deserialized; the editor
+      // re-applies it from `hiddenObjectLayers` on each toggle.
     }
   }
 }

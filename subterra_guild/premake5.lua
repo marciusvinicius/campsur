@@ -15,6 +15,66 @@ if not workspaceName then
 	workspaceName = path.getbasename(path.getdirectory(path.getdirectory(_SCRIPT)))
 end
 
+-- ---------------------------------------------------------------------------
+-- libsubterra: all gameplay source except main.cpp.
+-- The editor links this to embed the full Subterra session inside play mode.
+-- ImGui .cpp sources are NOT compiled here; they come from the final binary.
+-- ---------------------------------------------------------------------------
+project("libsubterra")
+kind("StaticLib")
+language("C++")
+cppdialect("C++23")
+staticruntime("off")
+
+location("./")
+targetdir("../bin/%{cfg.buildcfg}")
+objdir("../bin-int/%{prj.name}/%{cfg.buildcfg}")
+
+vpaths({
+	["Header Files/*"] = { "include/**.h", "include/**.hpp", "src/**.h", "src/**.hpp" },
+	["Source Files/*"] = { "src/**.c", "src/**.cpp" },
+})
+
+files({
+	"src/**.c", "src/**.cpp", "src/**.h", "src/**.hpp",
+	"include/**.h", "include/**.hpp",
+})
+removefiles({ "src/main.cpp" })
+
+filter({})
+
+includedirs({
+	"./",
+	"src",
+	"include",
+	"../enet-1.3.18/include",
+	"../editor/thirdpart/imgui-docking",
+	"../editor/thirdpart/imgui-docking/backends",
+})
+
+link_to("engine")
+links("enet")
+link_sdl3()
+
+filter("system:linux")
+links({ "GL", "pthread", "m", "dl", "X11", "z" })
+
+filter("system:windows")
+systemversion("latest")
+
+filter("configurations:Debug")
+symbols("On")
+optimize("Off")
+
+filter("configurations:Release")
+optimize("On")
+
+filter({})
+
+-- ---------------------------------------------------------------------------
+-- campsur_subterra_guild: thin executable that links libsubterra.
+-- Compiles only main.cpp + ImGui backends (not included in libsubterra).
+-- ---------------------------------------------------------------------------
 project(workspaceName .. "_subterra_guild")
 kind("ConsoleApp")
 language("C++")
@@ -38,8 +98,7 @@ vpaths({
 	["Source Files/*"] = { "src/**.c", "src/**.cpp" },
 })
 files({
-	"src/**.c", "src/**.cpp", "src/**.h", "src/**.hpp",
-	"include/**.h", "include/**.hpp",
+	"src/main.cpp",
 	"../editor/thirdpart/imgui-docking/imgui.cpp",
 	"../editor/thirdpart/imgui-docking/imgui_draw.cpp",
 	"../editor/thirdpart/imgui-docking/imgui_tables.cpp",
@@ -59,6 +118,7 @@ includedirs({
 	"../editor/thirdpart/imgui-docking/backends",
 })
 
+links({ "libsubterra" })
 link_to("engine")
 links("enet")
 link_sdl3()

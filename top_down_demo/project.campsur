@@ -1,0 +1,13 @@
+{
+  "name": "Top Down Demo",
+  "version": "1",
+  "game_mode": "free_form_2d",
+  "levels_dir": "assets/levels",
+  "animations_dir": "data/animations",
+  "prefabs_dir": "data/prefabs",
+  "effects_dir": "data/effects",
+  "config_dir": "data/server_configuration",
+  "sprites_dir": "assets/sprites",
+  "init_level": "assets/levels/init.campsurlevel",
+  "game_config": {}
+}

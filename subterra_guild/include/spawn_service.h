@@ -22,4 +22,7 @@ void SpawnPickupAt(SubterraSession &session, float cx, float cy, const std::stri
 /** Spawn world pickups from TMX `spawn_prefab` objects (`tmxMeta.spawnPrefabs`). */
 void SpawnTiledMapPrefabs(SubterraSession &session);
 
+/** Spawn from entities with `WorldSpawnPrefab2D` + `Transform` (same rules as tiled spawn prefabs). */
+void SpawnEntityPrefabMarkers(SubterraSession &session);
+
 } // namespace subterra

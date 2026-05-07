@@ -34,6 +34,16 @@ public:
   void DrawTexturePro(TextureHandle texture, Rect source, Rect dest, Vec2 origin,
                      float rotation, Color tint,
                      TextureBlendMode blend = TextureBlendMode::Alpha);
+  /**
+   * Same as DrawTexturePro but applies horizontal/vertical flip via SDL.
+   * Always uses SDL_RenderTextureRotated under the hood, even when rotation
+   * is zero, because SDL3's untextured RenderTexture path doesn't accept a
+   * flip argument.
+   */
+  void DrawTextureProFlipped(TextureHandle texture, Rect source, Rect dest,
+                             Vec2 origin, float rotation, Color tint,
+                             bool flipH, bool flipV,
+                             TextureBlendMode blend = TextureBlendMode::Alpha);
   void DrawTextureRec(TextureHandle texture, Rect source, Vec2 position,
                       Color tint,
                       TextureBlendMode blend = TextureBlendMode::Alpha);

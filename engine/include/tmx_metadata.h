@@ -28,6 +28,10 @@ struct TiledLayerMeta {
   bool windows = false;
   /** Convenience: true when `mapLayerIndex > 0` (typical roof/foreground). */
   bool drawAfterEntities = false;
+  /** Layer visibility (skipped from rendering when false). */
+  bool visible = true;
+  /** Layer opacity multiplier (0..1) used as a tint alpha. */
+  float opacity = 1.f;
   std::vector<TmxProperty> properties;
 };
 

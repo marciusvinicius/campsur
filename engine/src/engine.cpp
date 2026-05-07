@@ -2,6 +2,8 @@
 #include "asset_manager.h"
 #include "component_factory.h"
 #include "gameplay_tags.h"
+#include "map_authoring_components.h"
+#include "object_layer.h"
 #include "inventory.h"
 #include "input.h"
 #include "network/net_messages.h"
@@ -272,6 +274,21 @@ void Engine::RegisterCoreComponents() {
   });
   ComponentFactory::Register("Camera3D", [](World& w, int e) {
     return &w.AddComponent<Camera3D>(e);
+  });
+  ComponentFactory::Register("MapEventZone2D", [](World& w, int e) {
+    return &w.AddComponent<MapEventZone2D>(e);
+  });
+  ComponentFactory::Register("InteractableZone2D", [](World& w, int e) {
+    return &w.AddComponent<InteractableZone2D>(e);
+  });
+  ComponentFactory::Register("WorldSpawnPrefab2D", [](World& w, int e) {
+    return &w.AddComponent<WorldSpawnPrefab2D>(e);
+  });
+  ComponentFactory::Register("LayerMembership", [](World& w, int e) {
+    return &w.AddComponent<LayerMembership>(e);
+  });
+  ComponentFactory::Register("EditorHidden", [](World& w, int e) {
+    return &w.AddComponent<EditorHidden>(e);
   });
 }
 

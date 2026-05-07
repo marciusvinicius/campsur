@@ -8,6 +8,7 @@ The Criogenio Engine is a 2D game engine built in C++ using an Entity Component 
 
 ### Recent capability updates
 
+- **Level JSON + ECS authoring (Subterra):** maps are now authored and shipped as `.json` scene files. ECS zone components (`MapEventZone2D`, `InteractableZone2D`, `WorldSpawnPrefab2D`) are the preferred spatial authoring path; TMX import remains as a migration tool. See [Level Authoring](#level-authoring-ecs-zones--json).
 - **Decoupled gameplay action pipelines (Subterra):** map events can now route through a registry of named actions (camera shake, teleport, spawn wave, damage, input lock/unlock), with optional JSON action lists from TMX properties.
 - **Data-driven mob prefabs (Subterra):** `entities_mobs.json` is now loaded into a mob prefab registry (default `entity_data`, listeners, visual hints), and TMX `spawn_prefab` can resolve directly to mob spawning.
 - **Mob brain runtime (Subterra):** `brain_type` values are mapped to C++ brain handlers and executed per-frame before `AIMovementSystem` applies movement.
@@ -749,3 +750,76 @@ Use this checklist to quickly verify the newer door collision and holder-bound i
 - `emitdata <trigger> <json_object>`: simulate map/item event payload filters.
 - `emitlight <event> [r g b] [radius] [intensity]`: test light-driven listener reactions.
 - `itempairs`: inspect active overlap pairs used by item event dispatch cooldown/enter logic.
+
+---
+
+## Level Authoring — ECS Zones & JSON
+
+### Overview
+
+The preferred authoring workflow for Subterra maps is:
+
+1. **Scene JSON** (`.json`) — the single file format for all shipped maps. Contains terrain tile data, the `level` block (TMX metadata, lights, collision), and ECS entities (zones, spawns).
+2. **ECS zone components** — spatial authoring via entities with `MapEventZone2D`, `InteractableZone2D`, and `WorldSpawnPrefab2D` components placed in the editor.
+3. **Level panel data** (inside `level`) — `tmxMeta`-derived tables for layer order, bounds, collision, lights, image layers. Edited in the editor "Level (Subterra)" panel.
+
+**TMX (`.tmx`)** is a legacy import format. After importing with "File → Import Tiled Map", save as a scene JSON and update `world_config.json → world.init_map`. TMX loading at runtime emits a `LOG_WARNING` deprecation message.
+
+### Load order at runtime (`SubterraSession::loadMap`)
+
+```
+1.  Parse scene JSON → terrain tile data + `level` block + ECS entities
+2.  Terrain2D deserialized (chunks/layers)
+3.  TerrainImportLevelMetadata → populates tmxMeta (bounds, layers, lights, objectGroups, spawnPrefabs, interactables, collision)
+4.  ECS entities deserialized (MapEventZone2D / InteractableZone2D / WorldSpawnPrefab2D etc.)
+5.  applyPostTerrainLoad:
+      a. rebuildTriggers():
+           i.  BuildMapEventTriggers(terrain)  → from tmxMeta.objectGroups
+          ii.  Drops terrain triggers whose storage_key matches any ECS MapEventZone2D key
+         iii.  Appends ECS MapEventZone2D triggers
+          iv.  Drops terrain interactables whose tiled_object_id matches any ECS InteractableZone2D id
+           v.  Appends ECS InteractableZone2D entries
+      b. SpawnTiledMapPrefabs → skips rows overridden by nearby WorldSpawnPrefab2D ECS entity
+      c. SpawnEntityPrefabMarkers → spawns from WorldSpawnPrefab2D
+```
+
+### Deduplication rules (ECS wins over Level data)
+
+| Zone type | Key used for dedup | Source |
+|---|---|---|
+| `MapEventZone2D` | `storage_key` | ECS component field |
+| `InteractableZone2D` | `tiled_object_id` | ECS component field (0 = no dedup) |
+| `WorldSpawnPrefab2D` | `prefab_name` + spawn center within 24px | ECS Transform + component |
+
+### Bake / export
+
+The **"Bake ECS Zones → Level Data"** button in the "Level (Subterra)" editor panel writes all live ECS zones into the `tmxMeta` tables:
+
+- `MapEventZone2D` entities → `ecs_event_zones` object group (replaces existing group on each bake).
+- `InteractableZone2D` entities → `tmxMeta.interactables` (replaces by `tiled_object_id`).
+- `WorldSpawnPrefab2D` entities → `tmxMeta.spawnPrefabs` (replaces by name + center proximity).
+
+After baking, "Save Scene" writes the merged result to JSON. This is useful for ships that need the level data readable without the ECS runtime (e.g. tooling, offline analysis, or legacy Odin-based consumers).
+
+### Viewport tools (editor)
+
+- **Zone gizmos**: map events (cyan), interactables (magenta), spawn prefabs (orange). Toggled with "Show Map Authoring Zones" in Global Components.
+- **Resize handles**: selecting a zone entity shows 8 white handles (TL/T/TR/L/R/BL/B/BR). Drag to resize; hold **Ctrl** to snap position and size to the terrain tile grid.
+- **Entity drag**: drag any selected entity to move it; hold **Ctrl** to snap to grid.
+- **Picking**: clicking in the viewport selects the smallest-area zone under the cursor.
+- **Viewport context menu** (right-click): "Create Empty", "Duplicate Entity", "Delete Entity".
+
+### Migration checklist (TMX → JSON)
+
+1. Open the editor and choose **File → Import Tiled Map (.tmx)**.
+2. Verify terrain, collision, triggers look correct in the Level (Subterra) panel.
+3. (Optional) Rebuild the collision mask, add any ECS zone entities for triggers/spawns you want to edit spatially.
+4. **File → Save Scene** → save as `.json` next to the old `.tmx`.
+5. Update `world_config.json` → `world.init_map` to the new `.json` path.
+6. Keep the `.tmx` for reference but remove it from active paths.
+
+### TMX deprecation status
+
+- `SubterraSession::loadMap` **logs `LOG_WARNING`** when loading a `.tmx` directly.
+- All new maps should start as scene JSON (create terrain in editor + Save Scene).
+- TMX parsing code (`TilemapLoader::LoadFromTMX`) is kept for import but is not on the active shipping path.

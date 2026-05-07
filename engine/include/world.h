@@ -122,6 +122,8 @@ public:
     systems.push_back(std::move(sys));
     return ptr;
   }
+  /** Remove all registered systems (e.g. to swap between editor and game mode systems). */
+  void ClearSystems();
 
   // World Update
   void OnUpdate(std::function<void(float)> fn);
@@ -129,7 +131,8 @@ public:
   void Render(Renderer &renderer);
 
   // Serialization
-  SerializedWorld Serialize() const;
+  /** @param world_file_dir_for_level_export Parent directory of the `.json` being written (for relative paths in `level`). */
+  SerializedWorld Serialize(const std::string &world_file_dir_for_level_export = {}) const;
   /** @param asset_root_dir Directory of the `.json` file (parent path); used for relative texture/tileset paths. */
   void Deserialize(const SerializedWorld &data,
                    const std::string &asset_root_dir = {});

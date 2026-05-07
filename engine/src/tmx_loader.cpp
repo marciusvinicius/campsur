@@ -264,6 +264,48 @@ void parsePropertiesBlock(const std::string &xml, size_t regionStart, size_t reg
   parsePropertyTags(xml, p, close, out);
 }
 
+/**
+ * Scan `<tile id="N"> ... </tile>` blocks in the given region and collect any
+ * `<properties>` they contain. Tiled emits these inside a tileset definition
+ * (TSX file or inline `<tileset>`) for per-tile metadata, e.g. walk speed,
+ * material, gameplay tags. Self-closing `<tile id="N"/>` entries are skipped
+ * (no properties).
+ */
+void parseTilePropertiesBlock(const std::string &xml, size_t regionStart,
+                              size_t regionEnd,
+                              std::map<int, std::vector<TmxProperty>> &out) {
+  size_t pos = regionStart;
+  while (pos < regionEnd) {
+    pos = xml.find("<tile", pos);
+    if (pos == std::string::npos || pos >= regionEnd) break;
+    // Guard against `<tileset` and `<tileoffset`: require char after "<tile"
+    // to be one of [space, '/', '>'].
+    char after = (pos + 5 < xml.size()) ? xml[pos + 5] : '\0';
+    if (after != ' ' && after != '\t' && after != '/' && after != '>') {
+      pos += 5;
+      continue;
+    }
+    size_t openEnd = xml.find('>', pos);
+    if (openEnd == std::string::npos || openEnd >= regionEnd) break;
+    std::string openTag = xml.substr(pos, openEnd - pos + 1);
+    bool selfClosing = (openTag.size() >= 2 && openTag[openTag.size() - 2] == '/');
+    if (selfClosing) {
+      pos = openEnd + 1;
+      continue;
+    }
+    int tileId = parseIntAttr(openTag, "id", -1);
+    size_t close = xml.find("</tile>", openEnd);
+    if (close == std::string::npos || close > regionEnd) break;
+    if (tileId >= 0) {
+      std::vector<TmxProperty> props;
+      parsePropertiesBlock(xml, openEnd + 1, close, props);
+      if (!props.empty())
+        out.emplace(tileId, std::move(props));
+    }
+    pos = close + std::string("</tile>").size();
+  }
+}
+
 static void parseOneImagelayer(const std::string &mapPath, const std::string &xml, size_t pos,
                                TiledImageLayerMeta &meta, size_t &outNextScan) {
   size_t openEnd = xml.find('>', pos);
@@ -309,6 +351,14 @@ TiledLayerMeta buildLayerMeta(const std::string &layerTag,
   m.roof = TmxGetPropertyBool(props, "roof", false);
   m.windows = TmxGetPropertyBool(props, "windows", false);
   m.drawAfterEntities = m.mapLayerIndex > 0;
+  // TMX layer tag may carry visible="0" / opacity="0.5".
+  m.visible = parseIntAttr(layerTag, "visible", 1) != 0;
+  {
+    const std::string op = attrValue(layerTag, "opacity");
+    m.opacity = op.empty() ? 1.f : std::strtof(op.c_str(), nullptr);
+    if (m.opacity < 0.f) m.opacity = 0.f;
+    if (m.opacity > 1.f) m.opacity = 1.f;
+  }
   m.properties = props;
   return m;
 }
@@ -343,98 +393,6 @@ struct TileBounds {
     maxTy = std::max(maxTy, o.maxTy);
   }
 };
-
-static bool asciiLowerContainsSubstring(const std::string &name, const char *needle) {
-  if (name.empty())
-    return false;
-  std::string low;
-  low.reserve(name.size());
-  for (unsigned char c : name)
-    low.push_back(static_cast<char>(std::tolower(c)));
-  return low.find(needle) != std::string::npos;
-}
-
-static bool tiledLayerFeedsCollisionMask(const TiledLayerMeta &meta) {
-  if (asciiLowerContainsSubstring(meta.name, "collision"))
-    return true;
-  return TmxGetPropertyBool(meta.properties, "collides", false);
-}
-
-static void finalizeTmxCollisionMask(Terrain2D &terrain) {
-  TmxMapMetadata &m = terrain.tmxMeta;
-  m.collisionSolid.clear();
-  m.collisionStrideTiles = 0;
-  m.collisionHeightTiles = 0;
-  const int w = m.boundsMaxTx - m.boundsMinTx;
-  const int h = m.boundsMaxTy - m.boundsMinTy;
-  if (w <= 0 || h <= 0)
-    return;
-  m.collisionStrideTiles = w;
-  m.collisionHeightTiles = h;
-  m.collisionSolid.assign(static_cast<size_t>(w * h), 0);
-
-  auto markTile = [&](int worldTx, int worldTy) {
-    const int lx = worldTx - m.boundsMinTx;
-    const int ly = worldTy - m.boundsMinTy;
-    if (lx < 0 || ly < 0 || lx >= w || ly >= h)
-      return;
-    m.collisionSolid[static_cast<size_t>(ly * w + lx)] = 1;
-  };
-
-  for (size_t li = 0; li < terrain.layers.size() && li < m.layerInfo.size(); ++li) {
-    if (!tiledLayerFeedsCollisionMask(m.layerInfo[li]))
-      continue;
-    const int layerIdx = static_cast<int>(li);
-    for (int ty = m.boundsMinTy; ty < m.boundsMaxTy; ++ty) {
-      for (int tx = m.boundsMinTx; tx < m.boundsMaxTx; ++tx) {
-        if (terrain.CellHasTile(layerIdx, tx, ty))
-          markTile(tx, ty);
-      }
-    }
-  }
-
-  const int gw = terrain.GridStepX();
-  const int gh = terrain.GridStepY();
-  if (gw <= 0 || gh <= 0)
-    return;
-  const float orx = terrain.origin.x;
-  const float ory = terrain.origin.y;
-
-  for (const TiledObjectGroup &og : m.objectGroups) {
-    if (!asciiLowerContainsSubstring(og.name, "collision"))
-      continue;
-    for (const TiledMapObject &obj : og.objects) {
-      if (obj.point)
-        continue;
-      const float x1 = obj.x;
-      const float y1 = obj.y;
-      const float x2 = obj.x + obj.width;
-      const float y2 = obj.y + obj.height;
-      if (obj.width <= 0.f && obj.height <= 0.f)
-        continue;
-      if (obj.width <= 0.f || obj.height <= 0.f) {
-        const int tx =
-            static_cast<int>(std::floor((obj.x - orx) / static_cast<float>(gw)));
-        const int ty =
-            static_cast<int>(std::floor((obj.y - ory) / static_cast<float>(gh)));
-        markTile(tx, ty);
-        continue;
-      }
-      const int tminx = static_cast<int>(
-          std::floor((std::min(x1, x2) - orx) / static_cast<float>(gw)));
-      const int tmaxx = static_cast<int>(
-          std::floor((std::max(x1, x2) - orx - 1e-3f) / static_cast<float>(gw)));
-      const int tminy = static_cast<int>(
-          std::floor((std::min(y1, y2) - ory) / static_cast<float>(gh)));
-      const int tmaxy = static_cast<int>(
-          std::floor((std::max(y1, y2) - ory - 1e-3f) / static_cast<float>(gh)));
-      for (int ty = tminy; ty <= tmaxy; ++ty) {
-        for (int tx = tminx; tx <= tmaxx; ++tx)
-          markTile(tx, ty);
-      }
-    }
-  }
-}
 
 void parseOneObject(const std::string &inner, size_t op, TiledMapObject &obj) {
   size_t gt = inner.find('>', op);
@@ -707,6 +665,11 @@ TmxTilesetEntry loadTsx(const std::string &tsxPath, int firstGid) {
       (tilecount > 0 && columns > 0) ? (tilecount + columns - 1) / columns : 1;
   e.sheet.tilesetPath = imgPath;
   e.sheet.atlas = AssetManager::instance().load<TextureResource>(imgPath);
+  // Per-tile properties live inside the <tileset>...</tileset> body. The
+  // closing tag was matched via xml.find at the caller; we scan from the end
+  // of the <tileset ...> open tag to the end of the document (TSX files
+  // only have one tileset, so this is safe).
+  parseTilePropertiesBlock(xml, gt + 1, xml.size(), e.tileProperties);
   return e;
 }
 
@@ -747,6 +710,9 @@ TmxTilesetEntry loadInlineTileset(const std::string &mapPath, std::string_view o
       (tilecount > 0 && columns > 0) ? (tilecount + columns - 1) / columns : 1;
   e.sheet.tilesetPath = imgPath;
   e.sheet.atlas = AssetManager::instance().load<TextureResource>(imgPath);
+  // Inline tileset: per-tile properties are within the inner XML range we
+  // were passed by the caller (between the open `<tileset>` and `</tileset>`).
+  parseTilePropertiesBlock(innerXml, 0, innerXml.size(), e.tileProperties);
   return e;
 }
 
@@ -886,8 +852,10 @@ Terrain2D TilemapLoader::LoadFromTMX(const std::string &path) {
         for (int ty = 0; ty < ch; ++ty) {
           for (int tx = 0; tx < cw; ++tx) {
             uint32_t raw = gids[static_cast<size_t>(ty * cw + tx)];
-            uint32_t gid = raw & 0x1FFFFFFFu;
-            int store = (gid == 0) ? 0 : static_cast<int>(gid);
+            // Preserve Tiled flip bits (H/V/D) in the stored value. Stored
+            // as int, so values with the H-flip bit (0x80000000) become
+            // negative — TileGid()/TileFlip*() helpers in terrain.h decode.
+            int store = (raw == 0) ? 0 : static_cast<int>(raw);
             int wtx = cx + tx;
             int wty = cy + ty;
             terrain.SetTile(layerIdx, wtx, wty, store);
@@ -910,8 +878,8 @@ Terrain2D TilemapLoader::LoadFromTMX(const std::string &path) {
         for (int ty = 0; ty < lh; ++ty) {
           for (int tx = 0; tx < lw; ++tx) {
             uint32_t raw = gids[static_cast<size_t>(ty * lw + tx)];
-            uint32_t gid = raw & 0x1FFFFFFFu;
-            int store = (gid == 0) ? 0 : static_cast<int>(gid);
+            // Preserve Tiled flip bits; see comment above on signedness.
+            int store = (raw == 0) ? 0 : static_cast<int>(raw);
             terrain.SetTile(layerIdx, tx, ty, store);
             thisLayerBounds.add(tx, ty);
           }
@@ -981,7 +949,7 @@ Terrain2D TilemapLoader::LoadFromTMX(const std::string &path) {
   extractSpawnPrefabs(terrain.tmxMeta);
   extractInteractables(terrain.tmxMeta);
   extractTorchMapLights(terrain.tmxMeta);
-  finalizeTmxCollisionMask(terrain);
+  terrain.RebuildCollisionMaskFromTmxRules();
 
   return terrain;
 }

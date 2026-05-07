@@ -504,6 +504,10 @@ public:
     out.fields["spriteX"] = static_cast<int>(spriteX);
     out.fields["spriteY"] = static_cast<int>(spriteY);
     out.fields["spriteSize"] = static_cast<int>(spriteSize);
+    // Serialize the atlas path so editor-dropped sprites round-trip through
+    // save/load. The runtime `atlas` shared_ptr is reconstituted via the
+    // AssetManager on deserialize.
+    out.fields["atlasPath"] = atlasPath;
     return out;
   }
 
@@ -516,6 +520,11 @@ public:
       spriteY = GetInt(it->second);
     if (auto it = data.fields.find("spriteSize"); it != data.fields.end())
       spriteSize = GetInt(it->second);
+    if (auto it = data.fields.find("atlasPath"); it != data.fields.end()) {
+      atlasPath = GetString(it->second);
+      if (!atlasPath.empty())
+        atlas = criogenio::AssetManager::instance().load<TextureResource>(atlasPath);
+    }
   }
 
   void SetTexture(const char *path) {

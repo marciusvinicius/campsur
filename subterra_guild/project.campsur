@@ -1,0 +1,17 @@
+{
+  "name": "Subterra Guild",
+  "version": "1",
+  "game_mode": "subterra_guild",
+  "levels_dir": "assets/levels",
+  "animations_dir": "data/animations",
+  "prefabs_dir": "data/prefabs",
+  "effects_dir": "data/effects",
+  "config_dir": "data/server_configuration",
+  "sprites_dir": "assets/sprites",
+  "init_level": "assets/levels/Cave.campsurlevel",
+  "game_config": {
+    "world_config": "data/server_configuration/world_config.campsurconfig",
+    "input_config": "data/server_configuration/input_config.campsurconfig",
+    "player_anims": "data/animations/player.campsuranims"
+  }
+}

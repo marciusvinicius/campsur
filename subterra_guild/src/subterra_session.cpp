@@ -1,11 +1,16 @@
 #include "subterra_session.h"
 #include "components.h"
+#include "criogenio_io.h"
 #include "engine.h"
 #include "input.h"
 #include "map_events.h"
 #include "spawn_service.h"
+#include "subterra_level_ecs.h"
 #include "subterra_components.h"
 #include "terrain_loader.h"
+#include "log.h"
+#include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -45,6 +50,23 @@ static void snapshotPickupsForBasename(SubterraSession &session, const std::stri
   session.persistedPickupsByBasename[basename] = std::move(list);
 }
 
+static bool pathEndsWith(const std::string &path, const char *suf) {
+  const size_t n = std::strlen(suf);
+  if (path.size() < n)
+    return false;
+  for (size_t i = 0; i < n; ++i) {
+    if (std::tolower(static_cast<unsigned char>(path[path.size() - n + i])) !=
+        static_cast<unsigned char>(suf[i]))
+      return false;
+  }
+  return true;
+}
+
+/** Returns true for .campsurlevel or legacy .json world files. */
+static bool pathEndsWithJson(const std::string &path) {
+  return pathEndsWith(path, ".campsurlevel") || pathEndsWith(path, ".json");
+}
+
 } // namespace
 
 void sessionLog(SubterraSession &session, const std::string &line) {
@@ -60,6 +82,42 @@ void SubterraSession::rebuildTriggers() {
   if (t) {
     triggers = BuildMapEventTriggers(*t);
     tiledInteractables = t->tmxMeta.interactables;
+  }
+  if (world) {
+    std::vector<MapEventTrigger> ecsTriggers;
+    CollectMapEventTriggersFromEntities(*world, ecsTriggers);
+    std::unordered_set<std::string> ecsTriggerKeys;
+    for (const MapEventTrigger &e : ecsTriggers) {
+      if (!e.storage_key.empty())
+        ecsTriggerKeys.insert(e.storage_key);
+    }
+    if (!ecsTriggerKeys.empty()) {
+      triggers.erase(std::remove_if(triggers.begin(), triggers.end(),
+                                    [&](const MapEventTrigger &tr) {
+                                      return !tr.storage_key.empty() &&
+                                             ecsTriggerKeys.count(tr.storage_key) > 0;
+                                    }),
+                     triggers.end());
+    }
+    triggers.insert(triggers.end(), ecsTriggers.begin(), ecsTriggers.end());
+
+    std::vector<criogenio::TiledInteractable> ecsInter;
+    CollectInteractablesFromEntities(*world, ecsInter);
+    std::unordered_set<int> ecsInteractIds;
+    for (const criogenio::TiledInteractable &i : ecsInter) {
+      if (i.tiled_object_id != 0)
+        ecsInteractIds.insert(i.tiled_object_id);
+    }
+    if (!ecsInteractIds.empty()) {
+      tiledInteractables.erase(
+          std::remove_if(tiledInteractables.begin(), tiledInteractables.end(),
+                         [&](const criogenio::TiledInteractable &ti) {
+                           return ti.tiled_object_id != 0 &&
+                                  ecsInteractIds.count(ti.tiled_object_id) > 0;
+                         }),
+          tiledInteractables.end());
+    }
+    tiledInteractables.insert(tiledInteractables.end(), ecsInter.begin(), ecsInter.end());
   }
   triggers.insert(triggers.end(), runtimeTriggers.begin(), runtimeTriggers.end());
 }
@@ -96,6 +154,23 @@ void SubterraSession::destroyTransientEntities() {
   }
 }
 
+void SubterraSession::applyPostTerrainLoad(const std::string &pathForPersistenceBasename) {
+  mapPath = pathForPersistenceBasename;
+  triggerInsidePrevFrame.clear();
+  rebuildTriggers();
+  const std::string enteringBasename = mapBasenameFromPath(pathForPersistenceBasename);
+  const auto persisted = persistedPickupsByBasename.find(enteringBasename);
+  if (persisted != persistedPickupsByBasename.end()) {
+    for (const PersistedPickup &p : persisted->second)
+      SpawnPickupAt(*this, p.center_x, p.center_y, p.item_id, p.count, p.width, p.height);
+  } else {
+    SpawnTiledMapPrefabs(*this);
+    SpawnEntityPrefabMarkers(*this);
+  }
+  nearestPickupEntity = criogenio::ecs::NULL_ENTITY;
+  interactHint.clear();
+}
+
 bool SubterraSession::loadMap(const std::string &path, std::string &errOut) {
   if (!world) {
     errOut = "no world";
@@ -124,21 +199,21 @@ bool SubterraSession::loadMap(const std::string &path, std::string &errOut) {
     nearestInteractableIndex = -1;
     runtimeTriggers.clear();
     runtimeTriggerSeq = 1;
-    criogenio::Terrain2D terrain = criogenio::TilemapLoader::LoadFromTMX(path);
-    world->SetTerrain(std::make_unique<criogenio::Terrain2D>(std::move(terrain)));
-    mapPath = path;
-    triggerInsidePrevFrame.clear();
-    rebuildTriggers();
-    const std::string enteringBasename = mapBasenameFromPath(path);
-    const auto persisted = persistedPickupsByBasename.find(enteringBasename);
-    if (persisted != persistedPickupsByBasename.end()) {
-      for (const PersistedPickup &p : persisted->second)
-        SpawnPickupAt(*this, p.center_x, p.center_y, p.item_id, p.count, p.width, p.height);
+    if (pathEndsWithJson(path)) {
+      if (!criogenio::LoadWorldTerrainAndLevelFromFile(*world, path, errOut))
+        return false;
     } else {
-      SpawnTiledMapPrefabs(*this);
+      // DEPRECATED: direct TMX load is legacy. Migrate the map to .campsurlevel
+      // via the editor (File → Import Tiled Map, then Save Scene) and update
+      // world_config.campsurconfig "init_map" to point at the .campsurlevel file.
+      ENGINE_LOG(LOG_WARNING,
+                 "SubterraSession::loadMap: loading TMX directly ('%s'). "
+                 "Migrate to scene JSON: import in editor, save, update init_map.",
+                 path.c_str());
+      criogenio::Terrain2D terrain = criogenio::TilemapLoader::LoadFromTMX(path);
+      world->SetTerrain(std::make_unique<criogenio::Terrain2D>(std::move(terrain)));
     }
-    nearestPickupEntity = criogenio::ecs::NULL_ENTITY;
-    interactHint.clear();
+    applyPostTerrainLoad(path);
     return true;
   } catch (const std::exception &e) {
     errOut = e.what();

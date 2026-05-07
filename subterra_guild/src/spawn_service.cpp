@@ -1,4 +1,5 @@
 #include "spawn_service.h"
+#include "map_authoring_components.h"
 #include "subterra_interactable_prefabs.h"
 #include "subterra_mob_prefabs.h"
 #include "animated_component.h"
@@ -64,6 +65,34 @@ criogenio::AssetId resolveMobAnimationId(SubterraSession &session,
   if (animId != criogenio::INVALID_ASSET_ID)
     g_mobAnimByPrefab[key] = animId;
   return animId;
+}
+
+/** ECS `WorldSpawnPrefab2D` wins over a terrain row when prefab name and center match. */
+static bool ecsSpawnMatchesTiled(const criogenio::WorldSpawnPrefab2D *m,
+                                 const criogenio::Transform *tr,
+                                 const criogenio::TiledSpawnPrefab &sp) {
+  if (!m || !tr || m->prefab_name.empty())
+    return false;
+  if (lowerAscii(m->prefab_name) != lowerAscii(sp.prefabName))
+    return false;
+  const float ecx = tr->x + m->width * 0.5f;
+  const float ecy = tr->y + m->height * 0.5f;
+  const float scx = sp.x + sp.width * 0.5f;
+  const float scy = sp.y + sp.height * 0.5f;
+  constexpr float kEps = 12.f;
+  return std::fabs(ecx - scx) < kEps && std::fabs(ecy - scy) < kEps;
+}
+
+static bool tiledSpawnOverriddenByEcs(criogenio::World &world,
+                                     const criogenio::TiledSpawnPrefab &sp) {
+  for (criogenio::ecs::EntityId e :
+       world.GetEntitiesWith<criogenio::WorldSpawnPrefab2D, criogenio::Transform>()) {
+    auto *m = world.GetComponent<criogenio::WorldSpawnPrefab2D>(e);
+    auto *tr = world.GetComponent<criogenio::Transform>(e);
+    if (ecsSpawnMatchesTiled(m, tr, sp))
+      return true;
+  }
+  return false;
 }
 
 } // namespace
@@ -167,6 +196,8 @@ void SpawnTiledMapPrefabs(SubterraSession &session) {
   for (const criogenio::TiledSpawnPrefab &sp : t->tmxMeta.spawnPrefabs) {
     if (sp.prefabName.empty())
       continue;
+    if (tiledSpawnOverriddenByEcs(*session.world, sp))
+      continue;
     if (SubterraInteractablePrefabNameIsRegistered(sp.prefabName))
       continue;
     if (SubterraMobPrefabNameIsRegistered(sp.prefabName)) {
@@ -181,6 +212,35 @@ void SpawnTiledMapPrefabs(SubterraSession &session) {
     float pw = sp.width > 0.5f ? sp.width : 0.f;
     float ph = sp.height > 0.5f ? sp.height : 0.f;
     SpawnPickupAt(session, cx, cy, sp.prefabName, sp.quantity, pw, ph);
+  }
+}
+
+void SpawnEntityPrefabMarkers(SubterraSession &session) {
+  if (!session.world)
+    return;
+  for (criogenio::ecs::EntityId e :
+       session.world->GetEntitiesWith<criogenio::WorldSpawnPrefab2D, criogenio::Transform>()) {
+    if (e == session.player)
+      continue;
+    auto *m = session.world->GetComponent<criogenio::WorldSpawnPrefab2D>(e);
+    auto *tr = session.world->GetComponent<criogenio::Transform>(e);
+    if (!m || !tr || m->prefab_name.empty())
+      continue;
+    if (SubterraInteractablePrefabNameIsRegistered(m->prefab_name))
+      continue;
+    if (SubterraMobPrefabNameIsRegistered(m->prefab_name)) {
+      float cx = tr->x + m->width * 0.5f;
+      float cy = tr->y + m->height * 0.5f;
+      int count = m->quantity > 0 ? m->quantity : 1;
+      SpawnMobsAround(session, cx, cy, count, m->prefab_name);
+      continue;
+    }
+    float cx = tr->x + m->width * 0.5f;
+    float cy = tr->y + m->height * 0.5f;
+    float pw = m->width > 0.5f ? m->width : 0.f;
+    float ph = m->height > 0.5f ? m->height : 0.f;
+    int qty = m->quantity > 0 ? m->quantity : 1;
+    SpawnPickupAt(session, cx, cy, m->prefab_name, qty, pw, ph);
   }
 }
 

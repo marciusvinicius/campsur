@@ -4,6 +4,7 @@
 #include "resources.h"
 #include "tmx_metadata.h"
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <numeric>
@@ -119,9 +120,15 @@ void Terrain2D::GetVisibleTileRange(const Camera2D &camera, float viewWidth,
 }
 
 void Terrain2D::RenderChunkedLayerGid(Renderer &renderer,
-                                      const ChunkedLayer &layer) const {
+                                      const ChunkedLayer &layer,
+                                      float alpha) const {
   const int stepX = GridStepX();
   const int stepY = GridStepY();
+  Color tint = Colors::White;
+  if (alpha < 1.0f) {
+    if (alpha < 0.0f) alpha = 0.0f;
+    tint.a = static_cast<uint8_t>(alpha * 255.0f);
+  }
   for (const auto &[key, tiles] : layer.chunks) {
     int cx = key.first;
     int cy = key.second;
@@ -130,9 +137,13 @@ void Terrain2D::RenderChunkedLayerGid(Renderer &renderer,
     for (int ly = 0; ly < chunkSize_; ly++) {
       for (int lx = 0; lx < chunkSize_; lx++) {
         int stored = tiles[ly * chunkSize_ + lx];
-        if (stored <= 0)
+        // 0 = empty cell (still 0 with no flip bits). A non-zero stored value
+        // may be negative (H-flip sets bit 31); decode the base gid via TileGid.
+        if (stored == 0)
           continue;
-        auto gid = static_cast<uint32_t>(stored);
+        const uint32_t gid = TileGid(stored);
+        if (gid == 0)
+          continue;
         const TmxTilesetEntry *ts = FindTmxTileset(gid);
         if (!ts || !ts->sheet.atlas)
           continue;
@@ -152,17 +163,34 @@ void Terrain2D::RenderChunkedLayerGid(Renderer &renderer,
         float worldY = static_cast<float>((cy * chunkSize_ + ly) * stepY);
         Rect destRect = {origin.x + worldX, origin.y + worldY,
                          static_cast<float>(stepX), static_cast<float>(stepY)};
-        renderer.DrawTexturePro(ts->sheet.atlas->texture, sourceRect, destRect,
-                                {0.f, 0.f}, 0.f, Colors::White);
+        const bool fH = TileFlipH(stored);
+        const bool fV = TileFlipV(stored);
+        // TODO: support diagonal flip (bit 29). Tiled defines it as
+        // rotate-90-CW followed by H-flip-of-result; SDL3's flip-then-rotate
+        // order requires a small case table to emulate. H+V flips cover the
+        // common case (mirror tiles for symmetric maps).
+        if (fH || fV) {
+          renderer.DrawTextureProFlipped(ts->sheet.atlas->texture, sourceRect,
+                                         destRect, {0.f, 0.f}, 0.f, tint, fH, fV);
+        } else {
+          renderer.DrawTexturePro(ts->sheet.atlas->texture, sourceRect, destRect,
+                                  {0.f, 0.f}, 0.f, tint);
+        }
       }
     }
   }
 }
 
 void Terrain2D::RenderChunkedLayerTileIndex(Renderer &renderer,
-                                            const ChunkedLayer &layer) const {
+                                            const ChunkedLayer &layer,
+                                            float alpha) const {
   if (!tileset.atlas)
     return;
+  Color tint = Colors::White;
+  if (alpha < 1.0f) {
+    if (alpha < 0.0f) alpha = 0.0f;
+    tint.a = static_cast<uint8_t>(alpha * 255.0f);
+  }
   const int ts = tileset.tileSize;
   for (const auto &[key, tiles] : layer.chunks) {
     int cx = key.first;
@@ -185,19 +213,31 @@ void Terrain2D::RenderChunkedLayerTileIndex(Renderer &renderer,
         Vec2 position = {origin.x + static_cast<float>(worldX),
                          origin.y + static_cast<float>(worldY)};
         renderer.DrawTextureRec(tileset.atlas->texture, sourceRect, position,
-                                Colors::White);
+                                tint);
       }
     }
   }
 }
 
 void Terrain2D::Render(Renderer &renderer) {
+  // Look up visibility/opacity for layer index `i`. When metadata is missing,
+  // layers are visible at full opacity.
+  auto layerVisible = [this](size_t i) -> bool {
+    return i >= tmxMeta.layerInfo.size() ? true : tmxMeta.layerInfo[i].visible;
+  };
+  auto layerAlpha = [this](size_t i) -> float {
+    return i >= tmxMeta.layerInfo.size() ? 1.0f : tmxMeta.layerInfo[i].opacity;
+  };
+
   if (gidMode_) {
     if (!tmxMeta.drawLayerOrder.empty()) {
       for (const TmxDrawLayerStep &step : tmxMeta.drawLayerOrder) {
         if (step.kind == TmxDrawLayerKind::Tile) {
-          if (step.index >= 0 && step.index < static_cast<int>(layers.size()))
-            RenderChunkedLayerGid(renderer, layers[static_cast<size_t>(step.index)]);
+          if (step.index >= 0 && step.index < static_cast<int>(layers.size())) {
+            const size_t li = static_cast<size_t>(step.index);
+            if (!layerVisible(li)) continue;
+            RenderChunkedLayerGid(renderer, layers[li], layerAlpha(li));
+          }
         } else {
           if (step.index >= 0 &&
               step.index < static_cast<int>(tmxMeta.imageLayers.size()))
@@ -210,8 +250,10 @@ void Terrain2D::Render(Renderer &renderer) {
     const bool sortLayers = tmxMeta.layerInfo.size() == layers.size() &&
                             !tmxMeta.layerInfo.empty();
     if (!sortLayers) {
-      for (const auto &layer : layers)
-        RenderChunkedLayerGid(renderer, layer);
+      for (size_t i = 0; i < layers.size(); ++i) {
+        if (!layerVisible(i)) continue;
+        RenderChunkedLayerGid(renderer, layers[i], layerAlpha(i));
+      }
     } else {
       std::vector<size_t> order(layers.size());
       std::iota(order.begin(), order.end(), 0);
@@ -223,8 +265,10 @@ void Terrain2D::Render(Renderer &renderer) {
                            return ia < ib;
                          return a < b;
                        });
-      for (size_t idx : order)
-        RenderChunkedLayerGid(renderer, layers[idx]);
+      for (size_t idx : order) {
+        if (!layerVisible(idx)) continue;
+        RenderChunkedLayerGid(renderer, layers[idx], layerAlpha(idx));
+      }
     }
     return;
   }
@@ -235,8 +279,10 @@ void Terrain2D::Render(Renderer &renderer) {
   const bool sortLayers = tmxMeta.layerInfo.size() == layers.size() &&
                           !tmxMeta.layerInfo.empty();
   if (!sortLayers) {
-    for (const auto &layer : layers)
-      RenderChunkedLayerTileIndex(renderer, layer);
+    for (size_t i = 0; i < layers.size(); ++i) {
+      if (!layerVisible(i)) continue;
+      RenderChunkedLayerTileIndex(renderer, layers[i], layerAlpha(i));
+    }
   } else {
     std::vector<size_t> order(layers.size());
     std::iota(order.begin(), order.end(), 0);
@@ -248,8 +294,10 @@ void Terrain2D::Render(Renderer &renderer) {
                          return ia < ib;
                        return a < b;
                      });
-    for (size_t idx : order)
-      RenderChunkedLayerTileIndex(renderer, layers[idx]);
+    for (size_t idx : order) {
+      if (!layerVisible(idx)) continue;
+      RenderChunkedLayerTileIndex(renderer, layers[idx], layerAlpha(idx));
+    }
   }
 }
 
@@ -293,14 +341,19 @@ Terrain2D &Terrain2D::SetTile(int layerIndex, int worldTx, int worldTy,
 
 bool Terrain2D::CellHasTile(int layerIndex, int worldTx, int worldTy) const {
   int v = GetTile(layerIndex, worldTx, worldTy);
-  if (gidMode_)
-    return v > 0;
+  if (gidMode_) {
+    // In GID mode, the high 3 bits encode flip flags; a tile is "present"
+    // iff the low 29 bits (the actual gid) are non-zero. Comparing v > 0
+    // would falsely return false for tiles with the H-flip bit set (which
+    // makes the int negative).
+    return TileGid(v) != 0;
+  }
   return v >= 0;
 }
 
 bool Terrain2D::TmxFootprintOverlapsSolid(float rectLeft, float rectTop, float w,
                                         float h) const {
-  if (!gidMode_ || tmxMeta.collisionSolid.empty() || w <= 0.f || h <= 0.f)
+  if (tmxMeta.collisionSolid.empty() || w <= 0.f || h <= 0.f)
     return false;
   const int gw = GridStepX();
   const int gh = GridStepY();
@@ -327,6 +380,142 @@ bool Terrain2D::TmxFootprintOverlapsSolid(float rectLeft, float rectTop, float w
     }
   }
   return false;
+}
+
+namespace {
+
+bool asciiLowerContainsSubstring(const std::string &name, const char *needle) {
+  if (name.empty())
+    return false;
+  std::string low;
+  low.reserve(name.size());
+  for (unsigned char c : name)
+    low.push_back(static_cast<char>(std::tolower(c)));
+  return low.find(needle) != std::string::npos;
+}
+
+bool tiledLayerFeedsCollisionMask(const TiledLayerMeta &meta) {
+  if (asciiLowerContainsSubstring(meta.name, "collision"))
+    return true;
+  return TmxGetPropertyBool(meta.properties, "collides", false);
+}
+
+} // namespace
+
+void Terrain2D::RebuildCollisionMaskFromTmxRules() {
+  TmxMapMetadata &meta = tmxMeta;
+  meta.collisionSolid.clear();
+  meta.collisionStrideTiles = 0;
+  meta.collisionHeightTiles = 0;
+  const int w = meta.boundsMaxTx - meta.boundsMinTx;
+  const int h = meta.boundsMaxTy - meta.boundsMinTy;
+  if (w <= 0 || h <= 0)
+    return;
+  meta.collisionStrideTiles = w;
+  meta.collisionHeightTiles = h;
+  meta.collisionSolid.assign(static_cast<size_t>(w * h), 0);
+
+  auto markTile = [&](int worldTx, int worldTy) {
+    const int lx = worldTx - meta.boundsMinTx;
+    const int ly = worldTy - meta.boundsMinTy;
+    if (lx < 0 || ly < 0 || lx >= w || ly >= h)
+      return;
+    meta.collisionSolid[static_cast<size_t>(ly * w + lx)] = 1;
+  };
+
+  for (size_t li = 0; li < layers.size() && li < meta.layerInfo.size(); ++li) {
+    if (!tiledLayerFeedsCollisionMask(meta.layerInfo[li]))
+      continue;
+    const int layerIdx = static_cast<int>(li);
+    for (int ty = meta.boundsMinTy; ty < meta.boundsMaxTy; ++ty) {
+      for (int tx = meta.boundsMinTx; tx < meta.boundsMaxTx; ++tx) {
+        if (CellHasTile(layerIdx, tx, ty))
+          markTile(tx, ty);
+      }
+    }
+  }
+
+  const int gw = GridStepX();
+  const int gh = GridStepY();
+  if (gw <= 0 || gh <= 0)
+    return;
+  const float orx = origin.x;
+  const float ory = origin.y;
+
+  for (const TiledObjectGroup &og : meta.objectGroups) {
+    if (!asciiLowerContainsSubstring(og.name, "collision"))
+      continue;
+    for (const TiledMapObject &obj : og.objects) {
+      if (obj.point)
+        continue;
+      const float x1 = obj.x;
+      const float y1 = obj.y;
+      const float x2 = obj.x + obj.width;
+      const float y2 = obj.y + obj.height;
+      if (obj.width <= 0.f && obj.height <= 0.f)
+        continue;
+      if (obj.width <= 0.f || obj.height <= 0.f) {
+        const int tx =
+            static_cast<int>(std::floor((obj.x - orx) / static_cast<float>(gw)));
+        const int ty =
+            static_cast<int>(std::floor((obj.y - ory) / static_cast<float>(gh)));
+        markTile(tx, ty);
+        continue;
+      }
+      const int tminx = static_cast<int>(
+          std::floor((std::min(x1, x2) - orx) / static_cast<float>(gw)));
+      const int tmaxx = static_cast<int>(
+          std::floor((std::max(x1, x2) - orx - 1e-3f) / static_cast<float>(gw)));
+      const int tminy = static_cast<int>(
+          std::floor((std::min(y1, y2) - ory) / static_cast<float>(gh)));
+      const int tmaxy = static_cast<int>(
+          std::floor((std::max(y1, y2) - ory - 1e-3f) / static_cast<float>(gh)));
+      for (int ty = tminy; ty <= tmaxy; ++ty) {
+        for (int tx = tminx; tx <= tmaxx; ++tx)
+          markTile(tx, ty);
+      }
+    }
+  }
+}
+
+void Terrain2D::InferTmxContentBoundsFromTiles() {
+  bool has = false;
+  int minTx = 0, minTy = 0, maxTx = 0, maxTy = 0;
+  const int n = chunkSize_ * chunkSize_;
+  for (size_t li = 0; li < layers.size(); ++li) {
+    for (const auto &[key, tiles] : layers[li].chunks) {
+      if (static_cast<int>(tiles.size()) != n)
+        continue;
+      const int cx = key.first;
+      const int cy = key.second;
+      for (int ly = 0; ly < chunkSize_; ++ly) {
+        for (int lx = 0; lx < chunkSize_; ++lx) {
+          const int wtx = cx * chunkSize_ + lx;
+          const int wty = cy * chunkSize_ + ly;
+          if (!CellHasTile(static_cast<int>(li), wtx, wty))
+            continue;
+          if (!has) {
+            minTx = maxTx = wtx;
+            minTy = maxTy = wty;
+            has = true;
+          } else {
+            minTx = std::min(minTx, wtx);
+            maxTx = std::max(maxTx, wtx);
+            minTy = std::min(minTy, wty);
+            maxTy = std::max(maxTy, wty);
+          }
+        }
+      }
+    }
+  }
+  if (!has)
+    return;
+  tmxMeta.boundsMinTx = minTx;
+  tmxMeta.boundsMinTy = minTy;
+  tmxMeta.boundsMaxTx = maxTx + 1;
+  tmxMeta.boundsMaxTy = maxTy + 1;
+  logicalMapTilesW_ = tmxMeta.boundsMaxTx - tmxMeta.boundsMinTx;
+  logicalMapTilesH_ = tmxMeta.boundsMaxTy - tmxMeta.boundsMinTy;
 }
 
 void Terrain2D::ClearTmxState() {
@@ -373,12 +562,17 @@ void Terrain2D::FillLayer(int layerIndex, int tileId) {
 
 void Terrain2D::AddLayer() {
   layers.push_back(ChunkedLayer{});
+  TiledLayerMeta lm;
+  lm.name = "Layer " + std::to_string(tmxMeta.layerInfo.size());
+  tmxMeta.layerInfo.push_back(std::move(lm));
 }
 
 void Terrain2D::RemoveLayer(int layerIndex) {
   if (layerIndex < 0 || layerIndex >= static_cast<int>(layers.size()))
     return;
   layers.erase(layers.begin() + layerIndex);
+  if (layerIndex < static_cast<int>(tmxMeta.layerInfo.size()))
+    tmxMeta.layerInfo.erase(tmxMeta.layerInfo.begin() + layerIndex);
 }
 
 void Terrain2D::ClearLayer(int layerIndex) {
@@ -389,6 +583,39 @@ void Terrain2D::ClearLayer(int layerIndex) {
 
 void Terrain2D::ClearAllLayers() {
   layers.clear();
+}
+
+void Terrain2D::MoveLayer(int from, int to) {
+  const int n = static_cast<int>(layers.size());
+  if (n <= 1) return;
+  if (from < 0 || from >= n) return;
+  if (to < 0) to = 0;
+  if (to >= n) to = n - 1;
+  if (from == to) return;
+  // Move the chunked layer.
+  ChunkedLayer moved = std::move(layers[from]);
+  layers.erase(layers.begin() + from);
+  layers.insert(layers.begin() + to, std::move(moved));
+  // Reorder TMX layer metadata in lockstep so visibility/opacity follow.
+  if (from < static_cast<int>(tmxMeta.layerInfo.size())) {
+    int metaTo = std::min(to, static_cast<int>(tmxMeta.layerInfo.size()) - 1);
+    if (metaTo < 0) metaTo = 0;
+    TiledLayerMeta lm = std::move(tmxMeta.layerInfo[from]);
+    tmxMeta.layerInfo.erase(tmxMeta.layerInfo.begin() + from);
+    tmxMeta.layerInfo.insert(tmxMeta.layerInfo.begin() + metaTo, std::move(lm));
+  }
+}
+
+void Terrain2D::DuplicateLayer(int index) {
+  const int n = static_cast<int>(layers.size());
+  if (index < 0 || index >= n) return;
+  ChunkedLayer copy = layers[index]; // deep copy via map<vector<int>>
+  layers.insert(layers.begin() + index + 1, std::move(copy));
+  if (index < static_cast<int>(tmxMeta.layerInfo.size())) {
+    TiledLayerMeta lm = tmxMeta.layerInfo[index];
+    lm.name += " (copy)";
+    tmxMeta.layerInfo.insert(tmxMeta.layerInfo.begin() + index + 1, std::move(lm));
+  }
 }
 
 void Terrain2D::SetTileset(const Tileset &newTileset) { tileset = newTileset; }

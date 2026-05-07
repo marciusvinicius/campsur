@@ -8,6 +8,7 @@
 #include "input.h"
 #include "keys.h"
 #include "math.h"
+#include "object_layer.h"
 #include "resources.h"
 #include "terrain.h"
 #include <algorithm>
@@ -482,6 +483,8 @@ void RenderSystem::Render(Renderer &renderer) {
     return a < b;
   });
   for (ecs::EntityId id : ids) {
+    if (world.GetComponent<EditorHidden>(id))
+      continue;
     auto *animSprite = world.GetComponent<AnimatedSprite>(id);
     auto *tr = world.GetComponent<Transform>(id);
 
@@ -696,6 +699,8 @@ void SpriteSystem::Render(Renderer &renderer) {
     return a < b;
   });
   for (ecs::EntityId id : ids) {
+    if (world.GetComponent<EditorHidden>(id))
+      continue;
     auto *sprite = world.GetComponent<Sprite>(id);
     auto *tr = world.GetComponent<Transform>(id);
 

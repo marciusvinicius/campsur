@@ -6,8 +6,11 @@
 #include <vector>
 
 #include "components.h"
+#include "criogenio_io.h"
+#include "map_authoring_components.h"
 #include "network/replication_client.h"
 #include "network/replication_server.h"
+#include "object_layer.h"
 #include "terrain.h"
 #include "world.h"
 
@@ -155,6 +158,113 @@ int main() {
     assert(std::fabs(clientTr->x - encodedDeltaX) < 1e-4f);
     assert(clientTr->y == 0.f);
     assert(clientTr->rotation == 0.f);
+  }
+
+  // Map authoring components round-trip (Serialize / Deserialize).
+  {
+    World w;
+    const ecs::EntityId ez = w.CreateEntity("zone");
+    w.AddComponent<Transform>(ez, 10.f, 20.f);
+    auto &mz = w.AddComponent<MapEventZone2D>(ez);
+    mz.storage_key = "door_a";
+    mz.width = 48.f;
+    mz.height = 32.f;
+    mz.event_trigger = "enter";
+    mz.gameplay_actions = "{\"x\":1}";
+    mz.activated = true;
+
+    const ecs::EntityId ei = w.CreateEntity("inter");
+    w.AddComponent<Transform>(ei, 5.f, 6.f);
+    auto &iz = w.AddComponent<InteractableZone2D>(ei);
+    iz.width = 24.f;
+    iz.height = 24.f;
+    iz.interactable_type = "chest";
+    iz.tiled_object_id = 99;
+    iz.properties_json = "{\"loot\":\"gold\"}";
+
+    const ecs::EntityId es = w.CreateEntity("spawn");
+    w.AddComponent<Transform>(es, 100.f, 200.f);
+    auto &sz = w.AddComponent<WorldSpawnPrefab2D>(es);
+    sz.prefab_name = "coin";
+    sz.quantity = 3;
+    sz.width = 16.f;
+    sz.height = 16.f;
+
+    const SerializedWorld sw = w.Serialize(".");
+    World w2;
+    w2.Deserialize(sw, ".");
+
+    int nMap = 0, nInter = 0, nSp = 0;
+    for (ecs::EntityId id : w2.GetAllEntities()) {
+      if (w2.GetComponent<MapEventZone2D>(id))
+        ++nMap;
+      if (w2.GetComponent<InteractableZone2D>(id))
+        ++nInter;
+      if (w2.GetComponent<WorldSpawnPrefab2D>(id))
+        ++nSp;
+    }
+    assert(nMap == 1 && nInter == 1 && nSp == 1);
+
+    for (ecs::EntityId id : w2.GetAllEntities()) {
+      if (auto *z = w2.GetComponent<MapEventZone2D>(id)) {
+        if (z->storage_key != "door_a")
+          continue;
+        auto *tr = w2.GetComponent<Transform>(id);
+        assert(tr && tr->x == 10.f && tr->y == 20.f);
+        assert(z->width == 48.f && z->height == 32.f);
+        assert(z->event_trigger == "enter");
+        assert(z->gameplay_actions == "{\"x\":1}");
+        assert(z->activated);
+      }
+      if (auto *z = w2.GetComponent<InteractableZone2D>(id)) {
+        if (z->interactable_type != "chest")
+          continue;
+        assert(z->width == 24.f && z->tiled_object_id == 99);
+        assert(z->properties_json.find("gold") != std::string::npos);
+      }
+      if (auto *z = w2.GetComponent<WorldSpawnPrefab2D>(id)) {
+        if (z->prefab_name != "coin")
+          continue;
+        assert(z->quantity == 3 && z->width == 16.f);
+      }
+    }
+  }
+
+  // ---- Sprite::atlasPath round-trip + LayerMembership persistence ----
+  // Regression: previously Sprite serialized only textureId/spriteX/Y/Size,
+  // dropping atlasPath; sprites added via the editor's drag-drop path lost
+  // their texture on save/reload. Object-layer authoring also relies on
+  // LayerMembership round-tripping through the world serializer.
+  {
+    World w;
+    const ecs::EntityId e = w.CreateEntity("dude");
+    w.AddComponent<Name>(e, "dude");
+    w.AddComponent<Transform>(e, 200.f, 150.f);
+    auto &s = w.AddComponent<Sprite>(e);
+    s.atlasPath = "top_down_demo/assets/sprites/dude_monster.png";
+    s.spriteX = 0;
+    s.spriteY = 0;
+    s.spriteSize = 32;
+    auto &lm = w.AddComponent<LayerMembership>(e);
+    lm.layerName = "Enemies";
+
+    const std::string outPath = "/tmp/_campsur_helpers_atlaspath.campsurlevel";
+    assert(SaveWorldToFile(w, outPath));
+
+    World w2;
+    assert(LoadWorldFromFile(w2, outPath));
+    int seen = 0;
+    for (ecs::EntityId id : w2.GetEntitiesWith<Sprite>()) {
+      auto *sp = w2.GetComponent<Sprite>(id);
+      assert(sp);
+      assert(sp->atlasPath == "top_down_demo/assets/sprites/dude_monster.png");
+      assert(sp->spriteSize == 32);
+      auto *layer = w2.GetComponent<LayerMembership>(id);
+      assert(layer);
+      assert(layer->layerName == "Enemies");
+      ++seen;
+    }
+    assert(seen == 1);
   }
 
   std::cout << "=== Engine Helper Regression Test Passed ===" << std::endl;
