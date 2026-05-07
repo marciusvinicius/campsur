@@ -60,7 +60,7 @@ struct SubterraSession {
 
   /** Trigger hitbox overlay (MapEventSystem) and FPS line when toggled from the console. */
   bool debugOverlay = false;
-  /** ImGui inventory panel visibility (toggle with Tab while playing). */
+  /** Inventory overlay visibility (Tab / `inventory_toggle`; drawn with engine `GameUi`). */
   bool showInventoryPanel = false;
   /** ImGui entity inspector (console `egui` / `entityinspector`). */
   bool showEntityInspector = false;

@@ -5,7 +5,6 @@
 #include "item_catalog.h"
 #include "map_events.h"
 #include "render.h"
-#include "spawn_service.h"
 #include "subterra_loadout.h"
 #include "subterra_player_vitals.h"
 #include "subterra_session.h"
@@ -18,12 +17,18 @@
 #include "backends/imgui_impl_sdlrenderer3.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 namespace subterra {
+
+namespace fs = std::filesystem;
 
 namespace {
 
@@ -37,6 +42,82 @@ void placePlayerCenter(SubterraSession &session, float cx, float cy) {
     return;
   tr->x = cx - static_cast<float>(session.playerW) * 0.5f;
   tr->y = cy - static_cast<float>(session.playerH) * 0.5f;
+}
+
+static bool FileReadablePath(const fs::path &p) {
+  std::error_code ec;
+  if (!fs::is_regular_file(p, ec))
+    return false;
+  std::ifstream f(p);
+  return f.good();
+}
+
+static bool MapExtension(const fs::path &p) {
+  std::string e = p.extension().string();
+  for (char &c : e)
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return e == ".campsurlevel" || e == ".tmx" || e == ".json";
+}
+
+static void AppendUniqueRoot(std::vector<fs::path> &roots, const fs::path &dir) {
+  std::error_code ec;
+  if (!fs::is_directory(dir, ec))
+    return;
+  fs::path canon = fs::weakly_canonical(dir, ec);
+  if (ec)
+    canon = fs::absolute(dir, ec);
+  for (const fs::path &r : roots) {
+    if (r == canon)
+      return;
+  }
+  roots.push_back(std::move(canon));
+}
+
+static std::vector<fs::path> LevelSearchRoots(const SubterraSession &session) {
+  std::vector<fs::path> roots;
+  AppendUniqueRoot(roots, "assets/levels");
+  AppendUniqueRoot(roots, "subterra_guild/assets/levels");
+  if (!session.mapPath.empty()) {
+    fs::path mp(session.mapPath);
+    if (mp.has_parent_path())
+      AppendUniqueRoot(roots, mp.parent_path());
+  }
+  return roots;
+}
+
+static void CollectMapPathsFromRoots(const std::vector<fs::path> &roots,
+                                     std::vector<std::string> &outSorted) {
+  std::unordered_set<std::string> seen;
+  for (const fs::path &root : roots) {
+    std::error_code ec;
+    fs::recursive_directory_iterator it(root, fs::directory_options::skip_permission_denied, ec);
+    if (ec)
+      continue;
+    for (; it != fs::recursive_directory_iterator(); it.increment(ec)) {
+      if (ec)
+        break;
+      const fs::directory_entry &entry = *it;
+      if (!entry.is_regular_file(ec))
+        continue;
+      const fs::path &p = entry.path();
+      if (!MapExtension(p))
+        continue;
+      std::error_code e2;
+      fs::path rel = fs::relative(p, fs::current_path(), e2);
+      std::string key = e2 ? p.generic_string() : rel.generic_string();
+      if (seen.insert(key).second)
+        outSorted.push_back(std::move(key));
+    }
+  }
+  std::sort(outSorted.begin(), outSorted.end());
+}
+
+static void ResolveMapPathForLoad(std::string &path) {
+  if (FileReadablePath(path))
+    return;
+  const std::string prefixed = std::string("subterra_guild/") + path;
+  if (FileReadablePath(prefixed))
+    path = prefixed;
 }
 
 } // namespace
@@ -91,112 +172,6 @@ void SubterraImGuiRenderDrawData(criogenio::Renderer &renderer) {
       static_cast<SDL_Renderer *>(renderer.GetRendererHandle()));
 }
 
-void SubterraImGuiDrawSession(SubterraSession &session) {
-  if (!g_imguiBackends || !session.world || session.player == criogenio::ecs::NULL_ENTITY)
-    return;
-  if (!session.showInventoryPanel)
-    return;
-  ImGui::SetNextWindowSize(ImVec2(420, 480), ImGuiCond_FirstUseEver);
-  ImGui::Begin("Inventory", &session.showInventoryPanel);
-  auto *inv = session.world->GetComponent<criogenio::Inventory>(session.player);
-  auto *load = session.world->GetComponent<SubterraLoadout>(session.player);
-  if (!inv) {
-    ImGui::TextUnformatted("No inventory component.");
-    ImGui::End();
-    return;
-  }
-  ImGui::TextUnformatted("E: pick up nearby   Tab: close   1-5 / U: see hotbar");
-  if (auto *vit = session.world->GetComponent<PlayerVitals>(session.player)) {
-    ImGui::Separator();
-    ImGui::Text("HP  %.0f / %.0f", vit->health, vit->health_max);
-    ImGui::Text("ST  %.0f / %.0f", vit->stamina, vit->stamina_max);
-    ImGui::Text("Food %.0f / %.0f", vit->food_satiety, vit->food_satiety_max);
-    if (!vit->active_statuses.empty()) {
-      ImGui::Text("Statuses: %zu", vit->active_statuses.size());
-      for (const auto &st : vit->active_statuses) {
-        if (!st.flag.empty())
-          ImGui::BulletText("%s", st.flag.c_str());
-      }
-    }
-    if (vit->dead)
-      ImGui::TextColored(ImVec4(1, 0.35f, 0.35f, 1), "Dead — console: respawn");
-  }
-  ImGui::Separator();
-  bool any = false;
-  for (int si = 0; si < criogenio::Inventory::kNumSlots; ++si) {
-    const criogenio::InventorySlot &slot = inv->Slots()[static_cast<size_t>(si)];
-    if (slot.item_id.empty() || slot.count <= 0)
-      continue;
-    any = true;
-    ImGui::PushID(si);
-    std::string label =
-        criogenio::ItemCatalog::DisplayName(slot.item_id) + " x" + std::to_string(slot.count);
-    ImGui::BulletText("%s", label.c_str());
-    ImGui::SameLine();
-    if (ImGui::SmallButton("Drop 1")) {
-      const std::string id = slot.item_id;
-      int removed = inv->TryRemove(id, 1);
-      if (removed > 0) {
-        if (load)
-          load->ClearRefsForItem(id);
-        auto *tr = session.world->GetComponent<criogenio::Transform>(session.player);
-        if (tr) {
-          float cx = tr->x + static_cast<float>(session.playerW) * 0.5f;
-          float cy = tr->y + static_cast<float>(session.playerH) * 0.5f;
-          SpawnPickupAt(session, cx, cy, id, 1);
-        }
-      }
-    }
-    ImGui::SameLine();
-    const criogenio::ItemWearSlot ek = criogenio::ItemCatalog::WearSlotFor(slot.item_id);
-    if (load) {
-      if (ek == criogenio::ItemWearSlot::MainHand) {
-        if (ImGui::SmallButton("Equip R")) {
-          std::string err;
-          if (!EquipFromInventory(*load, *inv, criogenio::ItemWearSlot::MainHand, slot.item_id,
-                                  err) && !err.empty())
-            sessionLog(session, err);
-        }
-        ImGui::SameLine();
-      }
-      if (ek == criogenio::ItemWearSlot::OffHand) {
-        if (ImGui::SmallButton("Equip L")) {
-          std::string err;
-          if (!EquipFromInventory(*load, *inv, criogenio::ItemWearSlot::OffHand, slot.item_id,
-                                  err) && !err.empty())
-            sessionLog(session, err);
-        }
-        ImGui::SameLine();
-      }
-      if (ek == criogenio::ItemWearSlot::Armor) {
-        if (ImGui::SmallButton("Equip B")) {
-          std::string err;
-          if (!EquipFromInventory(*load, *inv, criogenio::ItemWearSlot::Armor, slot.item_id,
-                                  err) && !err.empty())
-            sessionLog(session, err);
-        }
-        ImGui::SameLine();
-      }
-      ImGui::TextUnformatted("Bar");
-      ImGui::SameLine();
-      for (int bi = 0; bi < kActionBarSlots; ++bi) {
-        ImGui::PushID(bi + si * 32);
-        char bn[8];
-        std::snprintf(bn, sizeof bn, "%d", bi + 1);
-        if (ImGui::SmallButton(bn))
-          AssignActionBarSlot(*load, bi, slot.item_id);
-        ImGui::PopID();
-        if (bi + 1 < kActionBarSlots)
-          ImGui::SameLine();
-      }
-    }
-    ImGui::PopID();
-  }
-  if (!any)
-    ImGui::TextUnformatted("(empty)");
-  ImGui::End();
-}
-
 void SubterraImGuiDrawDebugConfig(SubterraSession &session) {
   if (!g_imguiBackends)
     return;
@@ -240,6 +215,108 @@ void SubterraImGuiDrawDebugConfig(SubterraSession &session) {
     SubterraHotReloadServerConfiguration(session, false, &log);
     sessionLog(session, log.empty() ? "[Reload] done." : log);
   }
+  ImGui::End();
+}
+
+void SubterraImGuiDrawDebugMapTeleport(SubterraSession &session) {
+  if (!g_imguiBackends || !session.world)
+    return;
+  ImGui::SetNextWindowPos(ImVec2(492, 120), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(460, 380), ImGuiCond_FirstUseEver);
+  if (!ImGui::Begin("Debug — maps", nullptr, 0)) {
+    ImGui::End();
+    return;
+  }
+  ImGui::TextUnformatted("Current map:");
+  ImGui::Indent();
+  ImGui::TextWrapped("%s", session.mapPath.empty() ? "(none)" : session.mapPath.c_str());
+  ImGui::Unindent();
+  ImGui::Separator();
+
+  static std::vector<std::string> mapList;
+  static int selected = 0;
+  static bool listDirty = true;
+
+  if (ImGui::Button("Refresh list"))
+    listDirty = true;
+  if (listDirty) {
+    mapList.clear();
+    CollectMapPathsFromRoots(LevelSearchRoots(session), mapList);
+    listDirty = false;
+    selected = 0;
+    if (!session.mapPath.empty()) {
+      for (int i = 0; i < static_cast<int>(mapList.size()); ++i) {
+        fs::path a(mapList[static_cast<size_t>(i)]);
+        fs::path b(session.mapPath);
+        std::error_code ec;
+        if (fs::exists(a, ec) && fs::exists(b, ec) && fs::equivalent(a, b, ec)) {
+          selected = i;
+          break;
+        }
+        if (mapList[static_cast<size_t>(i)] == session.mapPath) {
+          selected = i;
+          break;
+        }
+      }
+    }
+    if (selected >= static_cast<int>(mapList.size()))
+      selected = std::max(0, static_cast<int>(mapList.size()) - 1);
+  }
+
+  auto tryTeleport = [&](const std::string &relPath) {
+    std::string path = relPath;
+    ResolveMapPathForLoad(path);
+    std::string err;
+    if (session.loadMap(path, err)) {
+      session.placePlayerAtSpawn("");
+      sessionLog(session, std::string("[Map] ") + path);
+      for (int i = 0; i < static_cast<int>(mapList.size()); ++i) {
+        std::string cand = mapList[static_cast<size_t>(i)];
+        ResolveMapPathForLoad(cand);
+        if (cand == path) {
+          selected = i;
+          break;
+        }
+      }
+    } else
+      sessionLog(session, std::string("[Map] failed: ") + err);
+  };
+
+  const float footerH = ImGui::GetFrameHeightWithSpacing() * 2.f;
+  ImGui::BeginChild("map_list", ImVec2(0, -footerH), true);
+  for (int i = 0; i < static_cast<int>(mapList.size()); ++i) {
+    const std::string &row = mapList[static_cast<size_t>(i)];
+    bool isCurrent = false;
+    if (!session.mapPath.empty()) {
+      fs::path a(row);
+      fs::path b(session.mapPath);
+      std::error_code ec;
+      if (fs::exists(a, ec) && fs::exists(b, ec) && fs::equivalent(a, b, ec))
+        isCurrent = true;
+      else if (row == session.mapPath)
+        isCurrent = true;
+    }
+    if (isCurrent)
+      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.35f, 0.95f, 0.45f, 1.f));
+    if (ImGui::Selectable(row.c_str(), i == selected))
+      selected = i;
+    if (isCurrent)
+      ImGui::PopStyleColor();
+    if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+      selected = i;
+      tryTeleport(row);
+    }
+  }
+  if (mapList.empty())
+    ImGui::TextUnformatted("No maps found under assets/levels (recursive).");
+  ImGui::EndChild();
+
+  const bool canGo = !mapList.empty() && selected >= 0 &&
+                     selected < static_cast<int>(mapList.size());
+  if (ImGui::Button("Teleport to selected") && canGo)
+    tryTeleport(mapList[static_cast<size_t>(selected)]);
+  ImGui::SameLine();
+  ImGui::TextDisabled("(or double-click a row)");
   ImGui::End();
 }
 
@@ -556,90 +633,6 @@ void SubterraImGuiDrawEntityInspector(SubterraSession &session) {
   ImGui::Separator();
   ImGui::TextDisabled("Up/Down to navigate list, click row to select.");
   ImGui::End();
-}
-
-void SubterraImGuiDrawHud(SubterraSession &session) {
-  if (!g_imguiBackends || !session.world || session.player == criogenio::ecs::NULL_ENTITY)
-    return;
-  auto *load = session.world->GetComponent<SubterraLoadout>(session.player);
-  auto *inv = session.world->GetComponent<criogenio::Inventory>(session.player);
-  if (!load || !inv)
-    return;
-
-  ImGuiViewport *vp = ImGui::GetMainViewport();
-  const float barH = 104.f;
-  ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x, vp->WorkPos.y + vp->WorkSize.y - barH),
-                           ImGuiCond_Always);
-  ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, barH), ImGuiCond_Always);
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 8));
-  ImGui::Begin(
-      "##subterra_hud", nullptr,
-      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoSavedSettings |
-          ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus);
-
-  if (!session.interactHint.empty())
-    ImGui::TextColored(ImVec4(1.f, 0.95f, 0.5f, 1.f), "%s", session.interactHint.c_str());
-  else
-    ImGui::Dummy(ImVec2(0, 2));
-
-  ImGui::Separator();
-
-  const char *eqLabels[] = {"R hand", "L hand", "Body"};
-  for (int e = 0; e < kEquipSlots; ++e) {
-    ImGui::BeginGroup();
-    ImGui::TextUnformatted(eqLabels[e]);
-    std::string &eq = load->equipment[static_cast<size_t>(e)];
-    if (eq.empty()) {
-      ImGui::Button("—", ImVec2(72, 40));
-    } else {
-      std::string shortName = criogenio::ItemCatalog::DisplayName(eq);
-      if (shortName.size() > 8)
-        shortName.resize(8);
-      ImGui::Button(shortName.c_str(), ImVec2(56, 40));
-      ImGui::SameLine();
-      ImGui::PushID(e + 200);
-      if (ImGui::SmallButton("X")) {
-        std::string err;
-        if (!UnequipToInventory(*load, *inv, e, err) && !err.empty())
-          sessionLog(session, err);
-      }
-      ImGui::PopID();
-    }
-    ImGui::EndGroup();
-    ImGui::SameLine();
-  }
-
-  ImGui::SameLine();
-  ImGui::Dummy(ImVec2(16, 1));
-  ImGui::SameLine();
-
-  ImGui::BeginGroup();
-  ImGui::TextUnformatted("Action bar (1-5, U=use consumable)");
-  ImGui::BeginGroup();
-  for (int i = 0; i < kActionBarSlots; ++i) {
-    if (i > 0)
-      ImGui::SameLine();
-    const bool sel = (load->active_action_slot == i);
-    if (sel)
-      ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.35f, 0.45f, 0.7f, 1.f));
-    std::string lab = "[" + std::to_string(i + 1) + "]";
-    const std::string &bid = load->action_bar[static_cast<size_t>(i)];
-    if (!bid.empty())
-      lab = criogenio::ItemCatalog::DisplayName(bid);
-    if (lab.size() > 8)
-      lab.resize(8);
-    ImGui::PushID(i + 400);
-    if (ImGui::Button(lab.c_str(), ImVec2(76, 40)))
-      load->active_action_slot = i;
-    ImGui::PopID();
-    if (sel)
-      ImGui::PopStyleColor();
-  }
-  ImGui::EndGroup();
-  ImGui::EndGroup();
-
-  ImGui::End();
-  ImGui::PopStyleVar();
 }
 
 } // namespace subterra

@@ -99,7 +99,7 @@ bool EquipFromInventory(SubterraLoadout &load, criogenio::Inventory &inv,
     errOut = "invalid slot";
     return false;
   }
-  if (inv.TryRemove(item_id, 1) < 1) {
+  if (inv.TryRemoveFolded(item_id, 1) < 1) {
     errOut = "not in inventory";
     return false;
   }

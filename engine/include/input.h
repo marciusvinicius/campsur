@@ -9,6 +9,8 @@ public:
   static bool IsKeyDown(int key);
   static bool IsKeyPressed(int key);
   static bool IsMouseDown(int button);
+  /** True for one frame when `button` transitions up → down (after `EndFrame` bookkeeping). */
+  static bool IsMousePressed(int button);
   static Vec2 GetMousePosition();
   // Call once per frame so IsKeyPressed can detect edge; optional if only using IsKeyDown.
   static void EndFrame();

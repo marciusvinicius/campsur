@@ -14,12 +14,11 @@ void SubterraImGuiShutdown();
 void SubterraImGuiProcessSdlEvent(const void *sdlEvent);
 void SubterraImGuiNewFrame();
 void SubterraImGuiRenderDrawData(criogenio::Renderer &renderer);
-void SubterraImGuiDrawSession(SubterraSession &session);
-/** Odin-style entity inspector (`egui` / `entityinspector` console). */
+/** Odin-style entity inspector (`egui` / `entityinspector` console). ImGui only. */
 void SubterraImGuiDrawEntityInspector(SubterraSession &session);
-/** When `session.debugOverlay`, edit runtime camera flags + reload configs (reference cfg UI). */
+/** When `session.debugOverlay`, edit runtime camera flags + reload configs (ImGui). */
 void SubterraImGuiDrawDebugConfig(SubterraSession &session);
-/** Bottom equipment + action bar (always when ImGui is up). */
-void SubterraImGuiDrawHud(SubterraSession &session);
+/** When `session.debugOverlay`, map list + teleport (ImGui). */
+void SubterraImGuiDrawDebugMapTeleport(SubterraSession &session);
 
 } // namespace subterra

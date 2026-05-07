@@ -1,9 +1,24 @@
 #include "inventory.h"
 #include "item_catalog.h"
 #include <algorithm>
+#include <cctype>
 #include <sstream>
 
 namespace criogenio {
+
+namespace {
+
+static std::string toLowerCopy(std::string s) {
+  for (char &c : s)
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return s;
+}
+
+static bool idEqualsFold(const std::string &a, const std::string &b) {
+  return toLowerCopy(a) == toLowerCopy(b);
+}
+
+} // namespace
 
 void Inventory::Deserialize(const SerializedComponent &data) {
   Clear();
@@ -70,6 +85,26 @@ int Inventory::TryRemove(const std::string &item_id, int count) {
     if (need <= 0)
       break;
     if (slot.item_id == item_id && slot.count > 0) {
+      int take = std::min(slot.count, need);
+      slot.count -= take;
+      need -= take;
+      removed += take;
+      if (slot.count <= 0)
+        slot.item_id.clear();
+    }
+  }
+  return removed;
+}
+
+int Inventory::TryRemoveFolded(const std::string &item_id, int count) {
+  if (item_id.empty() || count <= 0)
+    return 0;
+  int need = count;
+  int removed = 0;
+  for (auto &slot : slots) {
+    if (need <= 0)
+      break;
+    if (!slot.item_id.empty() && slot.count > 0 && idEqualsFold(slot.item_id, item_id)) {
       int take = std::min(slot.count, need);
       slot.count -= take;
       need -= take;

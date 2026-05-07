@@ -32,6 +32,8 @@ public:
 
   int TryAdd(const std::string &item_id, int count);
   int TryRemove(const std::string &item_id, int count);
+  /** Like `TryRemove` but matches `item_id` to slots case-insensitively (catalog vs pickup ids). */
+  int TryRemoveFolded(const std::string &item_id, int count);
   void Clear();
   std::string FormatLine() const;
   const std::array<InventorySlot, kNumSlots> &Slots() const { return slots; }

@@ -2,11 +2,14 @@
 #include "subterra_console_commands.h"
 #include "subterra_components.h"
 #include "subterra_day_night.h"
+#include "subterra_game_ui.h"
 #include "subterra_gameplay_actions.h"
 #include "subterra_imgui.h"
 #include "subterra_input_config.h"
 #include "subterra_session.h"
-#include "imgui.h"
+#include "game_ui.h"
+#include "input.h"
+#include <SDL3/SDL.h>
 #include <cstdio>
 
 namespace subterra {
@@ -48,17 +51,26 @@ bool SubterraEngine::OnPollEvent(const void *sdlEvent) {
 
 void SubterraEngine::OnGUI() {
   criogenio::Renderer &r = GetRenderer();
+  const int vw = r.GetViewportWidth();
+  const int vh = r.GetViewportHeight();
+
+  if (criogenio::Input::IsKeyPressed(static_cast<int>(SDL_SCANCODE_TAB)) ||
+      SubterraInputActionPressed(*session_, "inventory_toggle"))
+    session_->showInventoryPanel = !session_->showInventoryPanel;
+
+  static criogenio::GameUi gameUi;
+  gameUi.beginFrame(r, vw, vh);
+  SubterraGameUiDrawHud(*session_, gameUi);
+  SubterraGameUiDrawInventory(*session_, gameUi);
+  gameUi.endFrame();
+
   SubterraImGuiNewFrame();
-  if (ImGui::IsKeyPressed(ImGuiKey_Tab))
-    session_->showInventoryPanel = !session_->showInventoryPanel;
-  else if (SubterraInputActionPressed(*session_, "inventory_toggle"))
-    session_->showInventoryPanel = !session_->showInventoryPanel;
-  SubterraImGuiDrawHud(*session_);
-  SubterraImGuiDrawSession(*session_);
   if (session_->showEntityInspector)
     SubterraImGuiDrawEntityInspector(*session_);
-  if (session_->debugOverlay)
+  if (session_->debugOverlay) {
     SubterraImGuiDrawDebugConfig(*session_);
+    SubterraImGuiDrawDebugMapTeleport(*session_);
+  }
   if (session_->debugOverlay && session_->fpsSmooth > 0.1f) {
     char buf[48];
     std::snprintf(buf, sizeof buf, "fps %.0f  debug", session_->fpsSmooth);
