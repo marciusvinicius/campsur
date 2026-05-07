@@ -1,6 +1,6 @@
 ## This is the most simple and customized engine I come up with
 
-**Engine architecture & capabilities:** [engine/ARCHITECTURE.md](engine/ARCHITECTURE.md) · Repo overview: [ARCHITECTURE.md](ARCHITECTURE.md)
+**Engine architecture & capabilities:** [engine/ARCHITECTURE.md](engine/ARCHITECTURE.md) · Repo overview: [ARCHITECTURE.md](ARCHITECTURE.md) · Subterra gameplay mechanics: [subterra_guild/GAMEPLAY.md](subterra_guild/GAMEPLAY.md)
 
 ### Don't use this in production
   The idea is to create a simple game engine + entity component for make simple RPG games.

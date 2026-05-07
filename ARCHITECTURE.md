@@ -653,6 +653,7 @@ Send Input → Receive Snapshot → ApplySnapshot (create/update entities, set T
 ## Related Documentation
 
 - **[engine/ARCHITECTURE.md](engine/ARCHITECTURE.md)**: Authoritative **engine/** capabilities, main-loop order, terrain/TMX, and directory map.
+- **[subterra_guild/GAMEPLAY.md](subterra_guild/GAMEPLAY.md)**: Current Subterra Guild gameplay mechanics reference (player loop, events, lights, interactables, mobs, vitals, debug checklist).
 - **ENGINE_IMPROVEMENTS.md**: Suggested improvements (global state, ECS scope, system order, network, testing, etc.).
 - **TODO.md**: Project and editor task list.
 
