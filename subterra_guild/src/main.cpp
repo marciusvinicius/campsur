@@ -16,6 +16,7 @@
 #include "subterra_item_light_runtime.h"
 #include "subterra_loadout.h"
 #include "subterra_mob_prefabs.h"
+#include "subterra_prefab_paths.h"
 #include "subterra_camera.h"
 #include "subterra_input_config.h"
 #include "subterra_player_vitals.h"
@@ -108,24 +109,8 @@ static void ResolvePlayerJsonPath(std::string &path) {
     }
   }
 }
-// Path order matches Odin reference: prefer cwd-relative data/... (SERVER_CONFIG_PATH,
-// ENTITIES_JSON_PATH, INPUT_CONFIG_PATH), then subterra_guild/data/... when the binary is run
-// from the campsur repo root.
-const char *kItemPrefabJsonPaths[] = {
-    "data/prefabs/entities_items.campsurmeta",
-    "subterra_guild/data/prefabs/entities_items.campsurmeta",
-};
 
-const char *kInteractablePrefabJsonPaths[] = {
-    "data/prefabs/entities_interactable.campsurmeta",
-    "subterra_guild/data/prefabs/entities_interactable.campsurmeta",
-};
-
-const char *kMobPrefabJsonPaths[] = {
-    "data/prefabs/entities_mobs.campsurmeta",
-    "subterra_guild/data/prefabs/entities_mobs.campsurmeta",
-};
-
+// World/input/status paths here; prefab `.campsurmeta` search paths live in `subterra_prefab_paths.h`.
 const char *kWorldConfigPaths[] = {
     "data/server_configuration/world_config.campsurconfig",
     "subterra_guild/data/server_configuration/world_config.campsurconfig",

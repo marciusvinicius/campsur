@@ -15,8 +15,9 @@ bool SubterraTryLoadInputConfigFromPaths(const char *const *paths, size_t pathCo
                                          SubterraSession &session);
 
 /**
- * Reload `world_config.json` + `input_config.json` from `session.*ConfigPath`, reapply vitals caps,
- * camera runtime, day phase size. Optionally reload current TMX when `reloadMap` is true.
+ * Reload `world_config.json` + `input_config.json` from `session.*ConfigPath`, reapply prefab
+ * tables (`entities_items` / interactable / mob `.campsurmeta`), vitals caps, camera runtime, day
+ * phase size. Optionally reload current map when `reloadMap` is true.
  */
 bool SubterraHotReloadServerConfiguration(SubterraSession &session, bool reloadMap,
                                          std::string *logOut);

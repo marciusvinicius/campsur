@@ -12,7 +12,7 @@ struct SubterraSession;
 static constexpr int ScreenWidth = 1280;
 static constexpr int ScreenHeight = 720;
 /** Fallback grid when no TMX terrain is loaded. */
-static constexpr int TileSize = 32;
+static constexpr int TileSize = 64;
 static constexpr int MapWidthTiles = 40;
 static constexpr int MapHeightTiles = 24;
 static constexpr float PlayerMoveSpeed = 220.f;

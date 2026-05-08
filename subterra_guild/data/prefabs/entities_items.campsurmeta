@@ -14,9 +14,9 @@
     "weight": 1,
     "value": 10,
     "light_emission": {
-      "radius": 128,
-      "intensity": 1.0,
-      "color": [255, 180, 80]
+      "radius": 240,
+      "intensity": 2.0,
+      "color": [255, 255, 255]
     },
     "stackable": false,
     "stack_size": 1,
@@ -41,9 +41,9 @@
     "weight": 1,
     "value": 10,
     "light_emission": {
-      "radius": 128,
-      "intensity": 1.0,
-      "color": [255, 180, 80]
+      "radius": 148,
+      "intensity": 2.0,
+      "color": [255, 255, 255]
     },
     "stackable": false,
     "stack_size": 1,

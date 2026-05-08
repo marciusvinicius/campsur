@@ -2,8 +2,13 @@
 #include "subterra_camera.h"
 #include "subterra_day_night.h"
 #include "subterra_input_config.h"
+#include "subterra_interactable_prefabs.h"
+#include "subterra_item_consumable.h"
+#include "subterra_item_light.h"
 #include "subterra_json_strip.h"
+#include "subterra_mob_prefabs.h"
 #include "subterra_player_vitals.h"
+#include "subterra_prefab_paths.h"
 #include "subterra_session.h"
 
 #include "components.h"
@@ -248,6 +253,52 @@ bool SubterraHotReloadServerConfiguration(SubterraSession &session, bool reloadM
   } else {
     SubterraInputApplyDefaults(session.input);
     log("[Reload] input_config path empty — defaults.");
+  }
+
+  {
+    bool itemOk = false;
+    for (const char *p : kItemPrefabJsonPaths) {
+      if (SubterraItemLight::TryLoadFromPath(p)) {
+        log("[Reload] entities_items (lights + event_dispatch): applied.");
+        itemOk = true;
+        break;
+      }
+    }
+    if (!itemOk)
+      log("[Reload] entities_items: could not reload (tried data/... and subterra_guild/...).");
+
+    bool interactOk = false;
+    for (const char *p : kInteractablePrefabJsonPaths) {
+      if (SubterraInteractablePrefabsTryLoadFromPath(p)) {
+        log("[Reload] entities_interactable: applied.");
+        interactOk = true;
+        break;
+      }
+    }
+    if (!interactOk)
+      log("[Reload] entities_interactable: could not reload.");
+
+    bool mobOk = false;
+    for (const char *p : kMobPrefabJsonPaths) {
+      if (SubterraMobPrefabsTryLoadFromPath(p)) {
+        log("[Reload] entities_mobs: applied.");
+        mobOk = true;
+        break;
+      }
+    }
+    if (!mobOk)
+      log("[Reload] entities_mobs: could not reload.");
+
+    bool consumeOk = false;
+    for (const char *p : kItemPrefabJsonPaths) {
+      if (SubterraItemConsumableTryLoadFromPath(p)) {
+        log("[Reload] consumable restore fields (entities_items): applied.");
+        consumeOk = true;
+        break;
+      }
+    }
+    if (!consumeOk)
+      log("[Reload] consumable restore fields: could not reload.");
   }
 
   if (session.world && session.player != criogenio::ecs::NULL_ENTITY) {

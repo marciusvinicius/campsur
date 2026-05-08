@@ -89,7 +89,7 @@
           "required_data":{ // Data required for the action to be performed this should come from the event dispatch
             "light_radius": null, // When null, light source radius is not considered as a requirement
             "light_intensity": null, // When null, light source intensity is not considered as a requirement
-            "light_color": [255, 0, 0] // When null, light source color is not considered as a requirement
+            "light_color": [255, 255, 255] // When null, light source color is not considered as a requirement
           },
           "action": "unlock_door" // Action to perform when event "on_touch_light_source" is fired
         }
